@@ -149,6 +149,11 @@ namespace ICSharpCode.SharpDevelop
 		/// </summary>
 		public unsafe static void SetFileCreationTime(SafeFileHandle hFile, DateTime creationTime)
 		{
+#if LIBREWPF
+			if (!OperatingSystem.IsWindows()) {
+				return;
+			}
+#endif
 		    FILETIME fileCreationTime = new FILETIME(creationTime.ToFileTimeUtc());
 			if (!SetFileTime(hFile, &fileCreationTime, null, null)) {
 				throw new Win32Exception(Marshal.GetLastWin32Error());

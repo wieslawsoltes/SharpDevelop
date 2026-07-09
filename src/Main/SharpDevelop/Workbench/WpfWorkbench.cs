@@ -332,6 +332,13 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				}), DispatcherPriority.ApplicationIdle);
 			}
 
+			string saveSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_SAVE_SMOKE");
+			if (!string.IsNullOrEmpty(saveSmoke)) {
+				Dispatcher.BeginInvoke(new Action(async delegate {
+					await RunLibreWpfSaveSmoke(saveSmoke);
+				}), DispatcherPriority.ApplicationIdle);
+			}
+
 			string formsDesignerSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_FORMS_DESIGNER_SMOKE");
 			if (!string.IsNullOrEmpty(formsDesignerSmoke)) {
 				Dispatcher.BeginInvoke(new Action(async delegate {
@@ -1136,6 +1143,143 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				Console.WriteLine("LibreWPF editor completion smoke failed: " + ex);
 				SD.StatusBar.SetMessage("LibreWPF editor completion smoke failed: " + ex.Message);
 			}
+		}
+
+		async Task RunLibreWpfSaveSmoke(string mode)
+		{
+			try {
+				await WaitForLibreWpfProjectLoadAsync();
+
+				IViewContent content = null;
+				CodeEditor editor = null;
+				for (int attempt = 0; attempt < 100; attempt++) {
+					content = GetLibreWpfSaveSmokeViewContent(mode);
+					editor = GetLibreWpfCodeEditor(content);
+					if (content != null
+					    && editor != null
+					    && editor.Document != null
+					    && content.PrimaryFile != null
+					    && content.PrimaryFile.FileName != null
+					    && File.Exists(content.PrimaryFile.FileName)
+					    && IsLibreWpfCodeEditorPresentationReady(editor)) {
+						break;
+					}
+					content = null;
+					editor = null;
+					await Task.Delay(100);
+				}
+
+				if (content == null || editor == null || content.PrimaryFile == null || content.PrimaryFile.FileName == null) {
+					Console.WriteLine("LibreWPF save smoke unavailable: no file-backed code editor is open.");
+					SD.StatusBar.SetMessage("LibreWPF save smoke unavailable: no file-backed code editor is open.");
+					return;
+				}
+
+				OpenedFile file = content.PrimaryFile;
+				string fileName = file.FileName.ToString();
+				byte[] originalBytes = File.ReadAllBytes(fileName);
+				string originalText = editor.Document.Text;
+				bool originalDirty = file.IsDirty;
+				bool originalSafeSaving = SD.FileService.SaveUsingTemporaryFile;
+				string marker = Environment.NewLine + "// LibreWPF save smoke marker";
+				bool markedDirty = false;
+				bool saveClearedDirty = false;
+				bool diskContainsMarker = false;
+				bool diskRestored = false;
+
+				try {
+					SD.FileService.SaveUsingTemporaryFile = true;
+					SelectLibreWpfViewContent(content);
+					editor.Document.Insert(editor.Document.TextLength, marker);
+					file.MakeDirty();
+					await Task.Delay(100);
+					markedDirty = file.IsDirty && content.IsDirty;
+
+					ICSharpCode.SharpDevelop.Commands.SaveFile.Save(content);
+					await Task.Delay(100);
+
+					saveClearedDirty = !file.IsDirty && !content.IsDirty;
+					diskContainsMarker = File.ReadAllText(fileName).Contains(marker);
+				} finally {
+					try {
+						if (editor.Document != null) {
+							editor.Document.Text = originalText;
+							file.MakeDirty();
+							file.SaveToDisk();
+						}
+					} catch (Exception ex) {
+						Console.WriteLine("LibreWPF save smoke restore through save path failed: " + ex);
+						File.WriteAllBytes(fileName, originalBytes);
+					} finally {
+						SD.FileService.SaveUsingTemporaryFile = originalSafeSaving;
+						if (editor.Document != null) {
+							editor.Document.Text = originalText;
+							if (!originalDirty) {
+								editor.Document.UndoStack.MarkAsOriginalFile();
+							}
+						}
+						file.IsDirty = originalDirty;
+						diskRestored = originalBytes.SequenceEqual(File.ReadAllBytes(fileName));
+					}
+				}
+
+				string message = "LibreWPF save smoke result="
+					+ (markedDirty && saveClearedDirty && diskContainsMarker && diskRestored ? "Success" : "Partial")
+					+ " file=" + Path.GetFileName(fileName)
+					+ " markedDirty=" + markedDirty
+					+ " saveClearedDirty=" + saveClearedDirty
+					+ " diskContainsMarker=" + diskContainsMarker
+					+ " diskRestored=" + diskRestored
+					+ " safeSaving=True";
+				Console.WriteLine(message);
+				SD.StatusBar.SetMessage(message);
+			} catch (Exception ex) {
+				Console.WriteLine("LibreWPF save smoke failed: " + ex);
+				SD.StatusBar.SetMessage("LibreWPF save smoke failed: " + ex.Message);
+			}
+		}
+
+		IViewContent GetLibreWpfSaveSmokeViewContent(string mode)
+		{
+			string requested = NormalizeLibreWpfSaveSmokePath(mode);
+			if (!string.IsNullOrEmpty(requested) && File.Exists(requested)) {
+				return SD.FileService.OpenFile(FileName.Create(requested), true);
+			}
+
+			foreach (IViewContent content in GetLibreWpfCandidateViewContents()) {
+				CodeEditor editor = GetLibreWpfCodeEditor(content);
+				if (editor != null
+				    && editor.Document != null
+				    && content.PrimaryFile != null
+				    && content.PrimaryFile.FileName != null
+				    && File.Exists(content.PrimaryFile.FileName)) {
+					return content;
+				}
+			}
+
+			return null;
+		}
+
+		string NormalizeLibreWpfSaveSmokePath(string mode)
+		{
+			if (string.IsNullOrWhiteSpace(mode))
+				return null;
+			string value = mode.Trim();
+			if (string.Equals(value, "1", StringComparison.OrdinalIgnoreCase)
+			    || string.Equals(value, "Auto", StringComparison.OrdinalIgnoreCase)
+			    || string.Equals(value, "Default", StringComparison.OrdinalIgnoreCase))
+				return null;
+			if (Path.IsPathRooted(value))
+				return value;
+
+			CompilableProject project = GetLibreWpfSmokeProject();
+			if (project != null) {
+				string projectRelative = Path.Combine(project.Directory, value);
+				if (File.Exists(projectRelative))
+					return projectRelative;
+			}
+
+			return Path.GetFullPath(value);
 		}
 
 		static async Task WaitForLibreWpfProjectLoadAsync()
