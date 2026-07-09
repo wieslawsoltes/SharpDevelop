@@ -388,6 +388,13 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				}), DispatcherPriority.ApplicationIdle);
 			}
 
+			string shutdownPersistenceSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_SHUTDOWN_PERSISTENCE_SMOKE");
+			if (!string.IsNullOrEmpty(shutdownPersistenceSmoke)) {
+				Dispatcher.BeginInvoke(new Action(async delegate {
+					await RunLibreWpfShutdownPersistenceSmoke(shutdownPersistenceSmoke);
+				}), DispatcherPriority.ApplicationIdle);
+			}
+
 			ScheduleLibreWpfAddInSmokeHooks();
 
 			string exitAfter = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_EXIT_AFTER_MS");
@@ -1695,6 +1702,31 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			}
 		}
 
+		async Task RunLibreWpfShutdownPersistenceSmoke(string mode)
+		{
+			try {
+				await WaitForLibreWpfProjectLoadAsync();
+
+				string marker = NormalizeLibreWpfShutdownPersistenceMarker(mode);
+				Properties nested = new Properties();
+				nested.Set("Marker", marker);
+				nested.Set("PreparedUtc", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+				nested.Set("HadSolution", SD.ProjectService.CurrentSolution != null);
+				nested.Set("ViewCount", SD.Workbench.ViewContentCollection.Count);
+				nested.Set("ConfigDirectory", SD.PropertyService.ConfigDirectory.ToString());
+				SD.PropertyService.Set("LibreWpf.ShutdownPersistenceSmoke.Marker", marker);
+				SD.PropertyService.SetNestedProperties("LibreWpfShutdownPersistenceSmoke", nested);
+
+				string message = "LibreWPF shutdown persistence smoke prepared marker=" + marker
+					+ " config=" + SD.PropertyService.ConfigDirectory;
+				Console.WriteLine(message);
+				SD.StatusBar.SetMessage(message);
+			} catch (Exception ex) {
+				Console.WriteLine("LibreWPF shutdown persistence smoke failed: " + ex);
+				SD.StatusBar.SetMessage("LibreWPF shutdown persistence smoke failed: " + ex.Message);
+			}
+		}
+
 		IViewContent GetLibreWpfSaveSmokeViewContent(string mode)
 		{
 			string requested = NormalizeLibreWpfSaveSmokePath(mode);
@@ -1808,6 +1840,17 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				if (value.Length > 0)
 					yield return value;
 			}
+		}
+
+		static string NormalizeLibreWpfShutdownPersistenceMarker(string mode)
+		{
+			if (string.IsNullOrWhiteSpace(mode)
+			    || string.Equals(mode.Trim(), "1", StringComparison.OrdinalIgnoreCase)
+			    || string.Equals(mode.Trim(), "Auto", StringComparison.OrdinalIgnoreCase)
+			    || string.Equals(mode.Trim(), "Default", StringComparison.OrdinalIgnoreCase))
+				return "LibreWpfShutdownPersistenceSmoke";
+
+			return mode.Trim();
 		}
 
 		static async Task WaitForLibreWpfProjectLoadAsync()

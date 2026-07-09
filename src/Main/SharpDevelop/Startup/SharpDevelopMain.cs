@@ -262,6 +262,12 @@ namespace ICSharpCode.SharpDevelop.Startup
 				startup.AllowUserAddIns = true;
 				
 				string configDirectory = ConfigurationManager.AppSettings["settingsPath"];
+#if LIBREWPF
+				string libreWpfConfigDirectory = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_CONFIG_DIR");
+				if (!string.IsNullOrWhiteSpace(libreWpfConfigDirectory)) {
+					startup.ConfigDirectory = Path.GetFullPath(libreWpfConfigDirectory);
+				} else
+#endif
 				if (String.IsNullOrEmpty(configDirectory)) {
 					startup.ConfigDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
 					                                       "ICSharpCode/SharpDevelop" + RevisionClass.Major);

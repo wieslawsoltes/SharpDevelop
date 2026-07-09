@@ -185,6 +185,9 @@ namespace ICSharpCode.SharpDevelop.Sda
 					shutdownService.WaitForBackgroundTasks();
 					((IDisposable)SD.Services).Dispose(); // dispose all services
 					propertyService.Save();
+#if LIBREWPF
+					ValidateLibreWpfShutdownPersistenceSmoke(propertyService);
+#endif
 				} catch (Exception ex) {
 					LoggingService.Warn("Exception during unloading", ex);
 					if (exception == null) {
@@ -204,6 +207,73 @@ namespace ICSharpCode.SharpDevelop.Sda
 				}
 			}
 		}
+
+#if LIBREWPF
+		static void ValidateLibreWpfShutdownPersistenceSmoke(IPropertyService propertyService)
+		{
+			string mode = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_SHUTDOWN_PERSISTENCE_SMOKE");
+			if (string.IsNullOrEmpty(mode))
+				return;
+
+			string expectedMarker = propertyService.Get("LibreWpf.ShutdownPersistenceSmoke.Marker", string.Empty);
+			FileName propertiesFileName = propertyService.ConfigDirectory.CombineFile("SharpDevelopProperties.xml");
+			string layoutFileName = Path.Combine(propertyService.ConfigDirectory.ToString(), "layouts", "Default.xml");
+			bool fileExists = File.Exists(propertiesFileName);
+			bool layoutSaved = File.Exists(layoutFileName);
+			bool markerSaved = false;
+			bool nestedMarkerSaved = false;
+			bool workbenchMementoSaved = false;
+			bool windowStateSaved = false;
+			bool boundsSaved = false;
+			string loadError = string.Empty;
+
+			if (fileExists) {
+				try {
+					Properties savedProperties = Properties.Load(propertiesFileName);
+					markerSaved = string.Equals(
+						savedProperties.Get("LibreWpf.ShutdownPersistenceSmoke.Marker", string.Empty),
+						expectedMarker,
+						StringComparison.Ordinal);
+
+					Properties nestedSmoke = savedProperties.NestedProperties("LibreWpfShutdownPersistenceSmoke");
+					nestedMarkerSaved = string.Equals(
+						nestedSmoke.Get("Marker", string.Empty),
+						expectedMarker,
+						StringComparison.Ordinal);
+
+					if (savedProperties.Contains("WorkbenchMemento")) {
+						Properties workbenchMemento = savedProperties.NestedProperties("WorkbenchMemento");
+						workbenchMementoSaved = true;
+						windowStateSaved = workbenchMemento.Contains("WindowState");
+						boundsSaved = workbenchMemento.Contains("Bounds");
+					}
+				} catch (Exception ex) {
+					loadError = ex.GetType().Name + ": " + ex.Message;
+				}
+			}
+
+			bool success = fileExists
+				&& !string.IsNullOrEmpty(expectedMarker)
+				&& markerSaved
+				&& nestedMarkerSaved
+				&& workbenchMementoSaved
+				&& windowStateSaved
+				&& layoutSaved;
+			Console.WriteLine("LibreWPF shutdown persistence smoke result="
+				+ (success ? "Success" : "Partial")
+				+ " marker=" + expectedMarker
+				+ " file=" + propertiesFileName
+				+ " fileExists=" + fileExists
+				+ " layoutFile=" + layoutFileName
+				+ " layoutSaved=" + layoutSaved
+				+ " markerSaved=" + markerSaved
+				+ " nestedMarkerSaved=" + nestedMarkerSaved
+				+ " workbenchMementoSaved=" + workbenchMementoSaved
+				+ " windowStateSaved=" + windowStateSaved
+				+ " boundsSaved=" + boundsSaved
+				+ (string.IsNullOrEmpty(loadError) ? string.Empty : " loadError=" + loadError));
+		}
+#endif
 		
 		void RunWorkbenchInitializedCommands()
 		{
