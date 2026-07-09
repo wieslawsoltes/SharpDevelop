@@ -367,6 +367,13 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				}), DispatcherPriority.ApplicationIdle);
 			}
 
+			string closeAllSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_CLOSE_ALL_SMOKE");
+			if (!string.IsNullOrEmpty(closeAllSmoke)) {
+				Dispatcher.BeginInvoke(new Action(async delegate {
+					await RunLibreWpfCloseAllSmoke(closeAllSmoke);
+				}), DispatcherPriority.ApplicationIdle);
+			}
+
 			string formsDesignerSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_FORMS_DESIGNER_SMOKE");
 			if (!string.IsNullOrEmpty(formsDesignerSmoke)) {
 				Dispatcher.BeginInvoke(new Action(async delegate {
@@ -1551,6 +1558,57 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			}
 		}
 
+		async Task RunLibreWpfCloseAllSmoke(string mode)
+		{
+			try {
+				await WaitForLibreWpfProjectLoadAsync();
+
+				List<FileName> fileNames = GetLibreWpfCloseAllSmokeFileNames(mode).ToList();
+				List<IViewContent> openedContents = new List<IViewContent>();
+				foreach (FileName fileName in fileNames) {
+					IViewContent content = SD.FileService.OpenFile(fileName, true);
+					CodeEditor editor = GetLibreWpfCodeEditor(content);
+					for (int attempt = 0; attempt < 50 && (editor == null || editor.Document == null || !IsLibreWpfCodeEditorPresentationReady(editor)); attempt++) {
+						await Task.Delay(100);
+						editor = GetLibreWpfCodeEditor(content);
+					}
+					if (content != null && editor != null && editor.Document != null)
+						openedContents.Add(content);
+				}
+
+				if (openedContents.Count == 0) {
+					Console.WriteLine("LibreWPF close-all smoke unavailable: no file-backed code editors were opened.");
+					SD.StatusBar.SetMessage("LibreWPF close-all smoke unavailable: no file-backed code editors were opened.");
+					return;
+				}
+
+				int beforeViews = SD.Workbench.ViewContentCollection.Count;
+				int beforeTrackedOpenFiles = fileNames.Count(fileName => SD.FileService.GetOpenedFile(fileName) != null);
+				new ICSharpCode.SharpDevelop.Commands.CloseAllWindows().Run();
+				await Task.Delay(500);
+
+				int afterViews = SD.Workbench.ViewContentCollection.Count;
+				int afterTrackedOpenFiles = fileNames.Count(fileName => SD.FileService.GetOpenedFile(fileName) != null);
+				int remainingOpenedContents = openedContents.Count(content => SD.Workbench.ViewContentCollection.Contains(content));
+				bool allRequestedClosed = remainingOpenedContents == 0 && afterTrackedOpenFiles == 0;
+
+				string message = "LibreWPF close-all smoke result="
+					+ (allRequestedClosed ? "Success" : "Partial")
+					+ " requestedFiles=" + fileNames.Count
+					+ " openedEditors=" + openedContents.Count
+					+ " beforeViews=" + beforeViews
+					+ " afterViews=" + afterViews
+					+ " beforeTrackedOpenFiles=" + beforeTrackedOpenFiles
+					+ " afterTrackedOpenFiles=" + afterTrackedOpenFiles
+					+ " remainingOpenedContents=" + remainingOpenedContents;
+				Console.WriteLine(message);
+				SD.StatusBar.SetMessage(message);
+			} catch (Exception ex) {
+				Console.WriteLine("LibreWPF close-all smoke failed: " + ex);
+				SD.StatusBar.SetMessage("LibreWPF close-all smoke failed: " + ex.Message);
+			}
+		}
+
 		IViewContent GetLibreWpfSaveSmokeViewContent(string mode)
 		{
 			string requested = NormalizeLibreWpfSaveSmokePath(mode);
@@ -1626,6 +1684,44 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			}
 
 			return "LineCounterBrowser";
+		}
+
+		IEnumerable<FileName> GetLibreWpfCloseAllSmokeFileNames(string mode)
+		{
+			HashSet<string> paths = new HashSet<string>(StringComparer.Ordinal);
+			foreach (string token in GetLibreWpfCloseAllSmokePathTokens(mode)) {
+				string path = NormalizeLibreWpfSaveSmokePath(token);
+				if (!string.IsNullOrEmpty(path) && File.Exists(path))
+					paths.Add(Path.GetFullPath(path));
+			}
+
+			if (paths.Count == 0) {
+				string lineCounterBrowser = NormalizeLibreWpfSaveSmokePath("Src/LineCounterBrowser.cs");
+				if (!string.IsNullOrEmpty(lineCounterBrowser) && File.Exists(lineCounterBrowser))
+					paths.Add(Path.GetFullPath(lineCounterBrowser));
+
+				string extensibility = NormalizeLibreWpfSaveSmokePath("Src/Extensibility.cs");
+				if (!string.IsNullOrEmpty(extensibility) && File.Exists(extensibility))
+					paths.Add(Path.GetFullPath(extensibility));
+			}
+
+			foreach (string path in paths)
+				yield return FileName.Create(path);
+		}
+
+		static IEnumerable<string> GetLibreWpfCloseAllSmokePathTokens(string mode)
+		{
+			if (string.IsNullOrWhiteSpace(mode)
+			    || string.Equals(mode.Trim(), "1", StringComparison.OrdinalIgnoreCase)
+			    || string.Equals(mode.Trim(), "Auto", StringComparison.OrdinalIgnoreCase)
+			    || string.Equals(mode.Trim(), "Default", StringComparison.OrdinalIgnoreCase))
+				yield break;
+
+			foreach (string token in mode.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)) {
+				string value = token.Trim();
+				if (value.Length > 0)
+					yield return value;
+			}
 		}
 
 		static async Task WaitForLibreWpfProjectLoadAsync()
