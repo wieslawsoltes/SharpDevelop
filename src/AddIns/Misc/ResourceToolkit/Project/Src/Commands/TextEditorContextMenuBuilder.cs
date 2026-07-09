@@ -41,15 +41,19 @@ namespace Hornung.ResourceToolkit.Commands
 	{
 		static readonly System.Windows.Controls.Control[] EmptyControlArray = new System.Windows.Controls.Control[0];
 		
-		System.Collections.ICollection IMenuItemBuilder.BuildItems(Codon codon, object owner)
+		IEnumerable<object> IMenuItemBuilder.BuildItems(Codon codon, object owner)
 		{
 			ITextEditor editor = owner as ITextEditor;
 			if (editor == null) {
+#if !LIBREWPF
 				ITextEditorProvider provider = owner as ITextEditorProvider;
 				if (provider == null) {
 					return EmptyControlArray;
 				}
 				editor = provider.TextEditor;
+#else
+				return EmptyControlArray;
+#endif
 			}
 			
 			ResourceResolveResult result = ResourceResolverService.Resolve(editor, null);
@@ -68,19 +72,21 @@ namespace Hornung.ResourceToolkit.Commands
 				item.Tag = result;
 				items.Add(item);
 				
-				// find references
-				item = new MenuItem();
-				item.Header = MenuService.ConvertLabel(StringParser.Parse("${res:SharpDevelop.Refactoring.FindReferencesCommand}"));
-				item.Click += this.FindReferences;
-				item.Tag = result;
-				items.Add(item);
-				
-				// rename
-				item = new MenuItem();
-				item.Header = MenuService.ConvertLabel(StringParser.Parse("${res:SharpDevelop.Refactoring.RenameCommand}"));
-				item.Click += this.Rename;
-				item.Tag = result;
-				items.Add(item);
+				if (!IsLibreWpfLegacyResourceRefactoringDisabled) {
+					// find references
+					item = new MenuItem();
+					item.Header = MenuService.ConvertLabel(StringParser.Parse("${res:SharpDevelop.Refactoring.FindReferencesCommand}"));
+					item.Click += this.FindReferences;
+					item.Tag = result;
+					items.Add(item);
+					
+					// rename
+					item = new MenuItem();
+					item.Header = MenuService.ConvertLabel(StringParser.Parse("${res:SharpDevelop.Refactoring.RenameCommand}"));
+					item.Click += this.Rename;
+					item.Tag = result;
+					items.Add(item);
+				}
 				
 				
 				// put the resource menu items into a submenu
@@ -93,6 +99,16 @@ namespace Hornung.ResourceToolkit.Commands
 			}
 			
 			return EmptyControlArray;
+		}
+
+		static bool IsLibreWpfLegacyResourceRefactoringDisabled {
+			get {
+#if LIBREWPF
+				return true;
+#else
+				return false;
+#endif
+			}
 		}
 		
 		// ********************************************************************************************************************************
@@ -141,6 +157,9 @@ namespace Hornung.ResourceToolkit.Commands
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Performance", "CA1814:PreferJaggedArraysOverMultidimensional", MessageId = "Body")]
 		void FindReferences(object sender, EventArgs e)
 		{
+#if LIBREWPF
+			MessageService.ShowMessage("ResourceToolkit find references requires the legacy NRefactory resolver and is not enabled in this LibreWPF build.");
+#else
 			MenuItem item = sender as MenuItem;
 			if (item == null) {
 				return;
@@ -160,10 +179,14 @@ namespace Hornung.ResourceToolkit.Commands
 					                   new StringTagPair("ResourceKey", result.Key)),
 					ResourceRefactoringService.FindReferences(result.FileName, result.Key, monitor));
 			}
+#endif
 		}
 		
 		void Rename(object sender, EventArgs e)
 		{
+#if LIBREWPF
+			MessageService.ShowMessage("ResourceToolkit rename requires the legacy NRefactory resolver and is not enabled in this LibreWPF build.");
+#else
 			MenuItem item = sender as MenuItem;
 			if (item == null) {
 				return;
@@ -177,6 +200,7 @@ namespace Hornung.ResourceToolkit.Commands
 			// Allow the menu to close
 			Application.DoEvents();
 			ResourceRefactoringService.Rename(result);
+#endif
 		}
 	}
 }

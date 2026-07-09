@@ -69,14 +69,34 @@ namespace ICSharpCode.AvalonEdit.AddIn
 		
 		public CodeEditorView()
 		{
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditorView ctor entered");
+			}
+#endif
 			this.CommandBindings.Add(new CommandBinding(ApplicationCommands.Help, OnHelpExecuted));
 			
 			this.bracketRenderer = new BracketHighlightRenderer(this.TextArea.TextView);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditorView bracket renderer created");
+			}
+#endif
 			//this.caretReferencesRenderer = new CaretReferencesRenderer(this);
 			this.contextActionsRenderer = new ContextActionsRenderer(this);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditorView context renderer created");
+			}
+#endif
 			this.hiddenDefinitionRenderer = new HiddenDefinition.HiddenDefinitionRenderer(this);
 			
 			UpdateCustomizedHighlighting();
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditorView highlighting updated");
+			}
+#endif
 			
 			this.MouseHover += TextEditorMouseHover;
 			this.MouseHoverStopped += TextEditorMouseHoverStopped;
@@ -89,6 +109,11 @@ namespace ICSharpCode.AvalonEdit.AddIn
 			this.TextArea.TextView.VisualLinesChanged += CodeEditorView_VisualLinesChanged;
 			
 			SetupTabSnippetHandler();
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditorView ctor completed");
+			}
+#endif
 		}
 
 		void CodeEditorView_VisualLinesChanged(object sender, EventArgs e)

@@ -260,6 +260,7 @@ namespace AvalonDock
                 }
 
                 cxMenu.IsOpen = true;
+                TrackOpenedContextMenu(cxMenu);
                 return true;
             }
 

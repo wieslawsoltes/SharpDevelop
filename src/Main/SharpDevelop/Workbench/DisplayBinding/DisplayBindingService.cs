@@ -203,15 +203,30 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				throw new ArgumentNullException("viewContent");
 			
 			foreach (DisplayBindingDescriptor binding in bindings) {
+				bool trace = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1";
 				if (binding.IsSecondary && binding.CanOpenFile(viewContent.PrimaryFileName)) {
 					ISecondaryDisplayBinding displayBinding = binding.SecondaryBinding;
+					bool canReattach = displayBinding != null && (!isReattaching || displayBinding.ReattachWhenParserServiceIsReady);
+					bool canAttach = canReattach && displayBinding.CanAttachTo(viewContent);
+					if (trace) {
+						Console.WriteLine("LibreWPF DisplayBindingService secondary id=" + binding.Id
+							+ " file=" + viewContent.PrimaryFileName
+							+ " binding=" + (displayBinding == null ? "<null>" : displayBinding.GetType().FullName)
+							+ " reattach=" + isReattaching
+							+ " canReattach=" + canReattach
+							+ " canAttach=" + canAttach);
+					}
 					if (displayBinding != null
-					    && (!isReattaching || displayBinding.ReattachWhenParserServiceIsReady)
-					    && displayBinding.CanAttachTo(viewContent))
+					    && canReattach
+					    && canAttach)
 					{
 						IViewContent[] subViewContents = binding.SecondaryBinding.CreateSecondaryViewContent(viewContent);
 						if (subViewContents != null) {
 							Array.ForEach(subViewContents, viewContent.SecondaryViewContents.Add);
+							if (trace) {
+								Console.WriteLine("LibreWPF DisplayBindingService secondary attached id=" + binding.Id
+									+ " count=" + subViewContents.Length);
+							}
 						} else {
 							MessageService.ShowError("Can't attach secondary view content. " + binding.SecondaryBinding + " returned null for " + viewContent + ".\n(should never happen)");
 						}

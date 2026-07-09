@@ -19,9 +19,14 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Runtime.InteropServices;
 using System.Windows;
+#if LIBREWPF
+using System.Drawing.Imaging;
+using System.IO;
+using System.Windows.Media;
+#else
 using System.Windows.Interop;
+#endif
 using System.Windows.Media.Imaging;
 
 namespace ICSharpCode.Core.Presentation
@@ -83,10 +88,21 @@ namespace ICSharpCode.Core.Presentation
 				BitmapSource bs;
 				if (bitmapCache.TryGetValue(name, out bs))
 					return bs;
-				System.Drawing.Bitmap bmp = (System.Drawing.Bitmap)resourceService.GetImageResource(name);
-				if (bmp == null) {
-					throw new ResourceNotFoundException(name);
-				}
+					System.Drawing.Bitmap bmp = (System.Drawing.Bitmap)resourceService.GetImageResource(name);
+					if (bmp == null) {
+#if LIBREWPF
+						LoggingService.Warn("Image resource not found, using LibreWPF placeholder: " + name);
+						bs = CreatePlaceholderBitmapSource();
+						bitmapCache[name] = bs;
+						return bs;
+#else
+						throw new ResourceNotFoundException(name);
+#endif
+					}
+#if LIBREWPF
+					bs = CreateBitmapSourceFromBitmap(bmp);
+				bitmapCache[name] = bs;
+#else
 				IntPtr hBitmap = bmp.GetHbitmap();
 				try {
 					bs = Imaging.CreateBitmapSourceFromHBitmap(hBitmap, IntPtr.Zero,
@@ -96,8 +112,48 @@ namespace ICSharpCode.Core.Presentation
 				} finally {
 					NativeMethods.DeleteObject(hBitmap);
 				}
+#endif
 				return bs;
 			}
 		}
+
+#if LIBREWPF
+		static BitmapSource CreateBitmapSourceFromBitmap(System.Drawing.Bitmap bitmap)
+		{
+			using (var stream = new MemoryStream()) {
+				bitmap.Save(stream, ImageFormat.Png);
+				stream.Position = 0;
+
+				var image = new BitmapImage();
+				image.BeginInit();
+				image.CacheOption = BitmapCacheOption.OnLoad;
+				image.StreamSource = stream;
+				image.EndInit();
+				image.Freeze();
+				return image;
+			}
+		}
+
+		static BitmapSource CreatePlaceholderBitmapSource()
+		{
+			const int size = 16;
+			const int stride = size * 4;
+			byte[] pixels = new byte[size * stride];
+			for (int y = 0; y < size; y++) {
+				for (int x = 0; x < size; x++) {
+					int offset = y * stride + x * 4;
+					bool border = x == 0 || y == 0 || x == size - 1 || y == size - 1 || x == y || x == size - y - 1;
+					pixels[offset + 0] = border ? (byte)0x90 : (byte)0xe0;
+					pixels[offset + 1] = border ? (byte)0x90 : (byte)0xe0;
+					pixels[offset + 2] = border ? (byte)0x90 : (byte)0xe0;
+					pixels[offset + 3] = 0xff;
+				}
+			}
+
+			BitmapSource source = BitmapSource.Create(size, size, 96, 96, PixelFormats.Bgra32, null, pixels, stride);
+			source.Freeze();
+			return source;
+		}
+#endif
 	}
 }

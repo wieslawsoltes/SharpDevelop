@@ -203,7 +203,12 @@ namespace ICSharpCode.SharpDevelop.Logging
 					                       	SD.Clipboard.SetText(exceptionText);
 					                       });
 					th.Name = "CopyInfoToClipboard";
+#if LIBREWPF
+					if (OperatingSystem.IsWindows())
+						th.SetApartmentState(ApartmentState.STA);
+#else
 					th.SetApartmentState(ApartmentState.STA);
+#endif
 					th.Start();
 				}
 			}

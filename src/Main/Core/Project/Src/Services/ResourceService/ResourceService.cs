@@ -24,6 +24,9 @@ using System.IO;
 using System.Reflection;
 using System.Resources;
 using System.Threading;
+#if LIBREWPF
+using System.Drawing;
+#endif
 
 namespace ICSharpCode.Core
 {
@@ -103,6 +106,11 @@ namespace ICSharpCode.Core
 		
 		/// <summary>List of ResourceAssembly</summary>
 		List<ResourceAssembly> resourceAssemblies = new List<ResourceAssembly>();
+
+#if LIBREWPF
+		Dictionary<string, string> libreWpfFileImagePaths;
+		readonly Dictionary<string, object> libreWpfFileImageCache = new Dictionary<string, object>();
+#endif
 		
 		class ResourceAssembly
 		{
@@ -324,7 +332,10 @@ namespace ICSharpCode.Core
 					iconobj = localIcons[name];
 				} else {
 					foreach (ResourceManager resourceManger in localIconsResMgrs) {
-						iconobj = resourceManger.GetObject(name);
+						try {
+							iconobj = resourceManger.GetObject(name);
+						}
+						catch (Exception) { }
 						if (iconobj != null) {
 							break;
 						}
@@ -343,8 +354,76 @@ namespace ICSharpCode.Core
 						}
 					}
 				}
+#if LIBREWPF
+				if (iconobj == null) {
+					iconobj = GetLibreWpfFileImageResource(name);
+				}
+#endif
 				return iconobj;
 			}
 		}
+
+#if LIBREWPF
+		object GetLibreWpfFileImageResource(string name)
+		{
+			if (string.IsNullOrEmpty(name)) {
+				return null;
+			}
+
+			if (libreWpfFileImageCache.TryGetValue(name, out object cached)) {
+				return cached;
+			}
+
+			Dictionary<string, string> paths = GetLibreWpfFileImagePaths();
+			if (!paths.TryGetValue(name, out string path) || !File.Exists(path)) {
+				return null;
+			}
+
+			object resource = string.Equals(Path.GetExtension(path), ".ico", StringComparison.OrdinalIgnoreCase)
+				? (object)new Icon(path)
+				: new Bitmap(path);
+			libreWpfFileImageCache[name] = resource;
+			return resource;
+		}
+
+		Dictionary<string, string> GetLibreWpfFileImagePaths()
+		{
+			if (libreWpfFileImagePaths != null) {
+				return libreWpfFileImagePaths;
+			}
+
+			var paths = new Dictionary<string, string>(StringComparer.Ordinal);
+			string root = Path.Combine(resourceDirectory, "image", "BitmapResources");
+			string manifestPath = Path.Combine(root, "BitmapResources.res");
+			if (File.Exists(manifestPath)) {
+				foreach (string rawLine in File.ReadLines(manifestPath)) {
+					string line = rawLine.Trim();
+					if (line.Length == 0 || line[0] == '#') {
+						continue;
+					}
+
+					int equalsIndex = line.IndexOf('=');
+					if (equalsIndex <= 0 || equalsIndex == line.Length - 1) {
+						continue;
+					}
+
+					string key = line.Substring(0, equalsIndex).Trim();
+					string value = line.Substring(equalsIndex + 1).Trim();
+					if (value.Length == 0 || value[0] == '"') {
+						continue;
+					}
+
+					string relativePath = value.Replace('\\', Path.DirectorySeparatorChar);
+					string fullPath = Path.Combine(root, relativePath);
+					if (File.Exists(fullPath)) {
+						paths[key] = fullPath;
+					}
+				}
+			}
+
+			libreWpfFileImagePaths = paths;
+			return paths;
+		}
+#endif
 	}
 }

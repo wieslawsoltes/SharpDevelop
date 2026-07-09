@@ -62,6 +62,10 @@ namespace ICSharpCode.Core
 		
 		static string GetPathFromRegistry(string key, string valueName)
 		{
+#if LIBREWPF
+			if (!OperatingSystem.IsWindows())
+				return null;
+#endif
 			using (RegistryKey installRootKey = Registry.LocalMachine.OpenSubKey(key)) {
 				if (installRootKey != null) {
 					object o = installRootKey.GetValue(valueName);
@@ -77,6 +81,10 @@ namespace ICSharpCode.Core
 		
 		static string GetPathFromRegistryX86(string key, string valueName)
 		{
+#if LIBREWPF
+			if (!OperatingSystem.IsWindows())
+				return null;
+#endif
 			using (RegistryKey baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32)) {
 				using (RegistryKey installRootKey = baseKey.OpenSubKey(key)) {
 					if (installRootKey != null) {
@@ -243,37 +251,108 @@ namespace ICSharpCode.Core
 		/// <param name="exeName">The EXE to search for.</param>
 		/// <returns>The path of the executable, or null if the exe is not found.</returns>
 		public static string GetSdkPath(string exeName) {
+#if LIBREWPF
+			if (!OperatingSystem.IsWindows())
+				return GetPortableSdkPath(exeName);
+#endif
 			string execPath;
 			if (!string.IsNullOrEmpty(WindowsSdk80NetFxTools)) {
 				execPath = Path.Combine(WindowsSdk80NetFxTools, exeName);
 				if (File.Exists(execPath)) { return execPath; }
 			}
 			if (!string.IsNullOrEmpty(WindowsSdk71InstallRoot)) {
-				execPath = Path.Combine(WindowsSdk71InstallRoot, "bin\\" + exeName);
+				execPath = Path.Combine(WindowsSdk71InstallRoot, "bin", exeName);
 				if (File.Exists(execPath)) { return execPath; }
 			}
 			if (!string.IsNullOrEmpty(WindowsSdk70InstallRoot)) {
-				execPath = Path.Combine(WindowsSdk70InstallRoot, "bin\\" + exeName);
+				execPath = Path.Combine(WindowsSdk70InstallRoot, "bin", exeName);
 				if (File.Exists(execPath)) { return execPath; }
 			}
 			if (!string.IsNullOrEmpty(WindowsSdk61InstallRoot)) {
-				execPath = Path.Combine(WindowsSdk61InstallRoot, "bin\\" + exeName);
+				execPath = Path.Combine(WindowsSdk61InstallRoot, "bin", exeName);
 				if (File.Exists(execPath)) { return execPath; }
 			}
 			if (!string.IsNullOrEmpty(WindowsSdk60aInstallRoot)) {
-				execPath = Path.Combine(WindowsSdk60aInstallRoot, "bin\\" + exeName);
+				execPath = Path.Combine(WindowsSdk60aInstallRoot, "bin", exeName);
 				if (File.Exists(execPath)) { return execPath; }
 			}
 			if (!string.IsNullOrEmpty(WindowsSdk60InstallRoot)) {
-				execPath = Path.Combine(WindowsSdk60InstallRoot, "bin\\" + exeName);
+				execPath = Path.Combine(WindowsSdk60InstallRoot, "bin", exeName);
 				if (File.Exists(execPath)) { return execPath; }
 			}
 			if (!string.IsNullOrEmpty(NetSdk20InstallRoot)) {
-				execPath = Path.Combine(NetSdk20InstallRoot, "bin\\" + exeName);
+				execPath = Path.Combine(NetSdk20InstallRoot, "bin", exeName);
 				if (File.Exists(execPath)) { return execPath; }
 			}
 			return null;
 		}
+
+#if LIBREWPF
+		static string GetPortableSdkPath(string exeName)
+		{
+			if (string.IsNullOrEmpty(exeName))
+				return null;
+			
+			string pathExecutable = FindExecutableOnPath(exeName);
+			if (pathExecutable != null)
+				return pathExecutable;
+			
+			string dotnetRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+			if (string.IsNullOrEmpty(dotnetRoot)) {
+				string dotnetExecutable = FindExecutableOnPath("dotnet");
+				if (dotnetExecutable != null)
+					dotnetRoot = Path.GetDirectoryName(dotnetExecutable);
+			}
+			
+			if (string.IsNullOrEmpty(dotnetRoot))
+				return null;
+			
+			string sdkRoot = Path.Combine(dotnetRoot, "sdk");
+			if (!Directory.Exists(sdkRoot))
+				return null;
+			
+			foreach (string sdkDirectory in Directory.EnumerateDirectories(sdkRoot).OrderByDescending(Path.GetFileName, StringComparer.OrdinalIgnoreCase)) {
+				string executablePath = FindExecutableInDirectory(sdkDirectory, exeName);
+				if (executablePath != null)
+					return executablePath;
+			}
+			
+			return null;
+		}
+		
+		static string FindExecutableOnPath(string exeName)
+		{
+			string path = Environment.GetEnvironmentVariable("PATH");
+			if (string.IsNullOrEmpty(path))
+				return null;
+			
+			foreach (string directory in path.Split(Path.PathSeparator)) {
+				if (string.IsNullOrEmpty(directory))
+					continue;
+				
+				string executablePath = FindExecutableInDirectory(directory, exeName);
+				if (executablePath != null)
+					return executablePath;
+			}
+			
+			return null;
+		}
+		
+		static string FindExecutableInDirectory(string directory, string exeName)
+		{
+			string executablePath = Path.Combine(directory, exeName);
+			if (File.Exists(executablePath))
+				return executablePath;
+			
+			if (exeName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) {
+				string extensionlessPath = Path.Combine(directory, Path.GetFileNameWithoutExtension(exeName));
+				if (File.Exists(extensionlessPath))
+					return extensionlessPath;
+			}
+			
+			return null;
+		}
+#endif
 		
 		/// <summary>
 		/// Converts a given absolute path and a given base path to a path that leads
@@ -694,6 +773,11 @@ namespace ICSharpCode.Core
 
 		static FileOperationResult ObservedLoadHandleException(Exception e, FileOperationDelegate loadFile, FileName fileName, string message, FileErrorPolicy policy)
 		{
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF ObservedLoad exception for " + fileName + ": " + e);
+			}
+#endif
 			message = message + Environment.NewLine + Environment.NewLine + e.Message;
 			var messageService = ServiceSingleton.GetRequiredService<IMessageService>();
 			switch (policy) {

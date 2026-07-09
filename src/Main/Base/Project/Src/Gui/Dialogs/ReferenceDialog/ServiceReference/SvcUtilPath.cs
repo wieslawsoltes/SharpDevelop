@@ -18,6 +18,7 @@
 
 using System;
 using System.IO;
+using ICSharpCode.Core;
 using Microsoft.Win32;
 
 namespace ICSharpCode.SharpDevelop.Gui.Dialogs.ReferenceDialog.ServiceReference
@@ -55,12 +56,23 @@ namespace ICSharpCode.SharpDevelop.Gui.Dialogs.ReferenceDialog.ServiceReference
 		
 		void FindSvcUtilFromSdk()
 		{
+#if LIBREWPF
+			if (!OperatingSystem.IsWindows()) {
+				string portablePath = FileUtility.GetSdkPath("svcutil.exe") ?? FileUtility.GetSdkPath("dotnet-svcutil");
+				if (!string.IsNullOrEmpty(portablePath)) {
+					SetSvcUtilPathIfFileExists(portablePath);
+				} else {
+					exists = false;
+				}
+				return;
+			}
+#endif
 			string sdkPath = TryGetCurrentUserSdkInstallPath();
 			if (sdkPath == null) {
 				sdkPath = TryGetLocalMachineSdkInstallPath();
 			}
 			if (sdkPath != null) {
-				string fullPath = Path.Combine(sdkPath, @"bin\NETFX 4.0 Tools\svcutil.exe");
+				string fullPath = Path.Combine(sdkPath, "bin", "NETFX 4.0 Tools", "svcutil.exe");
 				SetSvcUtilPathIfFileExists(fullPath);
 			}
 		}
@@ -77,6 +89,10 @@ namespace ICSharpCode.SharpDevelop.Gui.Dialogs.ReferenceDialog.ServiceReference
 		
 		string TryGetSdkInstallPath(string root)
 		{
+#if LIBREWPF
+			if (!OperatingSystem.IsWindows())
+				return null;
+#endif
 			try {
 				string keyName = root + @"\SOFTWARE\Microsoft\Microsoft SDKs\Windows";
 				return (string)Registry.GetValue(keyName, "CurrentInstallFolder", null);

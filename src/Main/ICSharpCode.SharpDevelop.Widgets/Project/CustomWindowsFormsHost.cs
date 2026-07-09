@@ -34,6 +34,53 @@ namespace ICSharpCode.SharpDevelop.Widgets
 	/// A custom Windows Forms Host implementation.
 	/// Hopefully fixes SD-1842 - ArgumentException in SetActiveControlInternal (WindowsFormsHost.RestoreFocusedChild)
 	/// </summary>
+#if LIBREWPF
+	public class CustomWindowsFormsHost : System.Windows.Forms.Integration.WindowsFormsHost, IDisposable
+	{
+		public CustomWindowsFormsHost()
+		{
+			Focusable = true;
+		}
+
+		public CustomWindowsFormsHost(AppDomain childDomain)
+			: this()
+		{
+		}
+
+		public new Control Child {
+			get { return base.Child; }
+			set { base.Child = value; }
+		}
+
+		public bool EnableFontInheritance { get; set; } = true;
+
+		public override bool TabInto(TraversalRequest request)
+		{
+			Focus();
+			if (Child != null) {
+				Child.Focus();
+			}
+			return true;
+		}
+
+		public void Dispose()
+		{
+			Dispose(true);
+			GC.SuppressFinalize(this);
+		}
+
+		protected virtual void Dispose(bool disposing)
+		{
+			if (disposing) {
+				Control child = Child;
+				Child = null;
+				if (child != null) {
+					child.Dispose();
+				}
+			}
+		}
+	}
+#else
 	public class CustomWindowsFormsHost : HwndHost, IKeyboardInputSink
 	{
 		// Interactions of the MS WinFormsHost:
@@ -313,4 +360,5 @@ namespace ICSharpCode.SharpDevelop.Widgets
 			#endif
 		}
 	}
+#endif
 }

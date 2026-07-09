@@ -1,0 +1,46 @@
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.sharpdevelop.1">
+  <PropertyGroup>
+    <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>ICSharpCode.AvalonEdit.AddIn</AssemblyName>
+    <RootNamespace>ICSharpCode.AvalonEdit.AddIn</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\..\Main\ICSharpCode.SharpDevelop.snk</AssemblyOriginatorKeyFile>
+    <DefineConstants>$(DefineConstants);LIBREWPF</DefineConstants>
+    <NoWarn>$(NoWarn);1591;CS1591;CS0618;CS8600;CS8601;CS8602;CS8603;CS8618;NU1603</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="obj/**" />
+    <EmbeddedResource Remove="obj/**" />
+    <None Remove="obj/**" />
+    <Page Remove="obj/**" />
+    <Resource Remove="obj/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\..\Main\GlobalAssemblyInfo.cs" Link="Configuration\GlobalAssemblyInfo.cs" />
+    <None Include="AvalonEdit.AddIn.addin" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Resources\IncrementalSearchCursor.cur" />
+    <EmbeddedResource Include="Resources\ReverseIncrementalSearchCursor.cur" />
+    <Resource Include="Src\ContextActions\bulb.png" />
+    <Resource Include="Src\ContextActions\pencil.png" />
+    <None Include="Src\ContextActions\license.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Libraries\AvalonEdit\ICSharpCode.AvalonEdit\ICSharpCode.AvalonEdit.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory\ICSharpCode.NRefactory.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory.Xml\ICSharpCode.NRefactory.Xml.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Main\Base\Project\ICSharpCode.SharpDevelop.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Main\Core\Project\ICSharpCode.Core.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Main\ICSharpCode.Core.Presentation\ICSharpCode.Core.Presentation.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Main\ICSharpCode.Core.WinForms\ICSharpCode.Core.WinForms.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Main\ICSharpCode.SharpDevelop.Widgets\Project\ICSharpCode.SharpDevelop.Widgets.LibreWpf.csproj" />
+  </ItemGroup>
+</Project>

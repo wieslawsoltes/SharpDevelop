@@ -242,6 +242,13 @@ namespace ICSharpCode.Core
 		
 		protected virtual Assembly LoadAssemblyFrom(string assemblyFile)
 		{
+#if LIBREWPF
+			if (!File.Exists(assemblyFile)) {
+				string outputAssemblyFile = Path.Combine(AppContext.BaseDirectory, Path.GetFileName(assemblyFile));
+				if (File.Exists(outputAssemblyFile))
+					assemblyFile = outputAssemblyFile;
+			}
+#endif
 			return System.Reflection.Assembly.LoadFrom(assemblyFile);
 		}
 		

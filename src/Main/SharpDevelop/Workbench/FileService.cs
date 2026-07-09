@@ -317,6 +317,11 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			}
 			
 			IDisplayBinding binding = SD.DisplayBindingService.GetBindingPerFileName(fileName);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF FileService binding for " + fileName + ": " + (binding == null ? "<null>" : binding.GetType().FullName));
+			}
+#endif
 			
 			if (binding == null) {
 				binding = new ErrorFallbackBinding("Could not find any display binding for " + Path.GetFileName(fileName));
@@ -354,6 +359,11 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				OpenedFile file = SD.FileService.GetOrCreateOpenedFile(fileName);
 				try {
 					IViewContent newContent = binding.CreateContentForFile(file);
+#if LIBREWPF
+					if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+						Console.WriteLine("LibreWPF FileService content for " + fileName + ": " + (newContent == null ? "<null>" : newContent.GetType().FullName));
+					}
+#endif
 					if (newContent != null) {
 						SD.DisplayBindingService.AttachSubWindows(newContent, false);
 						SD.Workbench.ShowView(newContent, switchToOpenedView);

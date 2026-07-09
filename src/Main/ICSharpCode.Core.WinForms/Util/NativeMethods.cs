@@ -23,8 +23,15 @@ namespace ICSharpCode.Core.WinForms
 {
 	static class NativeMethods
 	{
+#if LIBREWPF
+		public static bool DestroyIcon(IntPtr handle)
+		{
+			return true;
+		}
+#else
 		[DllImport("user32.dll")]
 		[return: MarshalAs(UnmanagedType.Bool)]
 		public static extern bool DestroyIcon(IntPtr handle);
+#endif
 	}
 }

@@ -36,7 +36,13 @@ namespace ICSharpCode.SharpDevelop.Project
 			else
 				version = ScanVersion(project.TargetFrameworkVersion);
 			string name = type.AssemblyQualifiedName;
-			if (type.Assembly.GlobalAssemblyCache && IsFrameworkAssembly(type.Assembly.GetName().GetPublicKeyToken()))
+			bool isFrameworkAssembly =
+#if LIBREWPF
+				false;
+#else
+				type.Assembly.GlobalAssemblyCache && IsFrameworkAssembly(type.Assembly.GetName().GetPublicKeyToken());
+#endif
+			if (isFrameworkAssembly)
 				name = type.AssemblyQualifiedName.Replace(", Version=4.0.0.0,", ", Version=" + PrintVersion(version) + ",");
 			return name;
 		}

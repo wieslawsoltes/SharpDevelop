@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>ICSharpCode.Core</AssemblyName>
+    <RootNamespace>ICSharpCode.Core</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\ICSharpCode.SharpDevelop.snk</AssemblyOriginatorKeyFile>
+    <DefineConstants>$(DefineConstants);LIBREWPF</DefineConstants>
+    <NoWarn>$(NoWarn);1591;CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="obj/**" />
+    <EmbeddedResource Remove="obj/**" />
+    <None Remove="obj/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\GlobalAssemblyInfo.cs" Link="Configuration\GlobalAssemblyInfo.cs" />
+    <PackageReference Include="LibreWPF.Transport" Version="$(ProGpuWpfManagedPackageVersion)" />
+    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuWpfSdkVersion)" />
+    <Reference Include="System.Drawing.Common"
+               HintPath="$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll"
+               Private="true"
+               Condition="Exists('$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll')" />
+  </ItemGroup>
+</Project>

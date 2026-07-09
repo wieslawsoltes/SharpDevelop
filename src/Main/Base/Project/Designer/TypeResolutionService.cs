@@ -180,6 +180,9 @@ namespace ICSharpCode.SharpDevelop.Designer
 		static string GetOriginalAssemblyFullPath(Assembly asm)
 		{
 			if (asm == null) throw new ArgumentNullException("asm");
+#if LIBREWPF
+			return asm.Location;
+#else
 			try {
 				return new Uri(asm.CodeBase, UriKind.Absolute).LocalPath;
 			} catch (UriFormatException ex) {
@@ -189,6 +192,7 @@ namespace ICSharpCode.SharpDevelop.Designer
 				LoggingService.Warn("Could not determine path for assembly '" + asm.ToString() + "', CodeBase='" + asm.CodeBase + "': " + ex.Message);
 				return asm.Location;
 			}
+#endif
 		}
 		
 		/// <summary>
@@ -533,6 +537,10 @@ namespace ICSharpCode.SharpDevelop.Designer
 		{
 			if (vsDesignerIdeDir == null) {
 				vsDesignerIdeDir = "";
+#if LIBREWPF
+				if (!OperatingSystem.IsWindows())
+					return;
+#endif
 				try {
 					using(RegistryKey key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\VisualStudio\8.0\Setup\VS")) {
 						if (key != null) {

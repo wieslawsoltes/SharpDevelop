@@ -104,6 +104,9 @@ namespace ICSharpCode.SharpDevelop.Startup
 			#if DEBUG
 			Control.CheckForIllegalCrossThreadCalls = true;
 			#endif
+#if LIBREWPF
+			ConfigureLibreWpfMSBuildEnvironment();
+#endif
 			bool noLogo = false;
 			
 			Application.SetCompatibleTextRenderingDefault(false);
@@ -144,6 +147,86 @@ namespace ICSharpCode.SharpDevelop.Startup
 			}
 			return true;
 		}
+
+#if LIBREWPF
+		static void ConfigureLibreWpfMSBuildEnvironment()
+		{
+			string existingMSBuildPath = Environment.GetEnvironmentVariable("MSBUILD_EXE_PATH");
+			if (File.Exists(existingMSBuildPath)) {
+				EnsureLibreWpfSdkPath(existingMSBuildPath);
+				return;
+			}
+
+			string sdkPath = ResolveLibreWpfDotNetSdkPath();
+			if (sdkPath == null)
+				return;
+
+			string msbuildPath = Path.Combine(sdkPath, "MSBuild.dll");
+			if (File.Exists(msbuildPath)) {
+				Environment.SetEnvironmentVariable("MSBUILD_EXE_PATH", msbuildPath);
+				EnsureLibreWpfSdkPath(msbuildPath);
+			}
+		}
+
+		static void EnsureLibreWpfSdkPath(string msbuildPath)
+		{
+			if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MSBuildSDKsPath")))
+				return;
+
+			string sdkPath = Path.GetDirectoryName(msbuildPath);
+			string sdksPath = Path.Combine(sdkPath, "Sdks");
+			if (Directory.Exists(sdksPath))
+				Environment.SetEnvironmentVariable("MSBuildSDKsPath", sdksPath);
+		}
+
+		static string ResolveLibreWpfDotNetSdkPath()
+		{
+			string explicitSdksPath = Environment.GetEnvironmentVariable("DOTNET_MSBUILD_SDK_RESOLVER_SDKS_DIR");
+			if (Directory.Exists(explicitSdksPath)) {
+				string explicitSdkPath = Path.GetDirectoryName(explicitSdksPath);
+				if (File.Exists(Path.Combine(explicitSdkPath, "MSBuild.dll")))
+					return explicitSdkPath;
+			}
+
+			string best = null;
+			Version bestVersion = null;
+			ProbeLibreWpfDotNetRoot(Environment.GetEnvironmentVariable("DOTNET_ROOT"), ref best, ref bestVersion);
+			ProbeLibreWpfDotNetRoot(Path.GetDirectoryName(Environment.ProcessPath), ref best, ref bestVersion);
+			ProbeLibreWpfDotNetRoot(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotnet"), ref best, ref bestVersion);
+			ProbeLibreWpfDotNetRoot("/usr/local/share/dotnet", ref best, ref bestVersion);
+			ProbeLibreWpfDotNetRoot("/opt/homebrew/share/dotnet", ref best, ref bestVersion);
+			ProbeLibreWpfDotNetRoot("/usr/share/dotnet", ref best, ref bestVersion);
+			return best;
+		}
+
+		static void ProbeLibreWpfDotNetRoot(string dotnetRoot, ref string best, ref Version bestVersion)
+		{
+			if (string.IsNullOrEmpty(dotnetRoot))
+				return;
+
+			string sdkRoot = Path.Combine(dotnetRoot, "sdk");
+			if (!Directory.Exists(sdkRoot))
+				return;
+
+			foreach (string directory in Directory.GetDirectories(sdkRoot)) {
+				string msbuildPath = Path.Combine(directory, "MSBuild.dll");
+				if (!File.Exists(msbuildPath))
+					continue;
+
+				Version version;
+				if (!Version.TryParse(Path.GetFileName(directory), out version)) {
+					if (best == null)
+						best = directory;
+					continue;
+				}
+
+				if (bestVersion == null || version > bestVersion) {
+					best = directory;
+					bestVersion = version;
+				}
+			}
+		}
+#endif
 		
 		static void RunApplication()
 		{
@@ -170,7 +253,12 @@ namespace ICSharpCode.SharpDevelop.Startup
 				#endif
 				
 				Assembly exe = typeof(SharpDevelopMain).Assembly;
+#if LIBREWPF
+				startup.ApplicationRootPath = ResolveLibreWpfApplicationRoot(Path.GetDirectoryName(exe.Location));
+				startup.DataDirectory = Path.Combine(startup.ApplicationRootPath, "data");
+#else
 				startup.ApplicationRootPath = Path.Combine(Path.GetDirectoryName(exe.Location), "..");
+#endif
 				startup.AllowUserAddIns = true;
 				
 				string configDirectory = ConfigurationManager.AppSettings["settingsPath"];
@@ -191,7 +279,18 @@ namespace ICSharpCode.SharpDevelop.Startup
 					startup.DomPersistencePath = null;
 				}
 				
-				startup.AddAddInsFromDirectory(Path.Combine(startup.ApplicationRootPath, "AddIns"));
+#if LIBREWPF
+				string addInsDirectory = Path.Combine(startup.ApplicationRootPath, "src", "AddIns");
+				string coreAddInFile = Path.Combine(startup.ApplicationRootPath, "src", "Main", "Base", "Project", "ICSharpCode.SharpDevelop.addin");
+				if (File.Exists(coreAddInFile)) {
+					startup.AddAddInFile(coreAddInFile);
+				}
+#else
+				string addInsDirectory = Path.Combine(startup.ApplicationRootPath, "AddIns");
+#endif
+				if (Directory.Exists(addInsDirectory)) {
+					startup.AddAddInsFromDirectory(addInsDirectory);
+				}
 				
 				// allows testing addins without having to install them
 				foreach (string parameter in SplashScreenForm.GetParameterList()) {
@@ -212,7 +311,7 @@ namespace ICSharpCode.SharpDevelop.Startup
 				
 				host.BeforeRunWorkbench += delegate {
 					if (SplashScreenForm.SplashScreen != null) {
-						SplashScreenForm.SplashScreen.BeginInvoke(new MethodInvoker(SplashScreenForm.SplashScreen.Dispose));
+						SplashScreenForm.SplashScreen.BeginInvoke(new System.Windows.Forms.MethodInvoker(SplashScreenForm.SplashScreen.Dispose));
 						SplashScreenForm.SplashScreen = null;
 					}
 				};
@@ -228,6 +327,21 @@ namespace ICSharpCode.SharpDevelop.Startup
 				LoggingService.Info("Leaving RunApplication()");
 			}
 		}
+
+#if LIBREWPF
+		static string ResolveLibreWpfApplicationRoot(string startDirectory)
+		{
+			DirectoryInfo directory = new DirectoryInfo(startDirectory);
+			while (directory != null) {
+				if (Directory.Exists(Path.Combine(directory.FullName, "src", "AddIns")) &&
+				    Directory.Exists(Path.Combine(directory.FullName, "data"))) {
+					return directory.FullName;
+				}
+				directory = directory.Parent;
+			}
+			return Path.GetFullPath(Path.Combine(startDirectory, ".."));
+		}
+#endif
 		
 		static bool LoadFilesInPreviousInstance(string[] fileList)
 		{

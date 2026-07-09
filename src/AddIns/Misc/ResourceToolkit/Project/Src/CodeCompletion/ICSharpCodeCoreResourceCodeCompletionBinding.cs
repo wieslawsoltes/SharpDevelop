@@ -85,5 +85,10 @@ namespace Hornung.ResourceToolkit.CodeCompletion
 		{
 			return false;
 		}
+		
+		public bool HandleKeyPressed(ITextEditor editor, char ch)
+		{
+			return false;
+		}
 	}
 }

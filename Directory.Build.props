@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <ProGpuWpfSdkVersion>0.1.0-preview.sharpdevelop.1</ProGpuWpfSdkVersion>
+    <ProGpuWpfPackageVersion>$(ProGpuWpfSdkVersion)</ProGpuWpfPackageVersion>
+    <ProGpuWpfManagedPackageVersion>$(ProGpuWpfPackageVersion)</ProGpuWpfManagedPackageVersion>
+    <ProGpuPackageVersion>$(ProGpuWpfSdkVersion)</ProGpuPackageVersion>
+    <ProGpuWpfSdkSampleTargetFramework Condition="'$(ProGpuWpfSdkSampleTargetFramework)' == ''">net10.0-windows</ProGpuWpfSdkSampleTargetFramework>
+    <ProGpuWpfUsePortableWinFormsCompat>true</ProGpuWpfUsePortableWinFormsCompat>
+    <ProGpuWpfUseLibreWinForms>true</ProGpuWpfUseLibreWinForms>
+  </PropertyGroup>
+</Project>

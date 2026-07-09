@@ -314,6 +314,21 @@ namespace AvalonDock
             return false;
         }
 
+        ContextMenu lastOpenedContextMenu;
+
+        protected void TrackOpenedContextMenu(ContextMenu contextMenu)
+        {
+            lastOpenedContextMenu = contextMenu;
+        }
+
+        public bool TryOpenContextMenuForPortableHost(Point ptMouse, out ContextMenu contextMenu)
+        {
+            lastOpenedContextMenu = null;
+            bool opened = OpenContextMenu(null, ptMouse);
+            contextMenu = lastOpenedContextMenu;
+            return opened && contextMenu != null && contextMenu.IsOpen;
+        }
+
         protected virtual void HandleMove()
         {
             Point mousePosition = PointToScreen(Mouse.GetPosition(null));

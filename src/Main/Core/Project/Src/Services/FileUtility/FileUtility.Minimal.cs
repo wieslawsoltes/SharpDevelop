@@ -51,6 +51,15 @@ namespace ICSharpCode.Core
 			
 			char outputSeparator = isWeb ? '/' : System.IO.Path.DirectorySeparatorChar;
 			bool isRelative;
+#if LIBREWPF
+			string rootPrefix = null;
+			bool isUnixRooted = !isWeb
+				&& Path.DirectorySeparatorChar == '/'
+				&& fileName.Length > 0
+				&& (fileName[0] == '/' || fileName[0] == '\\')
+				&& !fileName.StartsWith(@"\\", StringComparison.Ordinal)
+				&& !fileName.StartsWith("//", StringComparison.Ordinal);
+#endif
 			
 			StringBuilder result = new StringBuilder();
 			if (isWeb == false && fileName.StartsWith(@"\\", StringComparison.Ordinal) || fileName.StartsWith("//", StringComparison.Ordinal)) {
@@ -58,6 +67,12 @@ namespace ICSharpCode.Core
 				i = 2;
 				result.Append(outputSeparator);
 				isRelative = false;
+#if LIBREWPF
+			} else if (isUnixRooted) {
+				i = 1;
+				rootPrefix = outputSeparator.ToString();
+				isRelative = false;
+#endif
 			} else {
 				i = 0;
 				isRelative = !isWeb && (fileName.Length < 2 || fileName[1] != ':');
@@ -116,14 +131,23 @@ namespace ICSharpCode.Core
 				if (result.Length > 0 && result[result.Length - 1] == outputSeparator) {
 					result.Length -= 1;
 				}
-				if (result.Length == 2 && result[1] == ':') {
-					result.Append(outputSeparator);
+					if (result.Length == 2 && result[1] == ':') {
+						result.Append(outputSeparator);
+					}
+					if (result.Length == 0) {
+#if LIBREWPF
+						if (rootPrefix != null)
+							return rootPrefix;
+#endif
+						return ".";
+					}
 				}
-				if (result.Length == 0)
-					return ".";
+#if LIBREWPF
+				if (rootPrefix != null)
+					return rootPrefix + result.ToString();
+#endif
+				return result.ToString();
 			}
-			return result.ToString();
-		}
 		
 		public static bool IsEqualFileName(string fileName1, string fileName2)
 		{

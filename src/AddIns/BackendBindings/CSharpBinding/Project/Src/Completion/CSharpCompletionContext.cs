@@ -43,23 +43,56 @@ namespace CSharpBinding.Completion
 		public readonly CSharpTypeResolveContext TypeResolveContextAtCaret;
 		public readonly ICompletionContextProvider CompletionContextProvider;
 		
-		public static CSharpCompletionContext Get(ITextEditor editor)
-		{
-			// Don't require the very latest parse information, an older cached version is OK.
-			var parseInfo = SD.ParserService.GetCachedParseInformation(editor.FileName) as CSharpFullParseInformation;
-			if (parseInfo == null) {
-				parseInfo = SD.ParserService.Parse(editor.FileName, editor.Document) as CSharpFullParseInformation;
+			public static CSharpCompletionContext Get(ITextEditor editor)
+			{
+				// Don't require the very latest parse information, an older cached version is OK.
+				var parseInfo = SD.ParserService.GetCachedParseInformation(editor.FileName) as CSharpFullParseInformation;
+				if (parseInfo == null) {
+					parseInfo = SD.ParserService.Parse(editor.FileName, editor.Document) as CSharpFullParseInformation;
+				}
+				if (parseInfo == null) {
+#if LIBREWPF
+					if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+						Console.WriteLine("LibreWPF CSharpCompletionContext missing parse info for " + editor.FileName);
+					}
+#endif
+					return null;
+				}
+				
+				ICompilation compilation = SD.ParserService.GetCompilationForFile(editor.FileName);
+				var projectContent = compilation.MainAssembly.UnresolvedAssembly as IProjectContent;
+				if (projectContent == null) {
+#if LIBREWPF
+					if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+						var unresolvedAssembly = compilation.MainAssembly.UnresolvedAssembly;
+						Console.WriteLine("LibreWPF CSharpCompletionContext missing project content for " + editor.FileName
+							+ " mainAssembly=" + (unresolvedAssembly != null ? unresolvedAssembly.GetType().FullName : "<null>"));
+				}
+#endif
+					return null;
+				}
+#if LIBREWPF
+				if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+					int assemblyCount = 0;
+					foreach (IAssembly assembly in compilation.Assemblies)
+						assemblyCount++;
+					int referenceCount = 0;
+					foreach (IAssemblyReference reference in projectContent.AssemblyReferences)
+						referenceCount++;
+					IType consoleType = compilation.FindType(new FullTypeName("System.Console"));
+					Console.WriteLine("LibreWPF CSharpCompletionContext ready for " + editor.FileName
+						+ " parseInfo=" + parseInfo.GetType().Name
+						+ " projectContent=" + projectContent.GetType().FullName
+						+ " assemblies=" + assemblyCount
+						+ " references=" + referenceCount
+						+ " consoleType=" + consoleType.Kind
+						+ " projectLoadRunning=" + SD.ParserService.LoadSolutionProjectsThread.IsRunning
+						+ " caret=" + editor.Caret.Location);
+				}
+#endif
+				
+				return new CSharpCompletionContext(editor, parseInfo.SyntaxTree.ConditionalSymbols, compilation, projectContent, editor.Document, parseInfo.UnresolvedFile, editor.Caret.Location);
 			}
-			if (parseInfo == null)
-				return null;
-			
-			ICompilation compilation = SD.ParserService.GetCompilationForFile(editor.FileName);
-			var projectContent = compilation.MainAssembly.UnresolvedAssembly as IProjectContent;
-			if (projectContent == null)
-				return null;
-			
-			return new CSharpCompletionContext(editor, parseInfo.SyntaxTree.ConditionalSymbols, compilation, projectContent, editor.Document, parseInfo.UnresolvedFile, editor.Caret.Location);
-		}
 		
 		public static CSharpCompletionContext Get(ITextEditor editor, ICodeContext context, TextLocation currentLocation, ITextSource fileContent)
 		{

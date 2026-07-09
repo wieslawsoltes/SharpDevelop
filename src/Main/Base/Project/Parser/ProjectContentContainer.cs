@@ -450,8 +450,16 @@ namespace ICSharpCode.SharpDevelop.Parser
 			
 			List<FileName> assemblyFiles = new List<FileName>();
 			List<IAssemblyReference> newReferences = new List<IAssemblyReference>();
+#if LIBREWPF
+			bool needsLibreWpfPortableCompatibilityReferences = false;
+#endif
 			
 			foreach (var reference in referenceItems) {
+#if LIBREWPF
+				if (IsLibreWpfPortableCompatibilityReference(reference.Include)) {
+					needsLibreWpfPortableCompatibilityReferences = true;
+				}
+#endif
 				ProjectReferenceProjectItem projectReference = reference as ProjectReferenceProjectItem;
 				if (projectReference != null) {
 					newReferences.Add(projectReference);
@@ -476,6 +484,13 @@ namespace ICSharpCode.SharpDevelop.Parser
 				}
 				progressMonitor.Progress += (1.0 - assemblyResolvingProgress) / assemblyFiles.Count;
 			}
+#if LIBREWPF
+			if (!newReferences.OfType<IUnresolvedAssembly>().Any()) {
+				AddLibreWpfDefaultAssemblyReferences(newReferences, progressMonitor.CancellationToken);
+			} else if (needsLibreWpfPortableCompatibilityReferences) {
+				AddLibreWpfPortableCompatibilityAssemblyReferences(newReferences, progressMonitor.CancellationToken);
+			}
+#endif
 			lock (lockObj) {
 				if (!disposed) {
 					projectContent = projectContent.RemoveAssemblyReferences(this.references).AddAssemblyReferences(newReferences);
@@ -488,6 +503,94 @@ namespace ICSharpCode.SharpDevelop.Parser
 				}
 			}
 		}
+
+#if LIBREWPF
+		static readonly Type[] LibreWpfDefaultReferenceTypes = {
+			typeof(object),
+			typeof(Uri),
+			typeof(Enumerable),
+			typeof(Console),
+			typeof(Path),
+			typeof(System.ComponentModel.Component)
+		};
+
+		static readonly Type[] LibreWpfPortableCompatibilityReferenceTypes = {
+			typeof(System.ComponentModel.ToolboxItemAttribute),
+			typeof(System.ComponentModel.ToolboxItemFilterAttribute),
+			typeof(System.Drawing.Point),
+			typeof(System.Drawing.Size),
+			typeof(System.Drawing.SizeF),
+			typeof(System.Drawing.Rectangle),
+			typeof(System.Drawing.Color),
+			typeof(System.Drawing.Bitmap),
+			typeof(System.Windows.Forms.Form),
+			typeof(System.Windows.Forms.UserControl)
+		};
+
+		static void AddLibreWpfDefaultAssemblyReferences(List<IAssemblyReference> newReferences, CancellationToken cancellationToken)
+		{
+			AddLibreWpfAssemblyReferences(newReferences, LibreWpfDefaultReferenceTypes, cancellationToken);
+			AddLibreWpfPortableCompatibilityAssemblyReferences(newReferences, cancellationToken);
+
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF ProjectContentContainer default references added=" + newReferences.OfType<IUnresolvedAssembly>().Count());
+			}
+		}
+
+		static void AddLibreWpfPortableCompatibilityAssemblyReferences(List<IAssemblyReference> newReferences, CancellationToken cancellationToken)
+		{
+			int countBefore = newReferences.OfType<IUnresolvedAssembly>().Count();
+			AddLibreWpfAssemblyReferences(newReferences, LibreWpfPortableCompatibilityReferenceTypes, cancellationToken);
+
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				int countAfter = newReferences.OfType<IUnresolvedAssembly>().Count();
+				if (countAfter != countBefore) {
+					Console.WriteLine("LibreWPF ProjectContentContainer portable compatibility references added=" + (countAfter - countBefore));
+				}
+			}
+		}
+
+		static void AddLibreWpfAssemblyReferences(List<IAssemblyReference> newReferences, Type[] referenceTypes, CancellationToken cancellationToken)
+		{
+			HashSet<string> locations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			HashSet<string> assemblyNames = new HashSet<string>(
+				newReferences.OfType<IUnresolvedAssembly>().Select(assembly => assembly.AssemblyName),
+				StringComparer.OrdinalIgnoreCase);
+			foreach (Type type in referenceTypes) {
+				cancellationToken.ThrowIfCancellationRequested();
+				string location = type.Assembly.Location;
+				if (string.IsNullOrEmpty(location) || !File.Exists(location) || !locations.Add(location))
+					continue;
+
+				try {
+					IUnresolvedAssembly assembly = SD.AssemblyParserService.GetAssembly(FileName.Create(location), false, cancellationToken);
+					if (assembly != null && assemblyNames.Add(assembly.AssemblyName))
+						newReferences.Add(assembly);
+				} catch (IOException ex) {
+					LoggingService.Warn(ex);
+				} catch (BadImageFormatException ex) {
+					LoggingService.Warn(ex);
+				}
+			}
+		}
+
+		static bool IsLibreWpfPortableCompatibilityReference(string include)
+		{
+			string name = GetLibreWpfReferenceShortName(include);
+			return string.Equals(name, "System.Drawing", StringComparison.OrdinalIgnoreCase)
+				|| string.Equals(name, "System.Drawing.Common", StringComparison.OrdinalIgnoreCase)
+				|| string.Equals(name, "System.Windows.Forms", StringComparison.OrdinalIgnoreCase)
+				|| string.Equals(name, "WindowsFormsIntegration", StringComparison.OrdinalIgnoreCase);
+		}
+
+		static string GetLibreWpfReferenceShortName(string include)
+		{
+			if (string.IsNullOrEmpty(include))
+				return string.Empty;
+			int comma = include.IndexOf(',');
+			return comma >= 0 ? include.Substring(0, comma).Trim() : include.Trim();
+		}
+#endif
 		
 		AtomicBoolean reparseReferencesStartedButNotYetRunning;
 		

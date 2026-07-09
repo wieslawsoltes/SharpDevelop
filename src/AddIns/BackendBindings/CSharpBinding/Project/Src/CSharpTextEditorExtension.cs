@@ -48,16 +48,41 @@ namespace CSharpBinding
 
 		public void Attach(ITextEditor editor)
 		{
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CSharpTextEditorExtension.Attach entered " + editor.FileName);
+			}
+#endif
 			this.editor = editor;
 			inspectionManager = new IssueManager(editor);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CSharpTextEditorExtension.Attach issue manager ready");
+			}
+#endif
 			codeManipulation = new CodeManipulation(editor);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CSharpTextEditorExtension.Attach code manipulation ready");
+			}
+#endif
 			renderer = new CaretReferenceHighlightRenderer(editor);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CSharpTextEditorExtension.Attach caret renderer ready");
+			}
+#endif
 			
 			// Patch editor options (indentation) to project-specific settings
 			if (!editor.ContextActionProviders.IsReadOnly) {
 				contextActionProviders = AddInTree.BuildItems<IContextActionProvider>("/SharpDevelop/ViewContent/TextEditor/C#/ContextActions", null);
 				editor.ContextActionProviders.AddRange(contextActionProviders);
 			}
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CSharpTextEditorExtension.Attach context actions=" + (contextActionProviders != null ? contextActionProviders.Count : 0));
+			}
+#endif
 			
 			// Create instance of options adapter and register it as service
 			var formattingPolicy = CSharpFormattingPolicies.Instance.GetProjectOptions(SD.ProjectService.FindProjectContainingFile(editor.FileName));
@@ -75,6 +100,11 @@ namespace CSharpBinding
 				originalEditorOptions = textEditor.Options;
 				textEditor.Options = options.TextEditorOptions;
 			}
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CSharpTextEditorExtension.Attach completed");
+			}
+#endif
 		}
 
 		public void Detach()
@@ -249,5 +279,4 @@ namespace CSharpBinding
 
 	}
 }
-
 

@@ -21,7 +21,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net;
-using System.Runtime.Remoting.Messaging;
 using System.Web.Services.Description;
 using System.Web.Services.Discovery;
 using System.Windows;

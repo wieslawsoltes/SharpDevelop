@@ -502,6 +502,11 @@ namespace AvalonDock
         {
             get
             {
+#if LIBREWPF
+                if (!OperatingSystem.IsWindows())
+                    return IsMouseOver;
+#endif
+
                 InteropHelper.Win32Point pt = new InteropHelper.Win32Point();
                 if (!InteropHelper.GetCursorPos(ref pt))
                     return false;
@@ -677,12 +682,12 @@ namespace AvalonDock
 
             if (CorrectedAnchor == AnchorStyle.Left)
             {
-                InteropHelper.SetWindowRgn(new WindowInteropHelper(this).Handle, InteropHelper.CreateRectRgn(0, 0, 0, (int)wnd_Height - wnd_TrimHeight), true);
+                ApplyRegion(new Rect(0, 0, 0, (int)wnd_Height - wnd_TrimHeight));
                 this.Left = wnd_Left - wnd_Width;
             }
             else if (CorrectedAnchor == AnchorStyle.Top)
             {
-                InteropHelper.SetWindowRgn(new WindowInteropHelper(this).Handle, InteropHelper.CreateRectRgn(0, 0, (int)wnd_Width - wnd_TrimWidth, 0), true);
+                ApplyRegion(new Rect(0, 0, (int)wnd_Width - wnd_TrimWidth, 0));
                 this.Top = wnd_Top - wnd_Height;
             }
 
@@ -916,6 +921,12 @@ namespace AvalonDock
                     //    otherRects.Add(Rect.Intersect(flRect, wndRect));
                 }
 
+                IntPtr handle = new WindowInteropHelper(this).Handle;
+#if LIBREWPF
+                if (InteropHelper.TrySetPortableWindowRegion(handle, wndRect, otherRects))
+                    return;
+#endif
+
                 IntPtr hDestRegn = InteropHelper.CreateRectRgn(
                         (int)wndRect.Left,
                         (int)wndRect.Top,
@@ -934,7 +945,7 @@ namespace AvalonDock
                 }
 
 
-                InteropHelper.SetWindowRgn(new WindowInteropHelper(this).Handle, hDestRegn, true);
+                InteropHelper.SetWindowRgn(handle, hDestRegn, true);
             }        
         }
         #endregion

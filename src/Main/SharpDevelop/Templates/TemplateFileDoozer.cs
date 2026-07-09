@@ -56,10 +56,41 @@ namespace ICSharpCode.SharpDevelop.Templates
 			string path = args.Codon["path"];
 			if (!string.IsNullOrEmpty(path)) {
 				path = Path.Combine(Path.GetDirectoryName(args.AddIn.FileName), path);
+#if LIBREWPF
+				path = ResolveLibreWpfSourceTreeTemplatePath(args.Codon["path"], path);
+#endif
 				return new ReadOnlyChrootFileSystem(SD.FileSystem, DirectoryName.Create(path));
 			}
 			throw new InvalidOperationException("Missing 'resourceNamespace' or 'path' attribute.");
 		}
+
+#if LIBREWPF
+		static string ResolveLibreWpfSourceTreeTemplatePath(string addInPath, string resolvedPath)
+		{
+			if (Directory.Exists(resolvedPath)) {
+				return resolvedPath;
+			}
+
+			string normalized = addInPath.Replace('\\', '/');
+			const string sourceDataPrefix = "../data/";
+			if (normalized.Equals("../data", StringComparison.OrdinalIgnoreCase)) {
+				string candidate = Path.Combine(FileUtility.ApplicationRootPath, "data");
+				if (Directory.Exists(candidate)) {
+					return candidate;
+				}
+			}
+			if (normalized.StartsWith(sourceDataPrefix, StringComparison.OrdinalIgnoreCase)) {
+				string relativeDataPath = normalized.Substring(sourceDataPrefix.Length)
+					.Replace('/', Path.DirectorySeparatorChar);
+				string candidate = Path.Combine(FileUtility.ApplicationRootPath, "data", relativeDataPath);
+				if (Directory.Exists(candidate)) {
+					return candidate;
+				}
+			}
+
+			return resolvedPath;
+		}
+#endif
 		
 		public object BuildItem(BuildItemArgs args)
 		{

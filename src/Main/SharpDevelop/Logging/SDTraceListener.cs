@@ -32,8 +32,13 @@ namespace ICSharpCode.SharpDevelop.Logging
 		[Conditional("DEBUG")]
 		public static void Install()
 		{
+#if LIBREWPF
+			Trace.Listeners.Clear();
+			Trace.Listeners.Add(new SDTraceListener());
+#else
 			Debug.Listeners.Clear();
 			Debug.Listeners.Add(new SDTraceListener());
+#endif
 		}
 		
 		public SDTraceListener()
@@ -68,7 +73,12 @@ namespace ICSharpCode.SharpDevelop.Logging
 			// so we create a separate UI thread for the dialog:
 			bool debug = false;
 			var thread = new Thread(() => ShowAssertionDialog(message, detailMessage, stackTrace, ref debug));
+#if LIBREWPF
+			if (OperatingSystem.IsWindows())
+				thread.SetApartmentState(ApartmentState.STA);
+#else
 			thread.SetApartmentState(ApartmentState.STA);
+#endif
 			thread.Start();
 			thread.Join();
 			if (debug)

@@ -1,0 +1,58 @@
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.sharpdevelop.1">
+  <PropertyGroup>
+    <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>ICSharpCode.SharpDevelop</AssemblyName>
+    <RootNamespace>ICSharpCode.SharpDevelop</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\ICSharpCode.SharpDevelop.snk</AssemblyOriginatorKeyFile>
+    <DefineConstants>$(DefineConstants);PUBLICINTERPROCESS;LIBREWPF</DefineConstants>
+    <NoWarn>$(NoWarn);0809;1591;CS1591;CS0618;SYSLIB0003;SYSLIB0050;SYSLIB0051</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="obj/**" />
+    <EmbeddedResource Remove="obj/**" />
+    <None Remove="obj/**" />
+    <Page Remove="obj/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\GlobalAssemblyInfo.cs" Link="Configuration\GlobalAssemblyInfo.cs" />
+    <Compile Include="..\..\..\Libraries\ICSharpCode.Build.Tasks\Project\KnownFrameworkAssemblies.cs" Link="Src\Gui\Dialogs\ReferenceDialog\KnownFrameworkAssemblies.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build" Version="17.14.28" />
+    <PackageReference Include="Microsoft.Build.Framework" Version="17.14.28" />
+    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuWpfSdkVersion)" />
+    <PackageReference Include="System.CodeDom" Version="10.0.0" />
+    <PackageReference Include="System.Resources.Extensions" Version="10.0.0" />
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.9" />
+    <PackageReference Include="System.Web.Services.Description" Version="10.0.652802" />
+    <PackageReference Include="System.ServiceModel.Primitives" Version="10.0.652802" />
+    <PackageReference Include="System.ServiceModel.Http" Version="10.0.652802" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Drawing.Common"
+               HintPath="$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll"
+               Private="true"
+               Condition="Exists('$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll')" />
+    <ProjectReference Include="..\..\Core\Project\ICSharpCode.Core.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\ICSharpCode.Core.Presentation\ICSharpCode.Core.Presentation.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\ICSharpCode.Core.WinForms\ICSharpCode.Core.WinForms.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\ICSharpCode.SharpDevelop.Widgets\Project\ICSharpCode.SharpDevelop.Widgets.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Libraries\SharpTreeView\ICSharpCode.TreeView\ICSharpCode.TreeView.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Libraries\AvalonEdit\ICSharpCode.AvalonEdit\ICSharpCode.AvalonEdit.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Libraries\AvalonDock\AvalonDock\AvalonDock.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Libraries\cecil\Mono.Cecil.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory\ICSharpCode.NRefactory.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory.Xml\ICSharpCode.NRefactory.Xml.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory.Cecil\ICSharpCode.NRefactory.Cecil.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory.CSharp\ICSharpCode.NRefactory.CSharp.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory.CSharp.Refactoring\ICSharpCode.NRefactory.CSharp.Refactoring.LibreWpf.csproj" />
+  </ItemGroup>
+</Project>

@@ -20,6 +20,7 @@ using System;
 using System.Collections.Generic;
 
 using ICSharpCode.Core;
+using ICSharpCode.SharpDevelop;
 using ICSharpCode.SharpDevelop.Project;
 
 namespace Hornung.ResourceToolkit
@@ -80,13 +81,7 @@ namespace Hornung.ResourceToolkit
 		/// <returns>The project that contains the specified file. If the file is not found in any project or there is no open project, <c>null</c> is returned.</returns>
 		static IProject GetProjectForFileInternal(string fileName)
 		{
-			if (ProjectService.OpenSolution != null) {
-				IProject p;
-				if ((p = ProjectService.OpenSolution.FindProjectContainingFile(fileName)) != null) {
-					return p;
-				}
-			}
-			return null;
+			return SD.ProjectService.FindProjectContainingFile(FileName.Create(fileName));
 		}
 		
 		/// <summary>

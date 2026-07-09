@@ -116,27 +116,88 @@ namespace ICSharpCode.AvalonEdit.AddIn
 			get { return fileName; }
 			set {
 				if (fileName != value) {
+#if LIBREWPF
+					if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+						Console.WriteLine("LibreWPF CodeEditor.FileName setting " + value);
+					}
+#endif
 					fileName = value;
 					this.document.FileName = fileName;
+#if LIBREWPF
+					if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+						Console.WriteLine("LibreWPF CodeEditor.FileName document updated " + value);
+					}
+#endif
 					
 					primaryTextEditorAdapter.FileNameChanged();
+#if LIBREWPF
+					if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+						Console.WriteLine("LibreWPF CodeEditor.FileName adapter notified " + value);
+					}
+#endif
 					
 					if (this.errorPainter == null) {
+#if LIBREWPF
+						if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+							Console.WriteLine("LibreWPF CodeEditor.FileName creating error painter " + value);
+						}
+#endif
 						this.errorPainter = new ErrorPainter(primaryTextEditorAdapter);
 					} else {
+#if LIBREWPF
+						if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+							Console.WriteLine("LibreWPF CodeEditor.FileName updating error painter " + value);
+						}
+#endif
 						this.errorPainter.UpdateErrors();
 					}
-					if (changeWatcher != null) {
-						changeWatcher.Initialize(this.Document, value);
+#if LIBREWPF
+					if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+						Console.WriteLine("LibreWPF CodeEditor.FileName error painter ready " + value);
 					}
+#endif
+					if (changeWatcher != null) {
+#if LIBREWPF
+						if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+							Console.WriteLine("LibreWPF CodeEditor.FileName initializing change watcher " + value);
+						}
+#endif
+						changeWatcher.Initialize(this.Document, value);
+#if LIBREWPF
+						if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+							Console.WriteLine("LibreWPF CodeEditor.FileName change watcher ready " + value);
+						}
+#endif
+					}
+#if LIBREWPF
+					if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+						Console.WriteLine("LibreWPF CodeEditor.FileName updating syntax highlighting " + value);
+					}
+#endif
 					UpdateSyntaxHighlighting(value);
+#if LIBREWPF
+					if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+						Console.WriteLine("LibreWPF CodeEditor.FileName syntax highlighting ready " + value);
+						Console.WriteLine("LibreWPF CodeEditor.FileName fetching parse information " + value);
+					}
+#endif
 					FetchParseInformation();
+#if LIBREWPF
+					if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+						Console.WriteLine("LibreWPF CodeEditor.FileName completed " + value);
+					}
+#endif
 				}
 			}
 		}
 		
 		void UpdateSyntaxHighlighting(FileName fileName)
 		{
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditor.UpdateSyntaxHighlighting loading highlighting for " + fileName);
+			}
+#endif
 			var oldHighlighter = primaryTextEditor.GetService<IHighlighter>();
 			
 			var highlighting = HighlightingManager.Instance.GetDefinitionByExtension(Path.GetExtension(fileName));
@@ -152,6 +213,13 @@ namespace ICSharpCode.AvalonEdit.AddIn
 			if (oldHighlighter != null) {
 				oldHighlighter.Dispose();
 			}
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditor.UpdateSyntaxHighlighting highlighting="
+					+ (highlighting == null ? "<null>" : highlighting.Name)
+					+ " highlighter=" + (highlighter == null ? "<null>" : highlighter.GetType().FullName));
+			}
+#endif
 		}
 		
 		public void Redraw(ISegment segment, DispatcherPriority priority)
@@ -163,12 +231,27 @@ namespace ICSharpCode.AvalonEdit.AddIn
 		
 		public CodeEditor()
 		{
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditor ctor entered");
+			}
+#endif
 			CodeEditorOptions.Instance.PropertyChanged += CodeEditorOptions_Instance_PropertyChanged;
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditor options attached");
+			}
+#endif
 			CustomizedHighlightingColor.ActiveColorsChanged += CustomizedHighlightingColor_ActiveColorsChanged;
 			SD.ParserService.ParseInformationUpdated += ParserServiceParseInformationUpdated;
 			
 			this.FlowDirection = FlowDirection.LeftToRight; // code editing is always left-to-right
 			this.document = new TextDocument();
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditor document created");
+			}
+#endif
 			var documentServiceContainer = document.GetRequiredService<IServiceContainer>();
 			
 			textMarkerService = new TextMarkerService(document);
@@ -180,7 +263,17 @@ namespace ICSharpCode.AvalonEdit.AddIn
 			if (CodeEditorOptions.Instance.EnableChangeMarkerMargin) {
 				changeWatcher = new DefaultChangeWatcher();
 			}
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditor creating primary text editor");
+			}
+#endif
 			primaryTextEditor = CreateTextEditor();
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditor primary text editor created");
+			}
+#endif
 			primaryTextEditorAdapter = (CodeEditorAdapter)primaryTextEditor.TextArea.GetService(typeof(ITextEditor));
 			Debug.Assert(primaryTextEditorAdapter != null);
 			
@@ -190,6 +283,11 @@ namespace ICSharpCode.AvalonEdit.AddIn
 			SetRow(primaryTextEditor, 1);
 			
 			this.Children.Add(primaryTextEditor);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditor ctor completed");
+			}
+#endif
 		}
 		
 		void CodeEditorOptions_Instance_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -212,7 +310,17 @@ namespace ICSharpCode.AvalonEdit.AddIn
 		/// </summary>
 		protected virtual CodeEditorView CreateTextEditor()
 		{
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditor CreateTextEditor entered");
+			}
+#endif
 			CodeEditorView codeEditorView = new CodeEditorView();
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditor CodeEditorView constructed");
+			}
+#endif
 			CodeEditorAdapter adapter = new CodeEditorAdapter(this, codeEditorView);
 			codeEditorView.Adapter = adapter;
 			codeEditorView.Document = document;

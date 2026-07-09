@@ -49,6 +49,9 @@ namespace ICSharpCode.SharpDevelop.Project
 			if (exception == null)
 				throw new ArgumentNullException("exception");
 			this.exception = exception;
+#if LIBREWPF
+			Console.Error.WriteLine("LibreWPF project load error for " + information.FileName + ": " + exception);
+#endif
 		}
 		
 		public override void ProjectLoaded()

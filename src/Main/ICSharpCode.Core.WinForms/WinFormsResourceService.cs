@@ -180,10 +180,17 @@ namespace ICSharpCode.Core.WinForms
 				if (iconCache.TryGetValue(name, out ico))
 					return ico;
 				
-				object iconobj = resourceService.GetImageResource(name);
-				if (iconobj == null) {
-					return null;
-				}
+					object iconobj = resourceService.GetImageResource(name);
+					if (iconobj == null) {
+#if LIBREWPF
+						LoggingService.Warn("Icon resource not found, using LibreWPF placeholder: " + name);
+						ico = BitmapToIcon(CreatePlaceholderBitmap());
+						iconCache[name] = ico;
+						return ico;
+#else
+						return null;
+#endif
+					}
 				if (iconobj is Icon) {
 					ico = (Icon)iconobj;
 				} else {
@@ -236,13 +243,34 @@ namespace ICSharpCode.Core.WinForms
 				Bitmap bmp;
 				if (bitmapCache.TryGetValue(name, out bmp))
 					return bmp;
-				bmp = (Bitmap)resourceService.GetImageResource(name);
-				if (bmp == null) {
-					throw new ResourceNotFoundException(name);
+					bmp = (Bitmap)resourceService.GetImageResource(name);
+					if (bmp == null) {
+#if LIBREWPF
+						LoggingService.Warn("Bitmap resource not found, using LibreWPF placeholder: " + name);
+						bmp = CreatePlaceholderBitmap();
+#else
+						throw new ResourceNotFoundException(name);
+#endif
+					}
+					bitmapCache[name] = bmp;
+					return bmp;
 				}
-				bitmapCache[name] = bmp;
-				return bmp;
 			}
+
+#if LIBREWPF
+			static Bitmap CreatePlaceholderBitmap()
+			{
+				const int size = 16;
+				Bitmap bitmap = new Bitmap(size, size);
+				for (int y = 0; y < size; y++) {
+					for (int x = 0; x < size; x++) {
+						bool border = x == 0 || y == 0 || x == size - 1 || y == size - 1 || x == y || x == size - y - 1;
+						bitmap.SetPixel(x, y, border ? Color.FromArgb(0xff, 0x90, 0x90, 0x90) : Color.FromArgb(0xff, 0xe0, 0xe0, 0xe0));
+					}
+				}
+
+				return bitmap;
+			}
+#endif
 		}
 	}
-}

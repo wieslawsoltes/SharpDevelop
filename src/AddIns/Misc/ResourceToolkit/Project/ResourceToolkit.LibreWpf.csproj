@@ -1,0 +1,92 @@
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.sharpdevelop.1">
+  <PropertyGroup>
+    <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>Hornung.ResourceToolkit</AssemblyName>
+    <RootNamespace>Hornung.ResourceToolkit</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <LangVersion>12.0</LangVersion>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\..\..\Main\ICSharpCode.SharpDevelop.snk</AssemblyOriginatorKeyFile>
+    <DefineConstants>$(DefineConstants);LIBREWPF</DefineConstants>
+    <NoWarn>$(NoWarn);0809;1591;CS1591;CS0618;SYSLIB0050;SYSLIB0051;NU1603</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="obj/**" />
+    <Compile Remove="Src/CodeCompletion/AbstractNRefactoryResourceCodeCompletionBinding.cs" />
+    <Compile Remove="Src/CodeCompletion/CSharpResourceCodeCompletionBinding.cs" />
+    <Compile Remove="Src/CodeCompletion/VBNetResourceCodeCompletionBinding.cs" />
+    <Compile Remove="Src/Refactoring/**/*.cs" />
+    <Compile Remove="Src/Resolver/BclNRefactoryResourceResolver.cs" />
+    <Compile Remove="Src/Resolver/ICSharpCodeCoreNRefactoryResourceResolver.cs" />
+    <Compile Remove="Src/Resolver/INRefactoryResourceResolver.cs" />
+    <Compile Remove="Src/Resolver/MemberEqualityComparer.cs" />
+    <Compile Remove="Src/Resolver/MemberFindAstVisitor.cs" />
+    <Compile Remove="Src/Resolver/NRefactoryAstCacheService.cs" />
+    <Compile Remove="Src/Resolver/NRefactoryResourceResolver.cs" />
+    <Compile Remove="Src/Resolver/PositionTrackingAstVisitor.cs" />
+    <Compile Remove="Src/Resolver/PropertyFieldAssociationVisitor.cs" />
+    <EmbeddedResource Remove="obj/**" />
+    <None Remove="obj/**" />
+    <Page Remove="obj/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Configuration\AssemblyInfo.cs" />
+    <Compile Include="Src\**\*.cs" />
+    <Compile Include="..\..\..\..\Main\GlobalAssemblyInfo.cs" Link="Configuration\GlobalAssemblyInfo.cs" />
+    <EmbeddedResource Include="Resources\EditStringResourceDialog.xfrm" />
+    <None Include="Hornung.ResourceToolkit.addin" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Src/CodeCompletion/AbstractNRefactoryResourceCodeCompletionBinding.cs" />
+    <Compile Remove="Src/CodeCompletion/CSharpResourceCodeCompletionBinding.cs" />
+    <Compile Remove="Src/CodeCompletion/VBNetResourceCodeCompletionBinding.cs" />
+    <Compile Remove="Src/Refactoring/**/*.cs" />
+    <Compile Remove="Src/Gui/UnusedResourceKeysCommands.cs" />
+    <Compile Remove="Src/Gui/UnusedResourceKeysViewContent.cs" />
+    <Compile Remove="Src/Resolver/BclNRefactoryResourceResolver.cs" />
+    <Compile Remove="Src/Resolver/ICSharpCodeCoreNRefactoryResourceResolver.cs" />
+    <Compile Remove="Src/Resolver/INRefactoryResourceResolver.cs" />
+    <Compile Remove="Src/Resolver/MemberEqualityComparer.cs" />
+    <Compile Remove="Src/Resolver/MemberFindAstVisitor.cs" />
+    <Compile Remove="Src/Resolver/NRefactoryAstCacheService.cs" />
+    <Compile Remove="Src/Resolver/NRefactoryResourceResolver.cs" />
+    <Compile Remove="Src/Resolver/PositionTrackingAstVisitor.cs" />
+    <Compile Remove="Src/Resolver/PropertyFieldAssociationVisitor.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build" Version="17.14.28" />
+    <PackageReference Include="Microsoft.Build.Framework" Version="17.14.28" />
+    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuWpfSdkVersion)" />
+    <PackageReference Include="System.CodeDom" Version="10.0.0" />
+    <PackageReference Include="System.Resources.Extensions" Version="10.0.0" />
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Drawing.Common"
+               HintPath="$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll"
+               Private="true"
+               Condition="Exists('$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll')" />
+    <ProjectReference Include="..\..\..\..\Libraries\AvalonEdit\ICSharpCode.AvalonEdit\ICSharpCode.AvalonEdit.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory\ICSharpCode.NRefactory.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory.Xml\ICSharpCode.NRefactory.Xml.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory.CSharp\ICSharpCode.NRefactory.CSharp.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory.CSharp.Refactoring\ICSharpCode.NRefactory.CSharp.Refactoring.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Main\Base\Project\ICSharpCode.SharpDevelop.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Main\Core\Project\ICSharpCode.Core.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Main\ICSharpCode.Core.Presentation\ICSharpCode.Core.Presentation.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Main\ICSharpCode.Core.WinForms\ICSharpCode.Core.WinForms.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Main\ICSharpCode.SharpDevelop.Widgets\Project\ICSharpCode.SharpDevelop.Widgets.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\DisplayBindings\AvalonEdit.AddIn\AvalonEdit.AddIn.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\DisplayBindings\FormsDesigner\Project\FormsDesigner.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\BackendBindings\CSharpBinding\Project\CSharpBinding.LibreWpf.csproj" />
+  </ItemGroup>
+</Project>

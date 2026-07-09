@@ -113,7 +113,14 @@ namespace ICSharpCode.SharpDevelop.Project
 		
 		public static IEnumerable<TypeLibrary> Libraries {
 			get {
+#if LIBREWPF
+				if (!OperatingSystem.IsWindows())
+					yield break;
+#endif
 				RegistryKey typeLibsKey = Registry.ClassesRoot.OpenSubKey("TypeLib");
+				if (typeLibsKey == null)
+					yield break;
+				
 				foreach (string typeLibKeyName in typeLibsKey.GetSubKeyNames()) {
 					RegistryKey typeLibKey = null;
 					try {
@@ -134,6 +141,10 @@ namespace ICSharpCode.SharpDevelop.Project
 		
 		static TypeLibrary Create(RegistryKey typeLibKey)
 		{
+#if LIBREWPF
+			if (!OperatingSystem.IsWindows())
+				return null;
+#endif
 			string[] versions = typeLibKey.GetSubKeyNames();
 			if (versions.Length > 0) {
 				TypeLibrary lib = new TypeLibrary();
@@ -153,6 +164,10 @@ namespace ICSharpCode.SharpDevelop.Project
 		
 		static string GetTypeLibPath(RegistryKey versionKey, ref string lcid)
 		{
+#if LIBREWPF
+			if (!OperatingSystem.IsWindows())
+				return null;
+#endif
 			// Get the default value of the (typically) 0\win32 subkey:
 			string[] subkeys = versionKey.GetSubKeyNames();
 			
@@ -232,6 +247,9 @@ namespace ICSharpCode.SharpDevelop.Project
 		
 		static string GetTypeLibNameFromFile(string fileName)
 		{
+#if LIBREWPF
+			return fileName != null ? System.IO.Path.GetFileNameWithoutExtension(fileName) : null;
+#else
 			if (fileName != null && fileName.Length > 0 && File.Exists(fileName)) {
 				ITypeLib typeLib;
 				if (LoadTypeLibEx(fileName, RegKind.None, out typeLib) == 0) {
@@ -243,10 +261,14 @@ namespace ICSharpCode.SharpDevelop.Project
 				}
 			}
 			return null;
+#endif
 		}
 		
 		static string GetTypeLibNameFromGuid(ref Guid guid, short versionMajor, short versionMinor, int lcid)
 		{
+#if LIBREWPF
+			return guid.ToString();
+#else
 			ITypeLib typeLib;
 			if (LoadRegTypeLib(ref guid, versionMajor, versionMinor, lcid, out typeLib) == 0) {
 				try {
@@ -256,6 +278,7 @@ namespace ICSharpCode.SharpDevelop.Project
 				}
 			}
 			return null;
+#endif
 		}
 		
 		enum RegKind {

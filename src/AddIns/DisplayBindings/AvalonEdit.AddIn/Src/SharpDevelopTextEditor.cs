@@ -63,13 +63,33 @@ namespace ICSharpCode.AvalonEdit.AddIn
 		
 		public SharpDevelopTextEditor()
 		{
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF SharpDevelopTextEditor ctor entered");
+			}
+#endif
 			AvalonEditDisplayBinding.RegisterAddInHighlightingDefinitions();
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF SharpDevelopTextEditor highlighting definitions registered");
+			}
+#endif
 			
 			this.CommandBindings.Add(new CommandBinding(ApplicationCommands.Print, OnPrint));
 			this.CommandBindings.Add(new CommandBinding(ApplicationCommands.PrintPreview, OnPrintPreview));
 			
 			options = ICSharpCode.AvalonEdit.AddIn.Options.CodeEditorOptions.Instance;
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF SharpDevelopTextEditor options resolved");
+			}
+#endif
 			options.BindToTextEditor(this);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF SharpDevelopTextEditor ctor completed");
+			}
+#endif
 		}
 		
 		protected virtual ICSharpCode.Core.FileName FileName {

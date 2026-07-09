@@ -19,6 +19,7 @@
 using System;
 using Hornung.ResourceToolkit.Resolver;
 using ICSharpCode.NRefactory;
+using ICSharpCode.NRefactory.Editor;
 using ICSharpCode.SharpDevelop.Editor;
 
 namespace Hornung.ResourceToolkit.ToolTips
@@ -33,13 +34,13 @@ namespace Hornung.ResourceToolkit.ToolTips
 			if (!e.InDocument)
 				return;
 			
-			Location logicPos = e.LogicalPosition;
+			TextLocation logicPos = e.LogicalPosition;
 			IDocument doc = e.Editor.Document;
-			if (logicPos.X > doc.GetLine(logicPos.Y).Length) {
+			if (logicPos.Column > doc.GetLineByNumber(logicPos.Line).Length) {
 				return;
 			}
 			
-			ResourceResolveResult result = ResourceResolverService.Resolve(e.Editor.FileName, doc, logicPos.Y - 1, logicPos.X - 1, null);
+			ResourceResolveResult result = ResourceResolverService.Resolve(e.Editor.FileName, doc, logicPos.Line - 1, logicPos.Column - 1, null);
 			
 			if (result != null && result.ResourceFileContent != null) {
 				e.SetToolTip(ResourceResolverService.FormatResourceDescription(result.ResourceFileContent, result.Key));

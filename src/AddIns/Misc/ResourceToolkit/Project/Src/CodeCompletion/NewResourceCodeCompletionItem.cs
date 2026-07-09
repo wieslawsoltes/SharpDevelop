@@ -23,7 +23,6 @@ using System.Windows.Forms;
 using Hornung.ResourceToolkit.Gui;
 using Hornung.ResourceToolkit.ResourceFileContent;
 using ICSharpCode.Core;
-using ICSharpCode.NRefactory.PrettyPrinter;
 using ICSharpCode.SharpDevelop.Editor.CodeCompletion;
 using ICSharpCode.SharpDevelop.Gui;
 
@@ -37,8 +36,8 @@ namespace Hornung.ResourceToolkit.CodeCompletion
 		readonly IResourceFileContent content;
 		readonly string preEnteredName;
 		
-		public NewResourceCodeCompletionItem(IResourceFileContent content, IOutputAstVisitor outputVisitor, string preEnteredName)
-			: base(StringParser.Parse("${res:Hornung.ResourceToolkit.CodeCompletion.AddNewEntry}"), String.Format(CultureInfo.CurrentCulture, StringParser.Parse("${res:Hornung.ResourceToolkit.CodeCompletion.AddNewDescription}"), content.FileName), outputVisitor)
+		public NewResourceCodeCompletionItem(IResourceFileContent content, IResourceKeyFormatter keyFormatter, string preEnteredName)
+			: base(StringParser.Parse("${res:Hornung.ResourceToolkit.CodeCompletion.AddNewEntry}"), String.Format(CultureInfo.CurrentCulture, StringParser.Parse("${res:Hornung.ResourceToolkit.CodeCompletion.AddNewDescription}"), content.FileName), keyFormatter)
 		{
 			this.content = content;
 			this.preEnteredName = preEnteredName;

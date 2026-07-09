@@ -118,8 +118,10 @@ namespace ICSharpCode.SharpDevelop.Project
 		
 		void LoadSolution(ISolution solution)
 		{
+			TraceProjectBrowser("LoadSolution handleCreated=" + ProjectBrowserControl.TreeView.IsHandleCreated + " solution=" + solution.ToString());
 			if (!ProjectBrowserControl.TreeView.IsHandleCreated) {
 				LoggingService.Debug("ProjectBrowser: Attempt to load solution " + solution.ToString() + " before handle of ProjectBrowserControl.TreeView created");
+				TraceProjectBrowser("LoadSolution deferred waiting for TreeView.HandleCreated");
 				this.solutionToLoadWhenHandleIsCreated = solution;
 				if (!this.treeViewHandleCreatedAttached) {
 					LoggingService.Debug("-> Attaching event handler to ProjectBrowserControl.TreeView.HandleCreated");
@@ -130,8 +132,12 @@ namespace ICSharpCode.SharpDevelop.Project
 				LoggingService.Debug("ProjectBrowser: Loading solution " + solution.ToString() + " into project tree view");
 				this.solutionToLoadWhenHandleIsCreated = null;
 				projectBrowserPanel.ViewSolution(solution);
+				TraceProjectBrowser("LoadSolution loaded rootNodes=" + ProjectBrowserControl.TreeView.Nodes.Count);
 				projectBrowserPanel.ReadViewState(solution.Preferences);
 				solution.PreferencesSaving += SolutionPreferencesSaving;
+				if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_ACTIVATE_PROJECTS") == "1") {
+					BringToFront();
+				}
 			}
 		}
 		
@@ -141,6 +147,7 @@ namespace ICSharpCode.SharpDevelop.Project
 		void ProjectBrowserTreeViewHandleCreated(object sender, EventArgs e)
 		{
 			System.Windows.Forms.TreeView treeView = (System.Windows.Forms.TreeView)sender;
+			TraceProjectBrowser("TreeView.HandleCreated pendingSolution=" + (this.solutionToLoadWhenHandleIsCreated != null));
 			this.treeViewHandleCreatedAttached = false;
 			treeView.HandleCreated -= this.ProjectBrowserTreeViewHandleCreated;
 			if (this.solutionToLoadWhenHandleIsCreated != null) {
@@ -149,6 +156,13 @@ namespace ICSharpCode.SharpDevelop.Project
 				this.solutionToLoadWhenHandleIsCreated = null;
 			} else {
 				LoggingService.Debug("ProjectBrowser: Tree view handle created, no solution to load.");
+			}
+		}
+
+		static void TraceProjectBrowser(string message)
+		{
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF ProjectBrowserPad " + message);
 			}
 		}
 		

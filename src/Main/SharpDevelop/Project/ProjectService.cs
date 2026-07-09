@@ -36,7 +36,12 @@ namespace ICSharpCode.SharpDevelop.Project
 		{
 			allSolutions = new NullSafeSimpleModelCollection<ISolution>();
 			allProjects = allSolutions.SelectMany(s => s.Projects);
-			projectBindings = SD.AddInTree.BuildItems<ProjectBindingDescriptor>("/SharpDevelop/Workbench/ProjectBindings", null);
+			var loadedProjectBindings = SD.AddInTree.BuildItems<ProjectBindingDescriptor>("/SharpDevelop/Workbench/ProjectBindings", null);
+#if LIBREWPF
+			projectBindings = AddLibreWpfFallbackProjectBindings(loadedProjectBindings);
+#else
+			projectBindings = loadedProjectBindings;
+#endif
 			targetFrameworks = SD.AddInTree.BuildItems<TargetFramework>("/SharpDevelop/TargetFrameworks", null);
 			
 			SD.GetFutureService<IWorkbench>().ContinueWith(t => t.Result.ActiveViewContentChanged += ActiveViewContentChanged).FireAndForget();
@@ -49,6 +54,58 @@ namespace ICSharpCode.SharpDevelop.Project
 			
 			SD.Services.AddService(typeof(IProjectServiceRaiseEvents), this);
 		}
+
+#if LIBREWPF
+		static IReadOnlyList<ProjectBindingDescriptor> AddLibreWpfFallbackProjectBindings(IReadOnlyList<ProjectBindingDescriptor> loadedProjectBindings)
+		{
+			if (loadedProjectBindings.Any(b => ".csproj".Equals(b.ProjectFileExtension, StringComparison.OrdinalIgnoreCase))) {
+				return loadedProjectBindings;
+			}
+
+			var bindings = loadedProjectBindings.ToList();
+			bindings.Add(new ProjectBindingDescriptor(
+				new LibreWpfCSharpProjectBinding(),
+				"C#",
+				".csproj",
+				new Guid("FAE04EC0-301F-11D3-BF4B-00C04F79EFBC"),
+				new[] { ".cs" }));
+			return bindings;
+		}
+
+		sealed class LibreWpfCSharpProjectBinding : IProjectBinding
+		{
+			public IProject LoadProject(ProjectLoadInformation info)
+			{
+				return new LibreWpfCSharpProject(info);
+			}
+
+			public IProject CreateProject(ProjectCreateInformation info)
+			{
+				return new LibreWpfCSharpProject(info);
+			}
+
+			public bool HandlingMissingProject {
+				get { return false; }
+			}
+		}
+
+		sealed class LibreWpfCSharpProject : CompilableProject
+		{
+			public LibreWpfCSharpProject(ProjectLoadInformation info)
+				: base(info)
+			{
+			}
+
+			public LibreWpfCSharpProject(ProjectCreateInformation info)
+				: base(info)
+			{
+			}
+
+			public override string Language {
+				get { return "C#"; }
+			}
+		}
+#endif
 		
 		#region CurrentSolution property + AllProjects collection
 		volatile static ISolution currentSolution;
@@ -149,14 +206,26 @@ namespace ICSharpCode.SharpDevelop.Project
 		
 		public bool OpenSolutionOrProject(FileName fileName)
 		{
+#if LIBREWPF
+			TraceLibreWpfOpen("OpenSolutionOrProject start " + fileName);
+#endif
 			if (!IsSolutionOrProjectFile(fileName)) {
+#if LIBREWPF
+				TraceLibreWpfOpen("OpenSolutionOrProject rejected by file filter " + fileName);
+#endif
 				MessageService.ShowError(StringParser.Parse("${res:ICSharpCode.SharpDevelop.Commands.OpenCombine.InvalidProjectOrCombine}", new StringTagPair("FileName", fileName)));
 				return false;
 			}
-			if (!CloseSolution(allowCancel: true))
+			if (!CloseSolution(allowCancel: true)) {
+#if LIBREWPF
+				TraceLibreWpfOpen("OpenSolutionOrProject canceled by CloseSolution " + fileName);
+#endif
 				return false;
+			}
 			FileUtility.ObservedLoad(OpenSolutionOrProjectInternal, fileName);
-			
+#if LIBREWPF
+			TraceLibreWpfOpen("OpenSolutionOrProject done currentSolution=" + (currentSolution == null ? "<null>" : currentSolution.ToString()));
+#endif
 			return currentSolution != null;
 		}
 		
@@ -173,12 +242,22 @@ namespace ICSharpCode.SharpDevelop.Project
 		{
 			ISolution solution;
 			using (var progress = AsynchronousWaitDialog.ShowWaitDialog("Loading Solution...")) {
-				
+#if LIBREWPF
+				TraceLibreWpfOpen("OpenSolutionInternal loading " + fileName);
+#endif
 				solution = LoadSolutionFile(fileName, progress);
-				
+#if LIBREWPF
+				TraceLibreWpfOpen("OpenSolutionInternal loaded projects=" + solution.Projects.Count());
+#endif
 				this.CurrentSolution = solution;
+#if LIBREWPF
+				TraceLibreWpfOpen("OpenSolutionInternal set CurrentSolution " + solution);
+#endif
 			}
 			OnSolutionOpened(solution);
+#if LIBREWPF
+			TraceLibreWpfOpen("OpenSolutionInternal OnSolutionOpened complete " + solution);
+#endif
 		}
 		
 		public bool OpenSolution(FileName fileName)
@@ -333,6 +412,9 @@ namespace ICSharpCode.SharpDevelop.Project
 		#region LoadSolutionFile + CreateEmptySolutionFile
 		public ISolution LoadSolutionFile(FileName fileName, IProgressMonitor progress)
 		{
+#if LIBREWPF
+			TraceLibreWpfOpen("LoadSolutionFile start " + fileName);
+#endif
 			if (fileName == null)
 				throw new ArgumentNullException("fileName");
 			if (progress == null)
@@ -346,12 +428,24 @@ namespace ICSharpCode.SharpDevelop.Project
 					loader.ReadSolution(solution, progress);
 				}
 				ok = true;
+#if LIBREWPF
+				TraceLibreWpfOpen("LoadSolutionFile read projects=" + solution.Projects.Count());
+#endif
 			} finally {
 				if (!ok)
 					solution.Dispose();
 			}
 			return solution;
 		}
+
+#if LIBREWPF
+		static void TraceLibreWpfOpen(string message)
+		{
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF ProjectService " + message);
+			}
+		}
+#endif
 		
 		public ISolution CreateEmptySolutionFile(FileName fileName)
 		{
@@ -420,6 +514,11 @@ namespace ICSharpCode.SharpDevelop.Project
 			// Set type GUID based on file extension
 			info.TypeGuid = descriptor.TypeGuid;
 			IProjectBinding binding = descriptor.Binding;
+#if LIBREWPF
+			if (binding == null && IsLibreWpfCSharpProjectDescriptor(descriptor)) {
+				binding = new LibreWpfCSharpProjectBinding();
+			}
+#endif
 			if (binding == null)
 				throw new ProjectLoadException(SD.ResourceService.GetString("ICSharpCode.SharpDevelop.Commands.ProjectBrowser.NoBackendForProjectType"));
 			if (!binding.HandlingMissingProject && !SD.FileSystem.FileExists(info.FileName))
@@ -429,6 +528,14 @@ namespace ICSharpCode.SharpDevelop.Project
 				throw new InvalidOperationException("IProjectBinding.LoadProject() must not return null");
 			return result;
 		}
+
+#if LIBREWPF
+		static bool IsLibreWpfCSharpProjectDescriptor(ProjectBindingDescriptor descriptor)
+		{
+			return ".csproj".Equals(descriptor.ProjectFileExtension, StringComparison.OrdinalIgnoreCase) ||
+				descriptor.TypeGuid == new Guid("FAE04EC0-301F-11D3-BF4B-00C04F79EFBC");
+		}
+#endif
 		#endregion
 		
 		#region Target Frameworks

@@ -92,7 +92,7 @@ namespace ICSharpCode.SharpDevelop.Project.Commands
 						// Update code completion.
 						SD.ParserService.ParseFileAsync(FileName.Create(webReference.WebProxyFileName), parentProject: url.Project).FireAndForget();
 					}
-				} catch (WebException ex) {
+					} catch (WebException ex) {
 					LoggingService.Debug(ex);
 					MessageService.ShowError(GetRefreshWebReferenceErrorMessage(ex, url.UpdateFromURL));
 				}
@@ -127,7 +127,7 @@ namespace ICSharpCode.SharpDevelop.Project.Commands
 					protocol.DiscoverAny(url);
 					protocol.ResolveOneLevel();
 					return protocol;
-				} catch (WebException ex) {
+					} catch (WebException) {
 					if (protocol.IsAuthenticationRequired) {
 						using (UserCredentialsDialog dialog = new UserCredentialsDialog(url, protocol.GetAuthenticationHeader().AuthenticationType)) {
 							if (dialog.ShowDialog(SD.WinForms.MainWin32Window) == DialogResult.OK) {
@@ -137,7 +137,7 @@ namespace ICSharpCode.SharpDevelop.Project.Commands
 							}
 						}
 					} else {
-						throw ex;
+						throw;
 					}
 				}
 			}

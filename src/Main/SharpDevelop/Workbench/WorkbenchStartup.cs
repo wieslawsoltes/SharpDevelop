@@ -48,6 +48,16 @@ namespace ICSharpCode.SharpDevelop.Workbench
 		public void InitializeWorkbench()
 		{
 			app = new App();
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				app.Exit += delegate(object sender, System.Windows.ExitEventArgs e) {
+					Console.WriteLine("LibreWPF WorkbenchStartup application exit code=" + e.ApplicationExitCode);
+				};
+				app.DispatcherUnhandledException += delegate(object sender, DispatcherUnhandledExceptionEventArgs e) {
+					Console.WriteLine("LibreWPF WorkbenchStartup dispatcher exception: " + e.Exception);
+				};
+			}
+#endif
 			System.Windows.Forms.Integration.WindowsFormsHost.EnableWindowsFormsInterop();
 			ComponentDispatcher.ThreadIdle -= ComponentDispatcher_ThreadIdle; // ensure we don't register twice
 			ComponentDispatcher.ThreadIdle += ComponentDispatcher_ThreadIdle;
@@ -110,11 +120,21 @@ namespace ICSharpCode.SharpDevelop.Workbench
 		public void Run(IList<string> fileList)
 		{
 			bool didLoadSolutionOrFile = false;
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF WorkbenchStartup fileList: " + string.Join(" | ", fileList));
+			}
+#endif
 			
 			NavigationService.SuspendLogging();
 			
 			foreach (string file in fileList) {
 				LoggingService.Info("Open file " + file);
+#if LIBREWPF
+				if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+					Console.WriteLine("LibreWPF WorkbenchStartup opening: " + file);
+				}
+#endif
 				didLoadSolutionOrFile = true;
 				try {
 					var fullFileName = FileName.Create(Path.GetFullPath(file));
@@ -157,7 +177,17 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			((ParserService)SD.ParserService).StartParserThread();
 			
 			// finally run the workbench window ...
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF WorkbenchStartup app.Run entering shutdownMode=" + app.ShutdownMode);
+			}
+#endif
 			app.Run(SD.Workbench.MainWindow);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF WorkbenchStartup app.Run returned mainWindowVisible=" + SD.Workbench.MainWindow.Visibility);
+			}
+#endif
 			
 			// save the workbench memento in the ide properties
 			try {
@@ -187,8 +217,15 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			LoggingService.Debug("Preload-Thread started.");
 			
 			// warm up MSBuild
+#if LIBREWPF
+			const string preloadToolsVersion = "Current";
+			const string preloadImport = "";
+#else
+			const string preloadToolsVersion = "4.0";
+			const string preloadImport = @"  <Import Project=""$(MSBuildToolsPath)\Microsoft.CSharp.targets"" />";
+#endif
 			string projectCode = @"
-<Project DefaultTargets=""Build"" xmlns=""http://schemas.microsoft.com/developer/msbuild/2003"" ToolsVersion=""4.0"">
+<Project DefaultTargets=""Build"" xmlns=""http://schemas.microsoft.com/developer/msbuild/2003"" ToolsVersion=""" + preloadToolsVersion + @""">
   <PropertyGroup>
     <Configuration>Debug</Configuration>
     <Platform>AnyCPU</Platform>
@@ -196,10 +233,10 @@ namespace ICSharpCode.SharpDevelop.Workbench
   <ItemGroup>
     <Reference Include=""System"" />
   </ItemGroup>
-  <Import Project=""$(MSBuildToolsPath)\Microsoft.CSharp.targets"" />
+" + preloadImport + @"
 </Project>";
 			var project = new Microsoft.Build.Evaluation.Project(
-				new System.Xml.XmlTextReader(new System.IO.StringReader(projectCode)), null, "4.0",
+				new System.Xml.XmlTextReader(new System.IO.StringReader(projectCode)), null, preloadToolsVersion,
 				new Microsoft.Build.Evaluation.ProjectCollection());
 			
 			// warm up the XSHD loader

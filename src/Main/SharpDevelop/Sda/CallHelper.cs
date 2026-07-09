@@ -44,6 +44,7 @@ namespace ICSharpCode.SharpDevelop.Sda
 		bool useSharpDevelopErrorHandler;
 		
 		
+		[Obsolete]
 		public override object InitializeLifetimeService()
 		{
 			return null;
@@ -136,7 +137,12 @@ namespace ICSharpCode.SharpDevelop.Sda
 		{
 			if (settings.RunOnNewThread) {
 				Thread t = new Thread(RunWorkbenchInternal);
+#if LIBREWPF
+				if (OperatingSystem.IsWindows())
+					t.SetApartmentState(ApartmentState.STA);
+#else
 				t.SetApartmentState(ApartmentState.STA);
+#endif
 				t.Name = "SDmain";
 				t.Start(settings);
 			} else {

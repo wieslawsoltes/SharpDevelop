@@ -753,6 +753,18 @@ namespace AvalonDock
             base.Activate();
         }
 
+#if LIBREWPF
+        public bool TryShowAutoHideFlyoutForPortableHost(out FlyoutPaneWindow flyoutWindow)
+        {
+            flyoutWindow = null;
+
+            if (State != DockableContentState.AutoHide || Manager == null)
+                return false;
+
+            return Manager.TryShowFlyoutWindowForPortableHost(this, out flyoutWindow);
+        }
+#endif
+
         /// <summary>
         /// Retrive a value indicating if the command can be executed based to the dockable content state
         /// </summary>

@@ -187,8 +187,9 @@ namespace ICSharpCode.AvalonEdit.AddIn.Options
 				var extended = ICSharpCode.Core.AddInTree.BuildItems<AddInTreeSyntaxMode>(SyntaxModeDoozer.Path, null, false)
 					.AsParallel()
 					.Select(m => m.LoadXshd());
-				allSyntaxDefinitions = extended.AsEnumerable().Concat(builtins)
-					.DistinctBy(def => def.Name)
+				allSyntaxDefinitions = ICSharpCode.SharpDevelop.SharpDevelopExtensions.DistinctBy(
+						extended.AsEnumerable().Concat(builtins),
+						def => def.Name)
 					.OrderBy(def => def.Name)
 					.ToList();
 			}

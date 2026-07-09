@@ -27,6 +27,7 @@ using ICSharpCode.SharpDevelop;
 using ICSharpCode.SharpDevelop.Dom;
 using ICSharpCode.SharpDevelop.Editor;
 using ICSharpCode.SharpDevelop.Project;
+using ICSharpCode.NRefactory.Editor;
 
 namespace Hornung.ResourceToolkit
 {
@@ -156,6 +157,7 @@ namespace Hornung.ResourceToolkit
 		// The following helper methods are needed to support running
 		// in the unit testing mode where the addin tree is not available.
 		
+#if !LIBREWPF
 		static Dictionary<string, IParser> presetParsersUnitTestOnly;
 		
 		public static void SetParsersUnitTestOnly(Dictionary<string, IParser> parsers)
@@ -225,5 +227,6 @@ namespace Hornung.ResourceToolkit
 				return projectContents[project];
 			}
 		}
+#endif
 	}
 }

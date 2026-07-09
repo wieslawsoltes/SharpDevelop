@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.IO;
 
 using ICSharpCode.Core;
+using ICSharpCode.NRefactory.Editor;
 using ICSharpCode.SharpDevelop.Editor;
 
 namespace Hornung.ResourceToolkit.Resolver
@@ -46,11 +47,11 @@ namespace Hornung.ResourceToolkit.Resolver
 				LoggingService.Debug("ResourceToolkit: "+this.GetType().ToString()+".Resolve called with null fileName or document argument");
 				return null;
 			}
-			if (caretLine < 0 || caretColumn < 0 || caretLine >= document.TotalNumberOfLines || caretColumn >= document.GetLine(caretLine + 1).TotalLength) {
+			if (caretLine < 0 || caretColumn < 0 || caretLine >= document.LineCount || caretColumn >= document.GetLineByNumber(caretLine + 1).TotalLength) {
 				LoggingService.Debug("ResourceToolkit: "+this.GetType().ToString()+".Resolve called with invalid position arguments");
 				return null;
 			}
-			return this.Resolve(fileName, document, caretLine, caretColumn, document.PositionToOffset(caretLine + 1, caretColumn + 1), charTyped);
+			return this.Resolve(fileName, document, caretLine, caretColumn, document.GetOffset(caretLine + 1, caretColumn + 1), charTyped);
 		}
 		
 		/// <summary>

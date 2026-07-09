@@ -2657,6 +2657,15 @@ namespace AvalonDock
             //this.Focus();
         }
 
+#if LIBREWPF
+        internal bool TryShowFlyoutWindowForPortableHost(DockableContent content, out FlyoutPaneWindow flyoutWindow)
+        {
+            ShowFlyoutWindow(content, null);
+            flyoutWindow = _flyoutWindow;
+            return flyoutWindow != null && flyoutWindow.IsVisible;
+        }
+#endif
+
         /// <summary>
         /// Handles the resize changed event to update location and size of the flyout window
         /// </summary>

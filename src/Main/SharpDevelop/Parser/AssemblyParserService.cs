@@ -155,6 +155,11 @@ namespace ICSharpCode.SharpDevelop.Parser
 			cancellationToken.ThrowIfCancellationRequested();
 			var param = new ReaderParameters();
 			param.AssemblyResolver = new DummyAssemblyResolver();
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF AssemblyParserService loading " + fileName);
+			}
+#endif
 			ModuleDefinition module = ModuleDefinition.ReadModule(fileName, param);
 			
 			CecilLoader l = new CecilLoader();

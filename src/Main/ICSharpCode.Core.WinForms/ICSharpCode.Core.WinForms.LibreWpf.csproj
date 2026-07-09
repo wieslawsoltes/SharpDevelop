@@ -1,0 +1,49 @@
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.sharpdevelop.1">
+  <PropertyGroup>
+    <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>ICSharpCode.Core.WinForms</AssemblyName>
+    <RootNamespace>ICSharpCode.Core.WinForms</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\ICSharpCode.SharpDevelop.snk</AssemblyOriginatorKeyFile>
+    <DefineConstants>$(DefineConstants);LIBREWPF</DefineConstants>
+    <NoWarn>$(NoWarn);1591;CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="obj/**" />
+    <EmbeddedResource Remove="obj/**" />
+    <None Remove="obj/**" />
+    <Page Remove="obj/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\GlobalAssemblyInfo.cs" Link="Properties\GlobalAssemblyInfo.cs" />
+    <Compile Include="MessageService\IDialogMessageService.cs" />
+    <Compile Include="MessageService\CustomDialog.cs" />
+    <Compile Include="MessageService\InputBox.cs" />
+    <Compile Include="MessageService\SaveErrorChooseDialog.cs" />
+    <Compile Include="MessageService\SaveErrorInformDialog.cs" />
+    <Compile Include="MessageService\WinFormsMessageService.cs" />
+    <Compile Include="Menu\IStatusUpdate.cs" />
+    <Compile Include="Menu\Menu.cs" />
+    <Compile Include="Menu\MenuCheckBox.cs" />
+    <Compile Include="Menu\MenuCommand.cs" />
+    <Compile Include="Menu\MenuSeparator.cs" />
+    <Compile Include="Menu\MenuService.cs" />
+    <Compile Include="ToolBar\ToolBarCheckBox.cs" />
+    <Compile Include="ToolBar\ToolBarCommand.cs" />
+    <Compile Include="ToolBar\ToolBarDropDownButton.cs" />
+    <Compile Include="ToolBar\ToolBarLabel.cs" />
+    <Compile Include="ToolBar\ToolBarSeparator.cs" />
+    <Compile Include="ToolBar\ToolBarService.cs" />
+    <Compile Include="ToolBar\ToolBarSplitButton.cs" />
+    <Compile Include="Util\NativeMethods.cs" />
+    <Compile Include="Portable\RightToLeftConverter.cs" />
+    <Compile Include="WinFormsResourceService.cs" />
+    <ProjectReference Include="..\Core\Project\ICSharpCode.Core.LibreWpf.csproj" />
+  </ItemGroup>
+</Project>

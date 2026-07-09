@@ -39,10 +39,17 @@ namespace ICSharpCode.AvalonEdit.AddIn
 		{
 			SD.MainThread.VerifyAccess();
 			if (!addInHighlightingDefinitionsRegistered) {
+				int registeredCount = 0;
 				foreach (AddInTreeSyntaxMode syntaxMode in AddInTree.BuildItems<AddInTreeSyntaxMode>(SyntaxModeDoozer.Path, null, false)) {
 					syntaxMode.Register(HighlightingManager.Instance);
+					registeredCount++;
 				}
 				addInHighlightingDefinitionsRegistered = true;
+#if LIBREWPF
+				if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+					Console.WriteLine("LibreWPF AvalonEditDisplayBinding registered source-tree syntax definitions=" + registeredCount);
+				}
+#endif
 			}
 		}
 		
@@ -53,7 +60,18 @@ namespace ICSharpCode.AvalonEdit.AddIn
 		
 		public IViewContent CreateContentForFile(OpenedFile file)
 		{
-			return new AvalonEditViewContent(file);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF AvalonEditDisplayBinding creating content for " + file.FileName);
+			}
+#endif
+			var content = new AvalonEditViewContent(file);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF AvalonEditDisplayBinding created " + content.GetType().FullName);
+			}
+#endif
+			return content;
 		}
 		
 		public bool IsPreferredBindingForFile(FileName fileName)

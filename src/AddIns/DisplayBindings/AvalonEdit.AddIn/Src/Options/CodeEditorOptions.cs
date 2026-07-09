@@ -52,7 +52,7 @@ namespace ICSharpCode.AvalonEdit.AddIn.Options
 			}
 		}
 		
-		string fontFamily = Core.WinForms.WinFormsResourceService.DefaultMonospacedFont.Name;
+		string fontFamily = Core.WinForms.WinFormsResourceService.DefaultMonospacedFont.FontFamily.Name;
 		
 		public string FontFamily {
 			get { return fontFamily; }

@@ -83,6 +83,10 @@ namespace ICSharpCode.SharpDevelop.Project.Commands
 		
 		static string FindSHFB(string registryKey)
 		{
+#if LIBREWPF
+			if (!OperatingSystem.IsWindows())
+				return null;
+#endif
 			string command = Registry.GetValue(registryKey, null, string.Empty) as string;
 			return ExtractExecutableFromCommand(command);
 		}

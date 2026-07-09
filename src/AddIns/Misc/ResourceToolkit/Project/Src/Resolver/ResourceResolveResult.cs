@@ -18,14 +18,20 @@
 
 using System;
 using Hornung.ResourceToolkit.ResourceFileContent;
+#if !LIBREWPF
 using ICSharpCode.SharpDevelop.Dom;
+#endif
 
 namespace Hornung.ResourceToolkit.Resolver
 {
 	/// <summary>
 	/// Describes a reference to a resource.
 	/// </summary>
+#if LIBREWPF
+	public class ResourceResolveResult
+#else
 	public class ResourceResolveResult : ResolveResult
+#endif
 	{
 		
 		readonly ResourceSetReference resourceSetReference;
@@ -88,6 +94,13 @@ namespace Hornung.ResourceToolkit.Resolver
 		/// <param name="returnType">The type of the resource being referenced.</param>
 		/// <param name="resourceSetReference">The <see cref="ResourceSetReference"/> that describes the resource set being referenced.</param>
 		/// <param name="key">The resource key being referenced.</param>
+#if LIBREWPF
+		public ResourceResolveResult(object callingClass, object callingMember, object returnType, ResourceSetReference resourceSetReference, string key)
+		{
+			this.resourceSetReference = resourceSetReference;
+			this.key = key;
+		}
+#else
 		public ResourceResolveResult(IClass callingClass, IMember callingMember, IReturnType returnType, ResourceSetReference resourceSetReference, string key)
 			: base(callingClass, callingMember, returnType)
 		{
@@ -100,6 +113,7 @@ namespace Hornung.ResourceToolkit.Resolver
 			return new ResourceResolveResult(this.CallingClass, this.CallingMember, this.ResolvedType,
 			                                 this.ResourceSetReference, this.Key);
 		}
+#endif
 	}
 	
 	/// <summary>
@@ -115,10 +129,17 @@ namespace Hornung.ResourceToolkit.Resolver
 		/// <param name="returnType">The type of the resource being referenced.</param>
 		/// <param name="resourceSetReference">The <see cref="ResourceSetReference"/> that describes the resource set being referenced.</param>
 		/// <param name="prefix">The prefix of the resource keys being referenced.</param>
+#if LIBREWPF
+		public ResourcePrefixResolveResult(object callingClass, object callingMember, object returnType, ResourceSetReference resourceSetReference, string prefix)
+			: base(callingClass, callingMember, returnType, resourceSetReference, prefix)
+		{
+		}
+#else
 		public ResourcePrefixResolveResult(IClass callingClass, IMember callingMember, IReturnType returnType, ResourceSetReference resourceSetReference, string prefix)
 			: base(callingClass, callingMember, returnType, resourceSetReference, prefix)
 		{
 		}
+#endif
 		
 		public override string Key {
 			get { return null; }
@@ -128,10 +149,12 @@ namespace Hornung.ResourceToolkit.Resolver
 			get { return base.Key; }
 		}
 		
+#if !LIBREWPF
 		public override ResolveResult Clone()
 		{
 			return new ResourcePrefixResolveResult(this.CallingClass, this.CallingMember, this.ResolvedType,
 			                                       this.ResourceSetReference, this.Prefix);
 		}
+#endif
 	}
 }

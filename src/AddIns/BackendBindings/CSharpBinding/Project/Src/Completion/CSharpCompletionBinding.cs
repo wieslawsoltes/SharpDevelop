@@ -99,15 +99,29 @@ namespace CSharpBinding.Completion
 			return completionContext;
 		}
 		
-		bool ShowCompletion(ITextEditor editor, char completionChar, bool ctrlSpace)
-		{
-			var completionContext = GetCompletionContext(editor);
-			if (completionContext == null)
-				return false;
-
-			int caretOffset = GetCaretOffset(editor, completionContext);
-
-			var completionFactory = new CSharpCompletionDataFactory(completionContext, new CSharpResolver(completionContext.TypeResolveContextAtCaret));
+			bool ShowCompletion(ITextEditor editor, char completionChar, bool ctrlSpace)
+			{
+				var completionContext = GetCompletionContext(editor);
+				if (completionContext == null) {
+#if LIBREWPF
+					if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+						Console.WriteLine("LibreWPF CSharpCompletionBinding no completion context for " + editor.FileName);
+					}
+#endif
+					return false;
+				}
+	
+				int caretOffset = GetCaretOffset(editor, completionContext);
+#if LIBREWPF
+				if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+					Console.WriteLine("LibreWPF CSharpCompletionBinding running ctrlSpace=" + ctrlSpace
+						+ " caretOffset=" + caretOffset
+						+ " location=" + currentLocation
+						+ " file=" + editor.FileName);
+				}
+#endif
+	
+				var completionFactory = new CSharpCompletionDataFactory(completionContext, new CSharpResolver(completionContext.TypeResolveContextAtCaret));
 			
 			CSharpCompletionEngine cce = new CSharpCompletionEngine(
 				completionContext.Document,
@@ -147,11 +161,23 @@ namespace CSharpBinding.Completion
 				}
 			}
 			
-			DefaultCompletionItemList list = new DefaultCompletionItemList();
-			list.Items.AddRange(FilterAndAddTemplates(editor, completionData.Cast<ICompletionItem>().ToList()));
-			if (list.Items.Count > 0 && (ctrlSpace || cce.AutoCompleteEmptyMatch)) {
-				list.SortItems();
-				list.PreselectionLength = caretOffset - startPos;
+				DefaultCompletionItemList list = new DefaultCompletionItemList();
+				var completionItems = completionData.Cast<ICompletionItem>().ToList();
+#if LIBREWPF
+				if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+					Console.WriteLine("LibreWPF CSharpCompletionBinding raw items=" + completionItems.Count);
+				}
+#endif
+				list.Items.AddRange(FilterAndAddTemplates(editor, completionItems));
+#if LIBREWPF
+				if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+					Console.WriteLine("LibreWPF CSharpCompletionBinding filtered items=" + list.Items.Count
+						+ " autoCompleteEmptyMatch=" + cce.AutoCompleteEmptyMatch);
+				}
+#endif
+				if (list.Items.Count > 0 && (ctrlSpace || cce.AutoCompleteEmptyMatch)) {
+					list.SortItems();
+					list.PreselectionLength = caretOffset - startPos;
 				list.PostselectionLength = Math.Max(0, startPos + triggerWordLength - caretOffset);
 				list.SuggestedItem = list.Items.FirstOrDefault(i => i.Text == cce.DefaultCompletionString);
 				editor.ShowCompletionWindow(list);

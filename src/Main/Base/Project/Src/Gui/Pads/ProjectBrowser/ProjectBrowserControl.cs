@@ -411,6 +411,7 @@ namespace ICSharpCode.SharpDevelop.Project
 		
 		public void ViewSolution(ISolution solution)
 		{
+			TraceProjectBrowser("ViewSolution start solutionItems=" + solution.Items.Count);
 			AbstractProjectBrowserTreeNode solutionNode = new SolutionNode(solution);
 			treeView.Clear();
 			solutionNode.AddTo(treeView);
@@ -425,6 +426,14 @@ namespace ICSharpCode.SharpDevelop.Project
 			}
 			
 			solutionNode.Expand();
+			TraceProjectBrowser("ViewSolution done rootNodes=" + treeView.Nodes.Count + " solutionChildren=" + solutionNode.Nodes.Count + " selected=" + (treeView.SelectedNode == null ? "<null>" : treeView.SelectedNode.Text));
+		}
+
+		static void TraceProjectBrowser(string message)
+		{
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF ProjectBrowserControl " + message);
+			}
 		}
 		
 		public void Clear()

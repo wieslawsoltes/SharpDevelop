@@ -34,7 +34,7 @@ namespace ICSharpCode.SharpDevelop.Dom
 		/// <summary>
 		/// Gets the empty model collection.
 		/// </summary>
-		public static ImmutableModelCollection<T> Empty {
+		public static new ImmutableModelCollection<T> Empty {
 			get { return empty; }
 		}
 		

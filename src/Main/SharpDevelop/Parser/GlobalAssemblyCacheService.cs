@@ -19,6 +19,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Text;
 using ICSharpCode.Core;
 
@@ -28,6 +29,10 @@ namespace ICSharpCode.SharpDevelop.Parser
 	{
 		public bool IsGacAssembly(string fileName)
 		{
+#if LIBREWPF
+			if (!OperatingSystem.IsWindows())
+				return IsPortableFrameworkAssembly(fileName);
+#endif
 			if (FileUtility.IsBaseDirectory(Fusion.GetGacPath(false), fileName))
 				return true;
 			if (FileUtility.IsBaseDirectory(Fusion.GetGacPath(true), fileName))
@@ -41,6 +46,13 @@ namespace ICSharpCode.SharpDevelop.Parser
 		
 		IEnumerable<DomAssemblyName> GetGacAssemblyFullNames()
 		{
+#if LIBREWPF
+			if (!OperatingSystem.IsWindows()) {
+				foreach (DomAssemblyName name in GetPortableAssemblyFullNames())
+					yield return name;
+				yield break;
+			}
+#endif
 			IApplicationContext applicationContext = null;
 			IAssemblyEnum assemblyEnum = null;
 			IAssemblyName assemblyName = null;
@@ -62,6 +74,10 @@ namespace ICSharpCode.SharpDevelop.Parser
 		/// </summary>
 		public DomAssemblyName FindBestMatchingAssemblyName(DomAssemblyName reference)
 		{
+#if LIBREWPF
+			if (!OperatingSystem.IsWindows())
+				return FindBestMatchingPortableAssemblyName(reference);
+#endif
 			string[] info;
 			Version requiredVersion = reference.Version;
 			string publicKey = reference.PublicKeyToken;
@@ -153,7 +169,13 @@ namespace ICSharpCode.SharpDevelop.Parser
 		// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 		//
 
+#if LIBREWPF
+		readonly string[] gac_paths = OperatingSystem.IsWindows()
+			? new string[] { Fusion.GetGacPath(false), Fusion.GetGacPath(true) }
+			: Array.Empty<string>();
+#else
 		readonly string[] gac_paths = { Fusion.GetGacPath(false), Fusion.GetGacPath(true) };
+#endif
 		readonly string[] gacs = { "GAC_MSIL", "GAC_32", "GAC_64", "GAC" };
 		readonly string[] prefixes = { string.Empty, "v4.0_" };
 		readonly string[] extensions = { ".dll", ".exe" };
@@ -163,6 +185,10 @@ namespace ICSharpCode.SharpDevelop.Parser
 		/// </summary>
 		public FileName FindAssemblyInNetGac (DomAssemblyName reference)
 		{
+#if LIBREWPF
+			if (!OperatingSystem.IsWindows())
+				return FindPortableAssembly(reference);
+#endif
 			// without public key, it can't be in the GAC
 			if (reference.PublicKeyToken == null)
 				return null;
@@ -195,6 +221,185 @@ namespace ICSharpCode.SharpDevelop.Parser
 					Path.Combine (gac, reference.ShortName), gac_folder.ToString ()),
 				reference.ShortName + ext);
 		}
+#if LIBREWPF
+		static readonly string[] PortableAssemblyExtensions = { ".dll", ".exe" };
+		
+		static readonly Lazy<string[]> PortableAssemblyDirectories = new Lazy<string[]>(GetPortableAssemblyDirectories);
+		
+		static bool IsPortableFrameworkAssembly(string fileName)
+		{
+			if (string.IsNullOrEmpty(fileName))
+				return false;
+			foreach (string directory in PortableAssemblyDirectories.Value) {
+				if (FileUtility.IsBaseDirectory(directory, fileName))
+					return true;
+			}
+			return false;
+		}
+		
+		static IEnumerable<DomAssemblyName> GetPortableAssemblyFullNames()
+		{
+			HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			foreach (string directory in PortableAssemblyDirectories.Value) {
+				foreach (string extension in PortableAssemblyExtensions) {
+					string searchPattern = "*" + extension;
+					foreach (string file in Directory.GetFiles(directory, searchPattern)) {
+						DomAssemblyName name = TryGetDomAssemblyName(file);
+						if (name != null && seen.Add(name.FullName))
+							yield return name;
+					}
+				}
+			}
+		}
+		
+		static DomAssemblyName FindBestMatchingPortableAssemblyName(DomAssemblyName reference)
+		{
+			List<DomAssemblyName> names = new List<DomAssemblyName>();
+			foreach (DomAssemblyName name in GetPortableAssemblyFullNames()) {
+				if (!string.Equals(name.ShortName, reference.ShortName, StringComparison.OrdinalIgnoreCase))
+					continue;
+				if (reference.PublicKeyToken != null && !string.Equals(reference.PublicKeyToken, name.PublicKeyToken, StringComparison.OrdinalIgnoreCase))
+					continue;
+				names.Add(name);
+			}
+			
+			if (names.Count == 0)
+				return null;
+			
+			DomAssemblyName best = null;
+			if (reference.Version != null) {
+				foreach (DomAssemblyName name in names) {
+					if (name.Version == null || name.Version.CompareTo(reference.Version) < 0)
+						continue;
+					if (best == null || name.Version.CompareTo(best.Version) < 0)
+						best = name;
+				}
+				if (best != null)
+					return best;
+			}
+			
+			best = names[0];
+			for (int i = 1; i < names.Count; i++) {
+				if (names[i].Version != null && (best.Version == null || names[i].Version.CompareTo(best.Version) > 0))
+					best = names[i];
+			}
+			return best;
+		}
+		
+		static FileName FindPortableAssembly(DomAssemblyName reference)
+		{
+			foreach (string directory in PortableAssemblyDirectories.Value) {
+				foreach (string extension in PortableAssemblyExtensions) {
+					string file = Path.Combine(directory, reference.ShortName + extension);
+					if (File.Exists(file))
+						return FileName.Create(file);
+				}
+			}
+			return null;
+		}
+		
+		static DomAssemblyName TryGetDomAssemblyName(string file)
+		{
+			try {
+				AssemblyName name = AssemblyName.GetAssemblyName(file);
+				return new DomAssemblyName(name.FullName);
+			} catch (BadImageFormatException) {
+				return null;
+			} catch (FileLoadException) {
+				return null;
+			} catch (IOException) {
+				return null;
+			}
+		}
+		
+		static string[] GetPortableAssemblyDirectories()
+		{
+			List<string> directories = new List<string>();
+			AddPortableAssemblyDirectory(directories, AppContext.BaseDirectory);
+			AddPortableAssemblyDirectory(directories, Path.GetDirectoryName(typeof(object).Assembly.Location));
+			AddPortableAssemblyDirectory(directories, FindNetCoreReferencePath());
+			return directories.ToArray();
+		}
+		
+		static void AddPortableAssemblyDirectory(List<string> directories, string directory)
+		{
+			if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
+				return;
+			foreach (string existing in directories) {
+				if (string.Equals(existing, directory, StringComparison.OrdinalIgnoreCase))
+					return;
+			}
+			directories.Add(directory);
+		}
+		
+		static string FindNetCoreReferencePath()
+		{
+			string dotnetRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+			string referencePath = FindNetCoreReferencePath(dotnetRoot);
+			if (!string.IsNullOrEmpty(referencePath))
+				return referencePath;
+			
+			string coreLibPath = typeof(object).Assembly.Location;
+			if (string.IsNullOrEmpty(coreLibPath))
+				return null;
+			
+			DirectoryInfo directory = Directory.GetParent(coreLibPath);
+			while (directory != null) {
+				referencePath = FindNetCoreReferencePath(directory.FullName);
+				if (!string.IsNullOrEmpty(referencePath))
+					return referencePath;
+				directory = directory.Parent;
+			}
+			
+			return null;
+		}
+		
+		static string FindNetCoreReferencePath(string dotnetRoot)
+		{
+			if (string.IsNullOrEmpty(dotnetRoot))
+				return null;
+			
+			string packRoot = Path.Combine(dotnetRoot, "packs", "Microsoft.NETCore.App.Ref");
+			if (!Directory.Exists(packRoot))
+				return null;
+			
+			string bestPath = null;
+			Version bestVersion = new Version(0, 0);
+			foreach (string versionDirectory in Directory.GetDirectories(packRoot)) {
+				Version version = GetVersionDirectoryVersion(versionDirectory);
+				if (version.CompareTo(bestVersion) < 0)
+					continue;
+				
+				string refRoot = Path.Combine(versionDirectory, "ref");
+				if (!Directory.Exists(refRoot))
+					continue;
+				
+				string targetPath = null;
+				string net10ReferencePath = Path.Combine(refRoot, "net10.0");
+				if (Directory.Exists(net10ReferencePath)) {
+					targetPath = net10ReferencePath;
+				} else {
+					foreach (string candidate in Directory.GetDirectories(refRoot)) {
+						if (Path.GetFileName(candidate).StartsWith("net", StringComparison.OrdinalIgnoreCase))
+							targetPath = candidate;
+					}
+				}
+				
+				if (targetPath != null) {
+					bestVersion = version;
+					bestPath = targetPath;
+				}
+			}
+			
+			return bestPath;
+		}
+		
+		static Version GetVersionDirectoryVersion(string path)
+		{
+			Version version;
+			return Version.TryParse(Path.GetFileName(path), out version) ? version : new Version(0, 0);
+		}
+#endif
 		#endregion
 	}
 }

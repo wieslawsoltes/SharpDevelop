@@ -36,7 +36,11 @@ namespace ICSharpCode.SharpDevelop.Sda
 		/// </summary>
 		public static AppDomain CreateDomain()
 		{
+#if LIBREWPF
+			return AppDomain.CurrentDomain;
+#else
 			return AppDomain.CreateDomain("SharpDevelop.Sda", null, CreateDomainSetup());
+#endif
 		}
 		
 		/// <summary>
@@ -45,11 +49,15 @@ namespace ICSharpCode.SharpDevelop.Sda
 		/// </summary>
 		public static AppDomainSetup CreateDomainSetup()
 		{
+#if LIBREWPF
+			throw new PlatformNotSupportedException("LibreWPF runs SharpDevelop in the current AppDomain on modern .NET.");
+#else
 			AppDomainSetup s = new AppDomainSetup();
 			s.ApplicationBase = Path.GetDirectoryName(SdaAssembly.Location);
 			s.ConfigurationFile = SdaAssembly.Location + ".config";
 			s.ApplicationName = "SharpDevelop.Sda";
 			return s;
+#endif
 		}
 		#endregion
 		
@@ -233,8 +241,12 @@ namespace ICSharpCode.SharpDevelop.Sda
 				if (initStatus == SDInitStatus.WorkbenchInitialized) {
 					helper.KillWorkbench();
 				}
+#if LIBREWPF
+				initStatus = SDInitStatus.AppDomainUnloaded;
+#else
 				AppDomain.Unload(appDomain);
 				initStatus = SDInitStatus.AppDomainUnloaded;
+#endif
 			}
 		}
 		#endregion
@@ -347,6 +359,7 @@ namespace ICSharpCode.SharpDevelop.Sda
 				this.host = host;
 			}
 			
+			[Obsolete]
 			public override object InitializeLifetimeService()
 			{
 				return null;

@@ -128,10 +128,16 @@ namespace ICSharpCode.SharpDevelop.Gui
 			}
 			try {
 				string version = null;
+#if LIBREWPF
+				if (OperatingSystem.IsWindows()) {
+#endif
 				using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full")) {
 					if (key != null)
 						version = key.GetValue("Version") as string;
 				}
+#if LIBREWPF
+				}
+#endif
 				if (string.IsNullOrWhiteSpace(version))
 					version = Environment.Version.ToString();
 				str += ".NET Version         : " + version + Environment.NewLine;

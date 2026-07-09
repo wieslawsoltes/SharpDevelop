@@ -31,7 +31,6 @@ using ICSharpCode.SharpDevelop.Gui.XmlForms;
 using ICSharpCode.SharpDevelop.Parser;
 using ICSharpCode.SharpDevelop.Project;
 using ICSharpCode.SharpDevelop.Templates;
-using Microsoft.Build.Framework.XamlTypes;
 
 namespace ICSharpCode.SharpDevelop.Gui
 {

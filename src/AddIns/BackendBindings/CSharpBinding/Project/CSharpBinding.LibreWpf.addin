@@ -1,0 +1,112 @@
+<AddIn name        = "C# Binding"
+       author      = "Mike Krueger"
+       copyright   = "prj:///doc/copyright.txt"
+       description = "Backing binding for C#"
+       addInManagerHidden = "preinstalled">
+
+	<Manifest>
+		<Identity name = "ICSharpCode.CSharpBinding"/>
+		<Dependency addin = "ICSharpCode.AvalonEdit" />
+		<Dependency addin = "ICSharpCode.FormsDesigner" requirePreload = "true"/>
+	</Manifest>
+
+	<Runtime>
+		<Import assembly = "CSharpBinding.dll">
+			<Doozer name="CSharpCodeActionProvider" class="CSharpBinding.Refactoring.CSharpCodeActionProviderDoozer"/>
+		</Import>
+		<Import assembly = ":ICSharpCode.SharpDevelop"/>
+		<Import assembly = ":ICSharpCode.NRefactory.CSharp"/>
+		<Import assembly = ":ICSharpCode.NRefactory.CSharp.Refactoring"/>
+	</Runtime>
+
+	<Path name = "/SharpDevelop/Workbench/Ambiences">
+		<Class id    = "C#"
+		       class = "ICSharpCode.NRefactory.CSharp.CSharpAmbience"/>
+	</Path>
+
+	<Path name = "/SharpDevelop/MSBuildEngine/CompileTaskNames">
+		<String id="csc" text = "csc"/>
+	</Path>
+
+	<Path name = "/SharpDevelop/Workbench/FileFilter">
+		<FileFilter id = "C#"
+		            insertbefore="AllFiles"
+		            name = "${res:SharpDevelop.FileFilter.CSharpFiles}"
+		            extensions = "*.cs"
+		            mimeType = "text/plain"/>
+	</Path>
+
+	<Path name = "/SharpDevelop/Workbench/Combine/FileFilter">
+		<FileFilter id         = "CSharpProject"
+		            insertbefore="AllFiles"
+		            name       = "${res:SharpDevelop.FileFilter.CSharpPrjFiles} (*.csproj)"
+		            extensions = "*.csproj"/>
+	</Path>
+
+	<Path name = "/SharpDevelop/Parser">
+		<Parser id    = "C#"
+		        supportedfilenamepattern = "\.(cs)$"
+		        projectfileextension = ".csproj"
+		        class = "CSharpBinding.Parser.TParser"/>
+	</Path>
+
+	<Path name = "/SharpDevelop/ViewContent/TextEditor/CodeCompletion">
+		<CodeCompletionBinding id = "CSharp" extensions = ".cs" class = "CSharpBinding.Completion.CSharpCompletionBinding"/>
+	</Path>
+
+	<Path name="/SharpDevelop/Workbench/LanguageBindings">
+		<LanguageBinding
+			id="CSharp"
+			class="CSharpBinding.CSharpLanguageBinding"
+			extensions=".cs" />
+	</Path>
+
+	<Path name="/SharpDevelop/ViewContent/TextEditor/Extensions">
+		<TextEditorExtension
+			id="CSharp"
+			class="CSharpBinding.CSharpTextEditorExtension"
+			extensions=".cs" />
+	</Path>
+
+	<Path name = "/SharpDevelop/ViewContent/AvalonEdit/SyntaxModes">
+		<SyntaxMode id="C#" name="C#" extensions=".cs" resource="CSharpBinding.Resources.CSharp-Semantic.xshd" />
+	</Path>
+
+	<Path name="/SharpDevelop/ViewContent/AvalonEdit/Highlighters">
+		<Highlighter id="CSharpSemantic" extensions=".cs" class="CSharpBinding.CSharpSemanticHighlighter" />
+	</Path>
+
+	<Path path = "/SharpDevelop/Workbench/ProjectBindings">
+		<ProjectBinding id                   = "C#"
+		                guid                 = "{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}"
+		                supportedextensions  = ".cs"
+		                projectfileextension = ".csproj"
+		                class                = "CSharpBinding.CSharpProjectBinding" />
+	</Path>
+
+	<Path path = "/SharpDevelop/Workbench/MainMenu/Search">
+		<MenuItem id = "SearchForIssues"
+		          label="${res:XML.MainMenu.SearchMenu.SearchForIssues}"
+		          class="CSharpBinding.Refactoring.SearchForIssuesCommand"/>
+	</Path>
+
+	<Path name="/SharpDevelop/ViewContent/AvalonEdit/SnippetElementProviders">
+		<Class id="ctor" class="CSharpBinding.Refactoring.InsertCtorSnippetRefactoring" />
+		<Class id="propall" class="CSharpBinding.Refactoring.CreateProperties" />
+	</Path>
+
+	<Path path = "/SharpDevelop/ViewContent/TextEditor/C#/ContextActions">
+	</Path>
+
+	<Path name = "/SharpDevelop/Workbench/DisplayBindings">
+		<DisplayBinding id    = "CSharpFormsDesigner"
+		                type  = "Secondary"
+		                class = "CSharpBinding.FormsDesigner.FormsDesignerSecondaryDisplayBinding"
+		                fileNamePattern = "\.cs$"/>
+	</Path>
+
+	<Path name = "/SharpDevelop/Autostart">
+		<Class id    = "CSharpFormattingOptionsPoliciesInitCommand"
+		       class = "CSharpBinding.FormattingStrategy.CSharpFormattingOptionsPoliciesInitCommand"/>
+	</Path>
+</AddIn>

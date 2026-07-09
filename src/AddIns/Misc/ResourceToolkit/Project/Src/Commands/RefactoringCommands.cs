@@ -31,12 +31,16 @@ namespace Hornung.ResourceToolkit.Commands
 	public static class FindMissingResourceKeysHelper
 	{
 		public static void Run(SearchScope scope) {
+#if LIBREWPF
+			MessageService.ShowMessage("ResourceToolkit missing-resource search requires the legacy NRefactory resolver and is not enabled in this LibreWPF build.");
+#else
 			// Allow the menu to close
 			Application.DoEvents();
 			using(AsynchronousWaitDialog monitor = AsynchronousWaitDialog.ShowWaitDialog("${res:Hornung.ResourceToolkit.FindMissingResourceKeys}")) {
 				FindReferencesAndRenameHelper.ShowAsSearchResults(StringParser.Parse("${res:Hornung.ResourceToolkit.ReferencesToMissingKeys}"),
 				                                                  ResourceRefactoringService.FindReferencesToMissingKeys(monitor, scope));
 			}
+#endif
 		}
 	}
 	
@@ -91,6 +95,9 @@ namespace Hornung.ResourceToolkit.Commands
 	{
 		public override void Run()
 		{
+#if LIBREWPF
+			MessageService.ShowMessage("ResourceToolkit unused-resource search requires the legacy NRefactory resolver and is not enabled in this LibreWPF build.");
+#else
 			ICollection<ResourceItem> unusedKeys;
 			
 			// Allow the menu to close
@@ -113,6 +120,7 @@ namespace Hornung.ResourceToolkit.Commands
 				UnusedResourceKeysViewContent vc = new UnusedResourceKeysViewContent(unusedKeys);
 				workbench.ShowView(vc);
 			}
+#endif
 		}
 	}
 }

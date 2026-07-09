@@ -232,8 +232,13 @@ namespace ICSharpCode.SharpDevelop.Templates
 					}
 				case "RunCommand":
 					if (el.HasAttribute("path")) {
+						string path = el.GetAttribute("path");
 						try {
-							ICommand command = (ICommand)SD.AddInTree.BuildItem(el.GetAttribute("path"), null);
+							ICommand command = SD.AddInTree.BuildItem(path, null) as ICommand;
+							if (command == null) {
+								MessageService.ShowWarning("Template command not found: " + path + " - in " + el.OwnerDocument.DocumentElement.GetAttribute("fileName"));
+								return null;
+							}
 							return command.Execute;
 						} catch (TreePathNotFoundException ex) {
 							MessageService.ShowWarning(ex.Message + " - in " + el.OwnerDocument.DocumentElement.GetAttribute("fileName"));

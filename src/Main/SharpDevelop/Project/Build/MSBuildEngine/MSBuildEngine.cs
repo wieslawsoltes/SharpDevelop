@@ -95,9 +95,11 @@ namespace ICSharpCode.SharpDevelop.Project
 			
 			var additionalTargetFileList = additionalTargetFiles != null ? additionalTargetFiles.ToList() : new List<string>();
 			additionalTargetFileList.AddRange(AdditionalTargetFiles.Select(fileName => fileName.ToString()));
+#if !LIBREWPF
 			if (project.MinimumSolutionVersion >= SolutionFormatVersion.VS2010) {
 				additionalTargetFileList.Add(Path.Combine(Path.GetDirectoryName(typeof(MSBuildEngine).Assembly.Location), "SharpDevelop.TargetingPack.targets"));
 			}
+#endif
 			var engine = new MSBuildEngineWorker(this, project, options, feedbackSink, additionalTargetFileList);
 			return engine.RunBuildAsync(cancellationToken);
 		}

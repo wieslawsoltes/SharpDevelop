@@ -67,14 +67,46 @@ namespace ICSharpCode.AvalonEdit.AddIn
 		
 		internal void FileNameChanged()
 		{
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditorAdapter.FileNameChanged entered " + PrimaryView.FileName);
+			}
+#endif
 			DetachExtensions();
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditorAdapter.FileNameChanged building text editor extensions");
+			}
+#endif
 			extensions = AddInTree.BuildItems<ITextEditorExtension>(extensionsPath, this, false);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditorAdapter.FileNameChanged built extensions=" + (extensions != null ? extensions.Count : 0));
+			}
+#endif
 			AttachExtensions();
-			
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditorAdapter.FileNameChanged attached text editor extensions");
+			}
+#endif
 			languageBinding = SD.LanguageService.GetLanguageByFileName(PrimaryView.FileName);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditorAdapter.FileNameChanged attached extensions=" + (extensions != null ? extensions.Count : 0));
+				Console.WriteLine("LibreWPF CodeEditorAdapter.FileNameChanged language binding=" + (languageBinding != null ? languageBinding.GetType().FullName : "<null>"));
+			}
+			if (languageBinding == null)
+				languageBinding = DefaultLanguageBinding.DefaultInstance;
+#endif
 			
 			// update properties set by languageBinding
 			this.TextEditor.TextArea.IndentationStrategy = new OptionControlledIndentationStrategy(this, languageBinding.FormattingStrategy);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF CodeEditorAdapter.FileNameChanged completed " + PrimaryView.FileName);
+			}
+#endif
 		}
 		
 		internal void DetachExtensions()

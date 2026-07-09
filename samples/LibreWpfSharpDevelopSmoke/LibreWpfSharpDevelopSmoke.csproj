@@ -1,0 +1,18 @@
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.sharpdevelop.1">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>LibreWpfSharpDevelopSmoke</AssemblyName>
+    <RootNamespace>LibreWpfSharpDevelopSmoke</RootNamespace>
+    <ApplicationIcon />
+    <NoWarn>$(NoWarn);NU1603</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Main\ICSharpCode.Core.Presentation\ICSharpCode.Core.Presentation.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\src\Libraries\SharpTreeView\ICSharpCode.TreeView\ICSharpCode.TreeView.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\src\Libraries\AvalonEdit\ICSharpCode.AvalonEdit\ICSharpCode.AvalonEdit.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\src\Libraries\AvalonDock\AvalonDock\AvalonDock.LibreWpf.csproj" />
+  </ItemGroup>
+</Project>

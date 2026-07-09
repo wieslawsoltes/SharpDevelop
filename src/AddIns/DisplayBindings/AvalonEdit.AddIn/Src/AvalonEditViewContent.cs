@@ -47,6 +47,11 @@ namespace ICSharpCode.AvalonEdit.AddIn
 		
 		public AvalonEditViewContent(OpenedFile file, Encoding fixedEncodingForLoading = null)
 		{
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF AvalonEditViewContent ctor entered for " + file.FileName);
+			}
+#endif
 			// Use common service container for view content and primary text editor.
 			// This makes all text editor services available as view content services and vice versa.
 			// (with the exception of the interfaces implemented directly by this class,
@@ -66,7 +71,18 @@ namespace ICSharpCode.AvalonEdit.AddIn
 			}
 			
 			this.Files.Add(file);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF AvalonEditViewContent registered file " + file.FileName);
+				Console.WriteLine("LibreWPF AvalonEditViewContent force initializing view for " + file.FileName);
+			}
+#endif
 			file.ForceInitializeView(this);
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF AvalonEditViewContent initialized view for " + file.FileName);
+			}
+#endif
 			
 			file.IsDirtyChanged += PrimaryFile_IsDirtyChanged;
 			codeEditor.Document.UndoStack.PropertyChanged += codeEditor_Document_UndoStack_PropertyChanged;
@@ -147,21 +163,56 @@ namespace ICSharpCode.AvalonEdit.AddIn
 		{
 			if (file != PrimaryFile)
 				return;
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF AvalonEditViewContent.Load entered for " + file.FileName);
+			}
+#endif
 			isLoading = true;
 			try {
 				if (!file.IsUntitled) {
+#if LIBREWPF
+					if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+						Console.WriteLine("LibreWPF AvalonEditViewContent.Load checking attributes for " + file.FileName);
+					}
+#endif
 					codeEditor.PrimaryTextEditor.IsReadOnly = (File.GetAttributes(file.FileName) & FileAttributes.ReadOnly) == FileAttributes.ReadOnly;
 				}
 				
+#if LIBREWPF
+				if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+					Console.WriteLine("LibreWPF AvalonEditViewContent.Load loading stream for " + file.FileName);
+				}
+#endif
 				codeEditor.Load(stream);
+#if LIBREWPF
+				if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+					Console.WriteLine("LibreWPF AvalonEditViewContent.Load stream loaded for " + file.FileName);
+				}
+#endif
 				// Load() causes the undo stack to think stuff changed, so re-mark the file as original if necessary
 				if (!this.PrimaryFile.IsDirty) {
 					codeEditor.Document.UndoStack.MarkAsOriginalFile();
 				}
 				
 				// we set the file name after loading because this will place the fold markers etc.
+#if LIBREWPF
+				if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+					Console.WriteLine("LibreWPF AvalonEditViewContent.Load setting file name for " + file.FileName);
+				}
+#endif
 				codeEditor.FileName = file.FileName;
+#if LIBREWPF
+				if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+					Console.WriteLine("LibreWPF AvalonEditViewContent.Load attaching bookmarks for " + file.FileName);
+				}
+#endif
 				BookmarksAttach();
+#if LIBREWPF
+				if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+					Console.WriteLine("LibreWPF AvalonEditViewContent.Load completed for " + file.FileName);
+				}
+#endif
 			} finally {
 				isLoading = false;
 			}

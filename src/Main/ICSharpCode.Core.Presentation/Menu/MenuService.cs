@@ -247,7 +247,9 @@ namespace ICSharpCode.Core.Presentation
 					var subItems = CreateUnexpandedMenuItems(context, descriptor.SubItems);
 					item.SubmenuOpened += (sender, args) => {
 						item.ItemsSource = ExpandMenuBuilders(subItems, true);
+#if !LIBREWPF
 						args.Handled = true;
+#endif
 					};
 					if (context.ImmediatelyExpandMenuBuildersForShortcuts)
 						ExpandMenuBuilders(subItems, false);
@@ -300,6 +302,7 @@ namespace ICSharpCode.Core.Presentation
 	
 	static class KeyCodeConversion
 	{
+#if !LIBREWPF
 		[DllImport("user32.dll")]
 		static extern int ToUnicodeEx(uint wVirtKey, uint wScanCode, byte []
 		                              lpKeyState, [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pwszBuff,
@@ -313,10 +316,18 @@ namespace ICSharpCode.Core.Presentation
 
 		[DllImport("user32.dll")]
 		static extern IntPtr GetKeyboardLayout(uint idThread);
+#endif
 
 		/// <remarks>Only works with Windows.Forms.Keys. The WPF Key enum seems to be horribly distorted!</remarks>
 		public static string KeyToUnicode(WinForms.Keys key)
 		{
+#if LIBREWPF
+			if (key >= WinForms.Keys.A && key <= WinForms.Keys.Z)
+				return key.ToString();
+			if (key >= WinForms.Keys.D0 && key <= WinForms.Keys.D9)
+				return ((char)('0' + key - WinForms.Keys.D0)).ToString();
+			return null;
+#else
 			StringBuilder sb = new StringBuilder(256);
 			IntPtr hkl = GetKeyboardLayout(0);
 			
@@ -330,8 +341,10 @@ namespace ICSharpCode.Core.Presentation
 			
 			ClearKeyboardBuffer(hkl);
 			return null;
+#endif
 		}
 		
+#if !LIBREWPF
 		static void ClearKeyboardBuffer(IntPtr hkl)
 		{
 			StringBuilder sb = new StringBuilder(10);
@@ -341,6 +354,7 @@ namespace ICSharpCode.Core.Presentation
 				rc = ToUnicodeEx(key, MapVirtualKeyEx(key, 0, hkl), new byte[256], sb, sb.Capacity, 0, hkl);
 			} while(rc < 0);
 		}
+#endif
 		
 		public static WinForms.Keys ToKeys(this Key key)
 		{

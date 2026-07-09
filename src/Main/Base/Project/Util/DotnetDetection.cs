@@ -28,9 +28,13 @@ namespace ICSharpCode.SharpDevelop
 		/// </summary>
 		public static bool IsDotnet35SP1Installed()
 		{
+#if LIBREWPF
+			return false;
+#else
 			using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5")) {
 				return key != null && (key.GetValue("SP") as int?) >= 1;
 			}
+#endif
 		}
 
 		/// <summary>
@@ -46,7 +50,11 @@ namespace ICSharpCode.SharpDevelop
 		/// </summary>
 		public static bool IsDotnet45Installed()
 		{
+#if LIBREWPF
+			return true;
+#else
 			return GetDotnet4Release() >= 378389;
+#endif
 		}
 		
 		/// <summary>
@@ -54,22 +62,34 @@ namespace ICSharpCode.SharpDevelop
 		/// </summary>
 		public static bool IsDotnet451Installed()
 		{
+#if LIBREWPF
+			return true;
+#else
 			// According to: http://blogs.msdn.com/b/astebner/archive/2013/11/11/10466402.aspx
 			// 378675 is .NET 4.5.1 on Win8
 			// 378758 is .NET 4.5.1 on Win7
 			return GetDotnet4Release() >= 378675;
+#endif
 		}
 		
 		public static bool IsDotnet452Installed()
 		{
+#if LIBREWPF
+			return true;
+#else
 			// 379893 is .NET 4.5.2 on my Win7 machine
 			return GetDotnet4Release() >= 379893;
+#endif
 		}
 		
 		public static bool IsDotnet46Installed()
 		{
+#if LIBREWPF
+			return true;
+#else
 			// 393273 is .NET 4.6 on my Win7 machine with VS 2015 RC installed
 			return GetDotnet4Release() >= 393273;
+#endif
 		}
 		
 		/// <summary>
@@ -78,11 +98,15 @@ namespace ICSharpCode.SharpDevelop
 		/// </summary>
 		static int? GetDotnet4Release()
 		{
+#if LIBREWPF
+			return 528040;
+#else
 			using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full")) {
 				if (key != null)
 					return key.GetValue("Release") as int?;
 			}
 			return null;
+#endif
 		}
 		
 		/// <summary>
@@ -90,10 +114,14 @@ namespace ICSharpCode.SharpDevelop
 		/// </summary>
 		public static bool IsBuildTools2013Installed()
 		{
+#if LIBREWPF
+			return false;
+#else
 			// HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\DevDiv\BuildTools\Servicing\12.0
 			using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\DevDiv\BuildTools\Servicing\12.0\MSBuild")) {
 				return key != null && key.GetValue("Install") as int? >= 1;
 			}
+#endif
 		}
 		
 		/// <summary>
@@ -101,10 +129,14 @@ namespace ICSharpCode.SharpDevelop
 		/// </summary>
 		public static bool IsBuildTools2015Installed()
 		{
+#if LIBREWPF
+			return false;
+#else
 			// HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\DevDiv\BuildTools\Servicing\14.0
 			using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\DevDiv\BuildTools\Servicing\14.0\MSBuild")) {
 				return key != null && key.GetValue("Install") as int? >= 1;
 			}
+#endif
 		}
 	}
 }

@@ -509,6 +509,15 @@ namespace AvalonDock
             return (cxOptions != null && cxOptions.IsOpen);
         }
 
+#if LIBREWPF
+        public bool TryOpenOptionsMenuForPortableHost(out ContextMenu contextMenu)
+        {
+            bool opened = OpenOptionsMenu(null);
+            contextMenu = cxOptions;
+            return opened && contextMenu != null && contextMenu.IsOpen;
+        }
+#endif
+
         /// <summary>
         /// Close the options context menu
         /// </summary>

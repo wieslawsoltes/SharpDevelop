@@ -52,9 +52,7 @@ namespace ICSharpCode.SharpDevelop.Project
 		internal static MSBuild.Evaluation.Project LoadProject(MSBuild.Evaluation.ProjectCollection projectCollection, ProjectRootElement rootElement, IDictionary<string, string> globalProps)
 		{
 			lock (SolutionProjectCollectionLock) {
-				string toolsVersion = rootElement.ToolsVersion;
-				if (string.IsNullOrEmpty(toolsVersion))
-					toolsVersion = projectCollection.DefaultToolsVersion;
+				string toolsVersion = ResolveToolsVersion(projectCollection, rootElement.ToolsVersion);
 				return new MSBuild.Evaluation.Project(rootElement, globalProps, toolsVersion, projectCollection);
 			}
 		}
@@ -62,11 +60,20 @@ namespace ICSharpCode.SharpDevelop.Project
 		internal static ProjectInstance LoadProjectInstance(MSBuild.Evaluation.ProjectCollection projectCollection, ProjectRootElement rootElement, IDictionary<string, string> globalProps)
 		{
 			lock (SolutionProjectCollectionLock) {
-				string toolsVersion = rootElement.ToolsVersion;
-				if (string.IsNullOrEmpty(toolsVersion))
-					toolsVersion = projectCollection.DefaultToolsVersion;
+				string toolsVersion = ResolveToolsVersion(projectCollection, rootElement.ToolsVersion);
 				return new ProjectInstance(rootElement, globalProps, toolsVersion, projectCollection);
 			}
+		}
+
+		static string ResolveToolsVersion(MSBuild.Evaluation.ProjectCollection projectCollection, string toolsVersion)
+		{
+			if (string.IsNullOrEmpty(toolsVersion))
+				return projectCollection.DefaultToolsVersion;
+#if LIBREWPF
+			if (!projectCollection.Toolsets.Any(t => string.Equals(t.ToolsVersion, toolsVersion, StringComparison.OrdinalIgnoreCase)))
+				return projectCollection.DefaultToolsVersion;
+#endif
+			return toolsVersion;
 		}
 		
 		public static void AddMSBuildSolutionProperties(ISolution solution, IDictionary<string, string> propertyDict)

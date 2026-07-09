@@ -208,6 +208,7 @@ namespace AvalonDock
                     cxMenu.PlacementRectangle = new Rect(ptMouse, new Size(0, 0));           
                 }
                 cxMenu.IsOpen = true;
+                TrackOpenedContextMenu(cxMenu);
 
                 return true;
             }

@@ -22,6 +22,7 @@ using System.IO;
 using System.Text;
 
 using ICSharpCode.Core;
+using ICSharpCode.NRefactory.Editor;
 using ICSharpCode.SharpDevelop.Editor;
 using ICSharpCode.SharpDevelop.Project;
 
@@ -51,12 +52,16 @@ namespace Hornung.ResourceToolkit.Resolver
 		public override bool SupportsFile(string fileName)
 		{
 			// Any parseable source code file may contain references
+#if !LIBREWPF
 			if (ResourceResolverService.GetParser(fileName) != null) {
 				return true;
 			}
+#endif
 			
 			// Support additional files by extension
 			switch(Path.GetExtension(fileName).ToLowerInvariant()) {
+				case ".cs":
+				case ".vb":
 				case ".addin":
 				case ".xfrm":
 				case ".xml":
@@ -238,11 +243,11 @@ namespace Hornung.ResourceToolkit.Resolver
 			string localFile;
 			ResourceSetReference local = null;
 			
-			if (!NRefactoryAstCacheService.CacheEnabled || !cachedLocalResourceSets.TryGetValue(project, out local)) {
+			if (!ResourceToolkitCacheState.CacheEnabled || !cachedLocalResourceSets.TryGetValue(project, out local)) {
 				foreach (string relativePath in AddInTree.BuildItems<string>("/AddIns/ResourceToolkit/ICSharpCodeCoreResourceResolver/LocalResourcesLocations", null, false)) {
 					if ((localFile = FindICSharpCodeCoreResourceFile(Path.GetFullPath(Path.Combine(project.Directory, relativePath)))) != null) {
 						local = new ResourceSetReference(ICSharpCodeCoreLocalResourceSetName, localFile);
-						if (NRefactoryAstCacheService.CacheEnabled) {
+						if (ResourceToolkitCacheState.CacheEnabled) {
 							cachedLocalResourceSets.Add(project, local);
 						}
 						break;
@@ -265,7 +270,7 @@ namespace Hornung.ResourceToolkit.Resolver
 			string hostFile;
 			
 			if (project == null ||
-			    !NRefactoryAstCacheService.CacheEnabled || !cachedHostResourceSets.TryGetValue(project, out host)) {
+			    !ResourceToolkitCacheState.CacheEnabled || !cachedHostResourceSets.TryGetValue(project, out host)) {
 				
 				// Get SD directory using the reference to ICSharpCode.Core
 				string coreAssemblyFullPath = GetICSharpCodeCoreFullPath(project);
@@ -292,7 +297,7 @@ namespace Hornung.ResourceToolkit.Resolver
 				foreach (string relativePath in AddInTree.BuildItems<string>("/AddIns/ResourceToolkit/ICSharpCodeCoreResourceResolver/HostResourcesLocations", null, false)) {
 					if ((hostFile = FindICSharpCodeCoreResourceFile(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(coreAssemblyFullPath), relativePath)))) != null) {
 						host = new ResourceSetReference(ICSharpCodeCoreHostResourceSetName, hostFile);
-						if (NRefactoryAstCacheService.CacheEnabled && project != null) {
+						if (ResourceToolkitCacheState.CacheEnabled && project != null) {
 							cachedHostResourceSets.Add(project, host);
 						}
 						break;
@@ -353,12 +358,12 @@ namespace Hornung.ResourceToolkit.Resolver
 		{
 			cachedLocalResourceSets = new Dictionary<IProject, ResourceSetReference>();
 			cachedHostResourceSets = new Dictionary<IProject, ResourceSetReference>();
-			NRefactoryAstCacheService.CacheEnabledChanged += NRefactoryCacheEnabledChanged;
+			ResourceToolkitCacheState.CacheEnabledChanged += NRefactoryCacheEnabledChanged;
 		}
 		
 		static void NRefactoryCacheEnabledChanged(object sender, EventArgs e)
 		{
-			if (!NRefactoryAstCacheService.CacheEnabled) {
+			if (!ResourceToolkitCacheState.CacheEnabled) {
 				// Clear cache when disabled.
 				cachedLocalResourceSets.Clear();
 				cachedHostResourceSets.Clear();

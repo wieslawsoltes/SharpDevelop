@@ -29,6 +29,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Runtime.InteropServices;
+#if LIBREWPF
+using System.Windows;
+using ProGPU.Wpf.Interop;
+#endif
 
 namespace AvalonDock
 {
@@ -42,6 +46,41 @@ namespace AvalonDock
 
         [DllImport("gdi32.dll")]
         public static extern int CombineRgn(IntPtr hrgnDest, IntPtr hrgnSrc1, IntPtr hrgnSrc2, int fnCombineMode);
+
+#if LIBREWPF
+        public static bool TrySetPortableWindowRegion(
+            IntPtr hWnd,
+            Rect bounds,
+            IReadOnlyList<Rect> excludedRects)
+        {
+            if (OperatingSystem.IsWindows() || hWnd == IntPtr.Zero)
+                return false;
+
+            if (!PortableWpfServiceRegistry.TryGetWindowActivationService(
+                    PortableWpfServiceKey.PresentationFramework,
+                    out var activationService))
+                return false;
+
+            PortableRect[] excludedPortableRects = Array.Empty<PortableRect>();
+            if (excludedRects.Count > 0)
+            {
+                excludedPortableRects = new PortableRect[excludedRects.Count];
+                for (int i = 0; i < excludedRects.Count; i++)
+                    excludedPortableRects[i] = ToPortableRect(excludedRects[i]);
+            }
+
+            return activationService.TrySetWindowRegion(
+                hWnd,
+                new PortableWindowRegion(ToPortableRect(bounds), excludedPortableRects));
+        }
+
+        private static PortableRect ToPortableRect(Rect rect)
+        {
+            return rect.IsEmpty
+                ? PortableRect.Empty
+                : new PortableRect(rect.X, rect.Y, rect.Width, rect.Height);
+        }
+#endif
 
         public enum CombineRgnStyles : int
         {

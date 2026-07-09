@@ -1,0 +1,35 @@
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.sharpdevelop.1">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>SharpDevelop</AssemblyName>
+    <RootNamespace>ICSharpCode.SharpDevelop</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Nullable>enable</Nullable>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\ICSharpCode.SharpDevelop.snk</AssemblyOriginatorKeyFile>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
+    <ApplicationIcon />
+    <NoWarn>$(NoWarn);1591;CS1591;NU1603</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\GlobalAssemblyInfo.cs" Link="Configuration\GlobalAssemblyInfo.cs" />
+    <Compile Include="LibreWpf\LibreWpfSharpDevelopMain.cs" />
+    <Compile Include="LibreWpf\LibreWpfWorkbenchShell.xaml.cs">
+      <DependentUpon>LibreWpfWorkbenchShell.xaml</DependentUpon>
+    </Compile>
+    <Page Include="LibreWpf\LibreWpfWorkbenchShell.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Base\Project\ICSharpCode.SharpDevelop.LibreWpf.csproj" />
+    <ProjectReference Include="..\ICSharpCode.Core.Presentation\ICSharpCode.Core.Presentation.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\Libraries\SharpTreeView\ICSharpCode.TreeView\ICSharpCode.TreeView.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\Libraries\AvalonEdit\ICSharpCode.AvalonEdit\ICSharpCode.AvalonEdit.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\Libraries\AvalonDock\AvalonDock\AvalonDock.LibreWpf.csproj" />
+  </ItemGroup>
+</Project>

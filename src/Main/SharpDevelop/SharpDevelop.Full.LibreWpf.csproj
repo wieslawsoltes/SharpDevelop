@@ -1,0 +1,97 @@
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.sharpdevelop.1">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>SharpDevelop</AssemblyName>
+    <RootNamespace>ICSharpCode.SharpDevelop</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Nullable>disable</Nullable>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\ICSharpCode.SharpDevelop.snk</AssemblyOriginatorKeyFile>
+    <DefineConstants>$(DefineConstants);LIBREWPF</DefineConstants>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
+    <ApplicationIcon />
+    <NoWarn>$(NoWarn);1591;CS1591;CS0618;CS8600;CS8601;CS8602;CS8603;CS8618;NU1603</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="LibreWpf\**" />
+    <Compile Remove="obj\**" />
+    <EmbeddedResource Remove="obj\**" />
+    <None Remove="obj\**" />
+    <Page Remove="obj\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\GlobalAssemblyInfo.cs" Link="Configuration\GlobalAssemblyInfo.cs" />
+    <Compile Include="..\ICSharpCode.SharpDevelop.BuildWorker\BuildJob.cs" Link="Project\Build\MSBuildEngine\BuildJob.cs" />
+    <Compile Include="..\ICSharpCode.SharpDevelop.BuildWorker\EventSource.cs" Link="Project\Build\MSBuildEngine\EventSource.cs" />
+    <Compile Include="..\ICSharpCode.SharpDevelop.BuildWorker\EventTypes.cs" Link="Project\Build\MSBuildEngine\EventTypes.cs" />
+    <Compile Include="..\ICSharpCode.SharpDevelop.BuildWorker\ExtendedBinaryReader.cs" Link="Project\Build\MSBuildEngine\ExtendedBinaryReader.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Include="Dom\ClassBrowser\OpenFromGacDialog.xaml" />
+    <Page Include="OptionPanels\LoadSaveOptions.xaml" />
+    <Page Include="Startup\App.xaml" />
+    <Page Include="Workbench\WpfWorkbench.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\..\data\resources\StringResources.resx" Link="Resources\StringResources.resx" />
+    <EmbeddedResource Include="Resources\BitmapResources.resources" />
+    <EmbeddedResource Include="Resources\SplashScreen.jpg">
+      <LogicalName>Resources.SplashScreen.jpg</LogicalName>
+    </EmbeddedResource>
+    <Content Include="app.template.config" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\Libraries\ICSharpCode.Build.Tasks\Project\SharpDevelop.TargetingPack.targets" Link="SharpDevelop.TargetingPack.targets" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\AddIns\BackendBindings\CSharpBinding\Project\CSharpBinding.LibreWpf.addin" TargetPath="CSharpBinding.addin" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\AddIns\DisplayBindings\FormsDesigner\Project\FormsDesigner.addin" TargetPath="FormsDesigner.addin" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\AddIns\DisplayBindings\XmlEditor\Project\XmlEditor.addin" TargetPath="XmlEditor.addin" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\AddIns\Misc\ResourceToolkit\Project\Hornung.ResourceToolkit.addin" TargetPath="Hornung.ResourceToolkit.addin" CopyToOutputDirectory="PreserveNewest" Condition="'$(LibreWpfSharpDevelopIncludeResourceToolkit)' == 'true'" />
+    <None Include="Templates\SharpDevelop.Setup.sln" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="log4net" HintPath="..\..\Libraries\log4net\log4net.dll" Private="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build" Version="17.14.28" />
+    <PackageReference Include="Microsoft.Build.Framework" Version="17.14.28" />
+    <PackageReference Include="Microsoft.Build.Tasks.Core" Version="17.14.28" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.14.28" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net45" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuWpfSdkVersion)" />
+    <PackageReference Include="System.CodeDom" Version="10.0.0" />
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Drawing.Common"
+               HintPath="$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll"
+               Private="true"
+               Condition="Exists('$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll')" />
+    <ProjectReference Include="..\Base\Project\ICSharpCode.SharpDevelop.LibreWpf.csproj" />
+    <ProjectReference Include="..\ICSharpCode.Core.Presentation\ICSharpCode.Core.Presentation.LibreWpf.csproj" />
+    <ProjectReference Include="..\ICSharpCode.Core.WinForms\ICSharpCode.Core.WinForms.LibreWpf.csproj" />
+    <ProjectReference Include="..\ICSharpCode.SharpDevelop.Widgets\Project\ICSharpCode.SharpDevelop.Widgets.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\Libraries\SharpTreeView\ICSharpCode.TreeView\ICSharpCode.TreeView.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\Libraries\AvalonEdit\ICSharpCode.AvalonEdit\ICSharpCode.AvalonEdit.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\AddIns\DisplayBindings\AvalonEdit.AddIn\AvalonEdit.AddIn.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\AddIns\DisplayBindings\FormsDesigner\Project\FormsDesigner.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\AddIns\DisplayBindings\XmlEditor\Project\XmlEditor.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\AddIns\BackendBindings\CSharpBinding\Project\CSharpBinding.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\AddIns\Misc\ResourceToolkit\Project\ResourceToolkit.LibreWpf.csproj" Condition="'$(LibreWpfSharpDevelopIncludeResourceToolkit)' == 'true'" />
+    <ProjectReference Include="..\..\Libraries\AvalonDock\AvalonDock\AvalonDock.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\Libraries\cecil\Mono.Cecil.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\Libraries\NRefactory\ICSharpCode.NRefactory\ICSharpCode.NRefactory.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\Libraries\NRefactory\ICSharpCode.NRefactory.Xml\ICSharpCode.NRefactory.Xml.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\Libraries\NRefactory\ICSharpCode.NRefactory.Cecil\ICSharpCode.NRefactory.Cecil.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\Libraries\NRefactory\ICSharpCode.NRefactory.CSharp\ICSharpCode.NRefactory.CSharp.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\Libraries\NRefactory\ICSharpCode.NRefactory.CSharp.Refactoring\ICSharpCode.NRefactory.CSharp.Refactoring.LibreWpf.csproj" />
+  </ItemGroup>
+
+</Project>

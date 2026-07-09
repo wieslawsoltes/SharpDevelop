@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2014 AlphaSierraPapa for the SharpDevelop Team
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -21,7 +21,8 @@ using System.Collections;
 using System.Drawing;
 using System.IO;
 using System.Net;
-using System.Runtime.Remoting.Messaging;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Web.Services.Description;
 using System.Web.Services.Discovery;
 using System.Windows.Forms;
@@ -41,10 +42,41 @@ namespace ICSharpCode.SharpDevelop.Gui
 		Uri discoveryUri;
 		IProject project;
 		WebReference webReference;
-		
-		delegate DiscoveryDocument DiscoverAnyAsync(string url);
+
 		delegate void DiscoveredWebServicesHandler(DiscoveryClientProtocol protocol);
 		delegate void AuthenticationHandler(Uri uri, string authenticationType);
+
+		sealed class DiscoveryAsyncResult : IAsyncResult
+		{
+			readonly Task<DiscoveryDocument> task;
+			readonly AsyncDiscoveryState state;
+
+			public DiscoveryAsyncResult(AsyncDiscoveryState state, Task<DiscoveryDocument> task)
+			{
+				this.state = state;
+				this.task = task;
+			}
+
+			public Task<DiscoveryDocument> Task {
+				get { return task; }
+			}
+
+			public object AsyncState {
+				get { return state; }
+			}
+
+			public WaitHandle AsyncWaitHandle {
+				get { return ((IAsyncResult)task).AsyncWaitHandle; }
+			}
+
+			public bool CompletedSynchronously {
+				get { return false; }
+			}
+
+			public bool IsCompleted {
+				get { return task.IsCompleted; }
+			}
+		}
 
 		public AddWebReferenceDialog(IProject project)
 		{
@@ -56,7 +88,7 @@ namespace ICSharpCode.SharpDevelop.Gui
 			AddWebReferenceDialogResize(null, null);
 			this.project = project;
 		}
-		
+
 		/// <summary>
 		/// The prefix that will be added to the web service's namespace
 		/// (typically the project's namespace).
@@ -69,7 +101,7 @@ namespace ICSharpCode.SharpDevelop.Gui
 				namespacePrefix = value;
 			}
 		}
-		
+
 		/// <summary>
 		/// The discovered web reference to add to the project.
 		/// </summary>
@@ -78,7 +110,7 @@ namespace ICSharpCode.SharpDevelop.Gui
 				return webReference;
 			}
 		}
-		
+
 		#region Windows Forms Designer generated code
 		/// <summary>
 		/// This method is required for Windows Forms designer support.
@@ -110,9 +142,9 @@ namespace ICSharpCode.SharpDevelop.Gui
 			this.webBrowserTabPage.SuspendLayout();
 			this.webServicesTabPage.SuspendLayout();
 			this.SuspendLayout();
-			// 
+			//
 			// toolStrip
-			// 
+			//
 			this.toolStrip.CanOverflow = false;
 			this.toolStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
 									this.backButton,
@@ -130,9 +162,9 @@ namespace ICSharpCode.SharpDevelop.Gui
 			this.toolStrip.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.ToolStripPreviewKeyDown);
 			this.toolStrip.Enter += new System.EventHandler(this.ToolStripEnter);
 			this.toolStrip.Leave += new System.EventHandler(this.ToolStripLeave);
-			// 
+			//
 			// backButton
-			// 
+			//
 			this.backButton.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
 			this.backButton.ImageTransparentColor = System.Drawing.Color.Magenta;
 			this.backButton.Name = "backButton";
@@ -140,9 +172,9 @@ namespace ICSharpCode.SharpDevelop.Gui
 			this.backButton.Text = "Back";
 			this.backButton.Enabled = false;
 			this.backButton.Click += new System.EventHandler(this.BackButtonClick);
-			// 
+			//
 			// forwardButton
-			// 
+			//
 			this.forwardButton.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
 			this.forwardButton.ImageTransparentColor = System.Drawing.Color.Magenta;
 			this.forwardButton.Name = "forwardButton";
@@ -150,18 +182,18 @@ namespace ICSharpCode.SharpDevelop.Gui
 			this.forwardButton.Text = "forward";
 			this.forwardButton.Enabled = false;
 			this.forwardButton.Click += new System.EventHandler(this.ForwardButtonClick);
-			// 
+			//
 			// refreshButton
-			// 
+			//
 			this.refreshButton.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
 			this.refreshButton.ImageTransparentColor = System.Drawing.Color.Magenta;
 			this.refreshButton.Name = "refreshButton";
 			this.refreshButton.Size = new System.Drawing.Size(23, 22);
 			this.refreshButton.Text = "Refresh";
 			this.refreshButton.Click += new System.EventHandler(this.RefreshButtonClick);
-			// 
+			//
 			// stopButton
-			// 
+			//
 			this.stopButton.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
 			this.stopButton.ImageTransparentColor = System.Drawing.Color.Magenta;
 			this.stopButton.Name = "stopButton";
@@ -170,9 +202,9 @@ namespace ICSharpCode.SharpDevelop.Gui
 			this.stopButton.ToolTipText = "Stop";
 			this.stopButton.Enabled = false;
 			this.stopButton.Click += new System.EventHandler(this.StopButtonClick);
-			// 
+			//
 			// urlComboBox
-			// 
+			//
 			this.urlComboBox.AutoCompleteMode = System.Windows.Forms.AutoCompleteMode.Suggest;
 			this.urlComboBox.AutoCompleteSource = System.Windows.Forms.AutoCompleteSource.AllUrl;
 			this.urlComboBox.AutoSize = false;
@@ -181,19 +213,19 @@ namespace ICSharpCode.SharpDevelop.Gui
 			this.urlComboBox.Size = new System.Drawing.Size(361, 21);
 			this.urlComboBox.KeyDown += new System.Windows.Forms.KeyEventHandler(this.UrlComboBoxKeyDown);
 			this.urlComboBox.SelectedIndexChanged += new System.EventHandler(this.UrlComboBoxSelectedIndexChanged);
-			// 
+			//
 			// goButton
-			// 
+			//
 			this.goButton.ImageTransparentColor = System.Drawing.Color.Magenta;
 			this.goButton.Name = "goButton";
 			this.goButton.Size = new System.Drawing.Size(24, 22);
 			this.goButton.Text = "Go";
 			this.goButton.Click += new System.EventHandler(this.GoButtonClick);
-			// 
+			//
 			// tabControl
-			// 
-			this.tabControl.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-									| System.Windows.Forms.AnchorStyles.Left) 
+			//
+			this.tabControl.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+									| System.Windows.Forms.AnchorStyles.Left)
 									| System.Windows.Forms.AnchorStyles.Right)));
 			this.tabControl.Controls.Add(this.webBrowserTabPage);
 			this.tabControl.Controls.Add(this.webServicesTabPage);
@@ -202,9 +234,9 @@ namespace ICSharpCode.SharpDevelop.Gui
 			this.tabControl.SelectedIndex = 0;
 			this.tabControl.Size = new System.Drawing.Size(515, 245);
 			this.tabControl.TabIndex = 1;
-			// 
+			//
 			// webBrowserTabPage
-			// 
+			//
 			this.webBrowserTabPage.Controls.Add(this.webBrowser);
 			this.webBrowserTabPage.Location = new System.Drawing.Point(4, 22);
 			this.webBrowserTabPage.Name = "webBrowserTabPage";
@@ -213,9 +245,9 @@ namespace ICSharpCode.SharpDevelop.Gui
 			this.webBrowserTabPage.TabIndex = 0;
 			this.webBrowserTabPage.Text = "WSDL";
 			this.webBrowserTabPage.UseVisualStyleBackColor = true;
-			// 
+			//
 			// webBrowser
-			// 
+			//
 			this.webBrowser.Dock = System.Windows.Forms.DockStyle.Fill;
 			this.webBrowser.Location = new System.Drawing.Point(3, 3);
 			this.webBrowser.MinimumSize = new System.Drawing.Size(20, 20);
@@ -227,9 +259,9 @@ namespace ICSharpCode.SharpDevelop.Gui
 			this.webBrowser.Navigating += new System.Windows.Forms.WebBrowserNavigatingEventHandler(this.WebBrowserNavigating);
 			this.webBrowser.CanGoBackChanged += new System.EventHandler(this.WebBrowserCanGoBackChanged);
 			this.webBrowser.CanGoForwardChanged += new System.EventHandler(this.WebBrowserCanGoForwardChanged);
-			// 
+			//
 			// webServicesTabPage
-			// 
+			//
 			this.webServicesTabPage.Controls.Add(this.webServicesView);
 			this.webServicesTabPage.Location = new System.Drawing.Point(4, 22);
 			this.webServicesTabPage.Name = "webServicesTabPage";
@@ -238,16 +270,16 @@ namespace ICSharpCode.SharpDevelop.Gui
 			this.webServicesTabPage.TabIndex = 1;
 			this.webServicesTabPage.Text = "Available Web Services";
 			this.webServicesTabPage.UseVisualStyleBackColor = true;
-			// 
+			//
 			// webServicesView
-			// 
+			//
 			this.webServicesView.Dock = System.Windows.Forms.DockStyle.Fill;
 			this.webServicesView.Location = new System.Drawing.Point(3, 3);
 			this.webServicesView.Name = "webServicesView";
 			this.webServicesView.Size = new System.Drawing.Size(501, 213);
-			// 
+			//
 			// referenceNameLabel
-			// 
+			//
 			this.referenceNameLabel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
 			this.referenceNameLabel.Location = new System.Drawing.Point(9, 280);
 			this.referenceNameLabel.Name = "referenceNameLabel";
@@ -255,18 +287,18 @@ namespace ICSharpCode.SharpDevelop.Gui
 			this.referenceNameLabel.TabIndex = 2;
 			this.referenceNameLabel.Text = "&Reference Name:";
 			this.referenceNameLabel.UseCompatibleTextRendering = true;
-			// 
+			//
 			// referenceNameTextBox
-			// 
-			this.referenceNameTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
+			//
+			this.referenceNameTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)
 									| System.Windows.Forms.AnchorStyles.Right)));
 			this.referenceNameTextBox.Location = new System.Drawing.Point(127, 281);
 			this.referenceNameTextBox.Name = "referenceNameTextBox";
 			this.referenceNameTextBox.Size = new System.Drawing.Size(305, 21);
 			this.referenceNameTextBox.TabIndex = 4;
-			// 
+			//
 			// addButton
-			// 
+			//
 			this.addButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
 			this.addButton.Enabled = false;
 			this.addButton.Location = new System.Drawing.Point(438, 281);
@@ -277,9 +309,9 @@ namespace ICSharpCode.SharpDevelop.Gui
 			this.addButton.UseCompatibleTextRendering = true;
 			this.addButton.UseVisualStyleBackColor = true;
 			this.addButton.Click += new System.EventHandler(this.AddButtonClick);
-			// 
+			//
 			// cancelButton
-			// 
+			//
 			this.cancelButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
 			this.cancelButton.DialogResult = System.Windows.Forms.DialogResult.Cancel;
 			this.cancelButton.Location = new System.Drawing.Point(438, 303);
@@ -290,18 +322,18 @@ namespace ICSharpCode.SharpDevelop.Gui
 			this.cancelButton.UseCompatibleTextRendering = true;
 			this.cancelButton.UseVisualStyleBackColor = true;
 			this.cancelButton.Click += new System.EventHandler(this.CancelButtonClick);
-			// 
+			//
 			// namespaceTextBox
-			// 
-			this.namespaceTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
+			//
+			this.namespaceTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)
 									| System.Windows.Forms.AnchorStyles.Right)));
 			this.namespaceTextBox.Location = new System.Drawing.Point(127, 303);
 			this.namespaceTextBox.Name = "namespaceTextBox";
 			this.namespaceTextBox.Size = new System.Drawing.Size(305, 21);
 			this.namespaceTextBox.TabIndex = 5;
-			// 
+			//
 			// namespaceLabel
-			// 
+			//
 			this.namespaceLabel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
 			this.namespaceLabel.Location = new System.Drawing.Point(9, 302);
 			this.namespaceLabel.Name = "namespaceLabel";
@@ -309,9 +341,9 @@ namespace ICSharpCode.SharpDevelop.Gui
 			this.namespaceLabel.TabIndex = 3;
 			this.namespaceLabel.Text = "&Namespace:";
 			this.namespaceLabel.UseCompatibleTextRendering = true;
-			// 
+			//
 			// AddWebReferenceDialog
-			// 
+			//
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.CancelButton = this.cancelButton;
@@ -358,9 +390,13 @@ namespace ICSharpCode.SharpDevelop.Gui
 		private System.Windows.Forms.ToolStripButton backButton;
 		private ICSharpCode.SharpDevelop.Gui.WebServicesView webServicesView;
 		#endregion
-		
+
 		void AddMruList()
 		{
+#if LIBREWPF
+			if (!OperatingSystem.IsWindows())
+				return;
+#endif
 			try {
 				RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Internet Explorer\TypedURLs");
 				if (key != null) {
@@ -370,7 +406,7 @@ namespace ICSharpCode.SharpDevelop.Gui
 				}
 			} catch (Exception) { };
 		}
-		
+
 		/// <summary>
 		/// If the user presses the tab key, and the currently selected toolstrip
 		/// item is at the end or the beginning of the toolstip, then force the
@@ -386,66 +422,66 @@ namespace ICSharpCode.SharpDevelop.Gui
 				}
 			}
 		}
-		
+
 		void ToolStripEnter(object sender, EventArgs e)
 		{
 			toolStrip.TabStop = false;
 		}
-		
+
 		void ToolStripLeave(object sender, EventArgs e)
 		{
 			toolStrip.TabStop = true;
 		}
-		
+
 		void BackButtonClick(object sender, EventArgs e)
 		{
 			try {
 				webBrowser.GoBack();
 			} catch (Exception) { }
 		}
-		
+
 		void ForwardButtonClick(object sender, System.EventArgs e)
 		{
 			try {
 				webBrowser.GoForward();
 			} catch (Exception) { }
 		}
-		
+
 		void StopButtonClick(object sender, System.EventArgs e)
 		{
 			webBrowser.Stop();
 			StopDiscovery();
 			addButton.Enabled = false;
 		}
-		
+
 		void RefreshButtonClick(object sender, System.EventArgs e)
 		{
 			webBrowser.Refresh();
 		}
-		
+
 		void GoButtonClick(object sender, System.EventArgs e)
 		{
 			BrowseUrl(urlComboBox.Text);
 		}
-		
+
 		void BrowseUrl(string url)
 		{
 			webBrowser.Focus();
 			webBrowser.Navigate(url);
 		}
-		
+
 		void CancelButtonClick(object sender, EventArgs e)
 		{
 			Close();
 		}
-		
+
 		void WebBrowserNavigating(object sender, WebBrowserNavigatingEventArgs e)
 		{
 			Cursor = Cursors.WaitCursor;
 			stopButton.Enabled = true;
 			webServicesView.Clear();
 		}
-		
+
 		void WebBrowserNavigated(object sender, WebBrowserNavigatedEventArgs e)
 		{
 			Cursor = Cursors.Default;
@@ -453,17 +489,17 @@ namespace ICSharpCode.SharpDevelop.Gui
 			urlComboBox.Text = webBrowser.Url.ToString();
 			StartDiscovery(e.Url);
 		}
-		
+
 		void WebBrowserCanGoForwardChanged(object sender, EventArgs e)
 		{
 			forwardButton.Enabled = webBrowser.CanGoForward;
 		}
-		
+
 		void WebBrowserCanGoBackChanged(object sender, EventArgs e)
 		{
 			backButton.Enabled = webBrowser.CanGoBack;
 		}
-		
+
 		/// <summary>
 		/// Gets the namespace to be used with the generated web reference code.
 		/// </summary>
@@ -476,7 +512,7 @@ namespace ICSharpCode.SharpDevelop.Gui
 			}
 			return String.Empty;
 		}
-		
+
 		string GetReferenceName()
 		{
 			if (discoveryUri != null) {
@@ -484,7 +520,7 @@ namespace ICSharpCode.SharpDevelop.Gui
 			}
 			return String.Empty;
 		}
-		
+
 		/// <summary>
 		/// Starts the search for web services at the specified url.
 		/// </summary>
@@ -492,20 +528,20 @@ namespace ICSharpCode.SharpDevelop.Gui
 		{
 			StartDiscovery(uri, new DiscoveryNetworkCredential(CredentialCache.DefaultNetworkCredentials, DiscoveryNetworkCredential.DefaultAuthenticationType));
 		}
-		
+
 		void StartDiscovery(Uri uri, DiscoveryNetworkCredential credential)
 		{
 			// Abort previous discovery.
 			StopDiscovery();
-			
+
 			// Start new discovery.
 			discoveryUri = uri;
-			DiscoverAnyAsync asyncDelegate = new DiscoverAnyAsync(discoveryClientProtocol.DiscoverAny);
-			AsyncCallback callback = new AsyncCallback(DiscoveryCompleted);
 			discoveryClientProtocol.Credentials = credential;
-			IAsyncResult result = asyncDelegate.BeginInvoke(uri.AbsoluteUri, callback, new AsyncDiscoveryState(discoveryClientProtocol, uri, credential));
+			AsyncDiscoveryState state = new AsyncDiscoveryState(discoveryClientProtocol, uri, credential);
+			var result = new DiscoveryAsyncResult(state, Task.Run(() => discoveryClientProtocol.DiscoverAny(uri.AbsoluteUri)));
+			result.Task.ContinueWith(t => DiscoveryCompleted(result), TaskScheduler.Default);
 		}
-		
+
 		/// <summary>
 		/// Called after an asynchronous web services search has
 		/// completed.
@@ -514,18 +550,17 @@ namespace ICSharpCode.SharpDevelop.Gui
 		{
 			AsyncDiscoveryState state = (AsyncDiscoveryState)result.AsyncState;
 			WebServiceDiscoveryClientProtocol protocol = state.Protocol;
-			
+
 			// Check that we are still waiting for this particular callback.
 			bool wanted = false;
 			lock (this) {
 				wanted = Object.ReferenceEquals(discoveryClientProtocol, protocol);
 			}
-			
+
 			if (wanted) {
 				DiscoveredWebServicesHandler handler = new DiscoveredWebServicesHandler(DiscoveredWebServices);
 				try {
-					DiscoverAnyAsync asyncDelegate = (DiscoverAnyAsync)((AsyncResult)result).AsyncDelegate;
-					DiscoveryDocument doc = asyncDelegate.EndInvoke(result);
+					DiscoveryDocument doc = ((DiscoveryAsyncResult)result).Task.GetAwaiter().GetResult();
 					if (!state.Credential.IsDefaultAuthenticationType) {
 						AddCredential(state.Uri, state.Credential);
 					}
@@ -542,7 +577,7 @@ namespace ICSharpCode.SharpDevelop.Gui
 				}
 			}
 		}
-		
+
 		/// <summary>
 		/// Stops any outstanding asynchronous discovery requests.
 		/// </summary>
@@ -568,18 +603,18 @@ namespace ICSharpCode.SharpDevelop.Gui
 		{
 			StopDiscovery();
 		}
-		
+
 		protected override void OnShown(EventArgs e)
 		{
 			base.OnShown(e);
 			urlComboBox.Focus();
 		}
-		
+
 		ServiceDescriptionCollection GetServiceDescriptions(DiscoveryClientProtocol protocol)
 		{
 			ServiceDescriptionCollection services = new ServiceDescriptionCollection();
 			protocol.ResolveOneLevel();
-			
+
 			foreach (DictionaryEntry entry in protocol.References) {
 				ContractReference contractRef = entry.Value as ContractReference;
 				if (contractRef != null) {
@@ -588,7 +623,7 @@ namespace ICSharpCode.SharpDevelop.Gui
 			}
 			return services;
 		}
-		
+
 		void DiscoveredWebServices(DiscoveryClientProtocol protocol)
 		{
 			if (protocol != null) {
@@ -603,19 +638,19 @@ namespace ICSharpCode.SharpDevelop.Gui
 				webServicesView.Clear();
 			}
 		}
-		
+
 		void UrlComboBoxSelectedIndexChanged(object sender, EventArgs e)
 		{
 			BrowseUrl(urlComboBox.Text);
 		}
-		
+
 		void UrlComboBoxKeyDown(object sender, KeyEventArgs e)
 		{
 			if(e.KeyCode == Keys.Enter && urlComboBox.Text.Length > 0) {
 				BrowseUrl(urlComboBox.Text);
 			}
 		}
-		
+
 		void AddWebReferenceDialogResize(object sender, EventArgs e)
 		{
 			int width = toolStrip.ClientSize.Width;
@@ -625,7 +660,7 @@ namespace ICSharpCode.SharpDevelop.Gui
 			}
 			urlComboBox.Width = width;
 		}
-		
+
 		void AddButtonClick(object sender,EventArgs e)
 		{
 			try {
@@ -633,22 +668,22 @@ namespace ICSharpCode.SharpDevelop.Gui
 					MessageService.ShowError(StringParser.Parse("${res:ICSharpCode.SharpDevelop.Gui.Dialogs.AddWebReferenceDialog.InvalidReferenceNameError}"));
 					return;
 				}
-				
+
 				if (!WebReference.IsValidNamespace(namespaceTextBox.Text)) {
 					MessageService.ShowError(StringParser.Parse("${res:ICSharpCode.SharpDevelop.Gui.Dialogs.AddWebReferenceDialog.InvalidNamespaceError}"));
 					return;
 				}
-				
+
 				webReference.Name = referenceNameTextBox.Text;
 				webReference.ProxyNamespace = namespaceTextBox.Text;
-				
+
 				DialogResult = DialogResult.OK;
 				Close();
 			} catch (Exception ex) {
 				MessageService.ShowException(ex);
 			}
 		}
-		
+
 		void AddImages()
 		{
 			goButton.Image = SD.ResourceService.GetBitmap("Icons.16x16.RunProgramIcon");
@@ -658,17 +693,17 @@ namespace ICSharpCode.SharpDevelop.Gui
 			stopButton.Image = SD.ResourceService.GetBitmap("Icons.16x16.BrowserCancel");
 			Icon = SD.ResourceService.GetIcon("Icons.16x16.WebSearchIcon");
 		}
-		
+
 		void AddStringResources()
 		{
 			Text = StringParser.Parse("${res:ICSharpCode.SharpDevelop.Gui.Dialogs.AddWebReferenceDialog.DialogTitle}");
-			
+
 			refreshButton.Text = StringParser.Parse("${res:ICSharpCode.SharpDevelop.Gui.Dialogs.AddWebReferenceDialog.RefreshButtonTooltip}");
 			refreshButton.ToolTipText = refreshButton.Text;
-			
+
 			backButton.Text = StringParser.Parse("${res:ICSharpCode.SharpDevelop.Gui.Dialogs.AddWebReferenceDialog.BackButtonTooltip}");
 			backButton.ToolTipText = backButton.Text;
-			
+
 			forwardButton.Text = StringParser.Parse("${res:ICSharpCode.SharpDevelop.Gui.Dialogs.AddWebReferenceDialog.ForwardButtonTooltip}");
 			forwardButton.ToolTipText = forwardButton.Text;
 
@@ -677,17 +712,17 @@ namespace ICSharpCode.SharpDevelop.Gui
 
 			goButton.Text = StringParser.Parse("${res:ICSharpCode.SharpDevelop.Gui.Dialogs.AddWebReferenceDialog.GoButtonTooltip}");
 			goButton.ToolTipText = goButton.Text;
-			
+
 			addButton.Text = StringParser.Parse("${res:Global.AddButtonText}");
 			cancelButton.Text = StringParser.Parse("${res:Global.CancelButtonText}");
-			
+
 			stopButton.Text = StringParser.Parse("${res:ICSharpCode.SharpDevelop.Gui.Dialogs.AddWebReferenceDialog.StopButtonTooltip}");
 			stopButton.ToolTipText = stopButton.Text;
-			
+
 			webServicesTabPage.Text = StringParser.Parse("${res:ICSharpCode.SharpDevelop.Gui.Dialogs.AddWebReferenceDialog.WebServicesTabPageTitle}");
 			webServicesTabPage.ToolTipText = webServicesTabPage.Text;
 		}
-		
+
 		void AuthenticateUser(Uri uri, string authenticationType)
 		{
 			DiscoveryNetworkCredential credential = (DiscoveryNetworkCredential)credentialCache.GetCredential(uri, authenticationType);
@@ -701,7 +736,7 @@ namespace ICSharpCode.SharpDevelop.Gui
 				}
 			}
 		}
-		
+
 		void AddCredential(Uri uri, DiscoveryNetworkCredential credential)
 		{
 			NetworkCredential matchedCredential = credentialCache.GetCredential(uri, credential.AuthenticationType);

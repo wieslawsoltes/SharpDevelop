@@ -19,6 +19,9 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+#if LIBREWPF
+using System.IO;
+#endif
 using System.Windows.Forms;
 
 namespace ICSharpCode.SharpDevelop.Startup
@@ -96,6 +99,12 @@ namespace ICSharpCode.SharpDevelop.Startup
 			
 			foreach (string arg in args) {
 				if (arg.Length == 0) continue;
+#if LIBREWPF
+				if (arg[0] == '/' && (File.Exists(arg) || Directory.Exists(arg))) {
+					requestedFileList.Add(arg);
+					continue;
+				}
+#endif
 				if (arg[0] == '-' || arg[0] == '/') {
 					int markerLength = 1;
 					
@@ -115,6 +124,13 @@ namespace ICSharpCode.SharpDevelop.Startup
 					requestedFileList.Add(arg);
 				}
 			}
+#if LIBREWPF
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF args: " + string.Join(" | ", args));
+				Console.WriteLine("LibreWPF parameters: " + string.Join(" | ", parameterList));
+				Console.WriteLine("LibreWPF requested files: " + string.Join(" | ", requestedFileList));
+			}
+#endif
 		}
 	}
 }

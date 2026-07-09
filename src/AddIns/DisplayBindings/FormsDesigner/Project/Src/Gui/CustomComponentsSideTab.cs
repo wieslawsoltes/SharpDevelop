@@ -82,7 +82,8 @@ namespace ICSharpCode.FormsDesigner.Gui
 				return SD.ProjectService.AllProjects
 					.Select(SD.ParserService.GetCompilation)
 					.SelectMany(c => c.Assemblies)
-					.DistinctBy(asm => asm.AssemblyName) // if an assembly is referenced in multiple projects, only load scan it once
+					.GroupBy(asm => asm.AssemblyName) // if an assembly is referenced in multiple projects, only load scan it once
+					.Select(group => group.First())
 					.Where(asm => !asm.IsGacAssembly()); // exclude GAC assemblies (non-custom assemblies)
 			}
 		}

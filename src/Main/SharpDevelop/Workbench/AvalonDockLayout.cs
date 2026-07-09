@@ -216,6 +216,11 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				pad.ShowInDefaultPosition();
 			}
 		}
+
+		internal bool TryGetPadContent(PadDescriptor padDescriptor, out AvalonPadContent pad)
+		{
+			return pads.TryGetValue(padDescriptor, out pad);
+		}
 		
 		public void ActivatePad(PadDescriptor padDescriptor)
 		{

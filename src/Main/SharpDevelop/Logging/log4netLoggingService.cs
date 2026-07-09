@@ -32,7 +32,16 @@ namespace ICSharpCode.SharpDevelop.Logging
 		
 		public log4netLoggingService()
 		{
+#if LIBREWPF
+			string configFile = (System.Reflection.Assembly.GetEntryAssembly()?.Location ?? typeof(log4netLoggingService).Assembly.Location) + ".config";
+			if (File.Exists(configFile)) {
+				XmlConfigurator.ConfigureAndWatch(new FileInfo(configFile));
+			} else {
+				XmlConfigurator.Configure();
+			}
+#else
 			XmlConfigurator.ConfigureAndWatch(new FileInfo(AppDomain.CurrentDomain.SetupInformation.ConfigurationFile));
+#endif
 			log = LogManager.GetLogger(typeof(log4netLoggingService));
 		}
 		
