@@ -283,6 +283,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 
 		void ScheduleLibreWpfSmokeHooks()
 		{
+			bool traceLibreWpfSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1";
 			string popupMode = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_FULL_POPUP_SMOKE");
 			if (!string.IsNullOrEmpty(popupMode)) {
 				Dispatcher.BeginInvoke(new Action(delegate {
@@ -364,6 +365,9 @@ namespace ICSharpCode.SharpDevelop.Workbench
 
 			string templateSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TEMPLATE_SMOKE");
 			if (!string.IsNullOrEmpty(templateSmoke)) {
+				if (traceLibreWpfSmoke) {
+					Console.WriteLine("LibreWPF template smoke scheduling mode=" + templateSmoke);
+				}
 				Dispatcher.BeginInvoke(new Action(async delegate {
 					await RunLibreWpfTemplateSmoke(templateSmoke);
 				}), DispatcherPriority.ApplicationIdle);
@@ -1495,8 +1499,15 @@ namespace ICSharpCode.SharpDevelop.Workbench
 		{
 			string directory = null;
 			string filePath = null;
+			string projectDirectory = null;
+			FileName solutionFileName = null;
 			try {
-				await WaitForLibreWpfProjectLoadAsync();
+				if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+					Console.WriteLine("LibreWPF template smoke starting mode=" + mode);
+					if (SD.ParserService.LoadSolutionProjectsThread.IsRunning) {
+						Console.WriteLine("LibreWPF template smoke continuing while project load is still running.");
+					}
+				}
 
 				SD.Templates.UpdateTemplates();
 				IReadOnlyList<TemplateCategory> rootCategories = SD.Templates.TemplateCategories;
@@ -1531,6 +1542,15 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				bool createdOpenFilesClosed = false;
 				bool cleanup = false;
 				List<FileName> createdOpenFileNames = new List<FileName>();
+				ProjectTemplate projectTemplate = null;
+				ProjectTemplateResult projectResult = null;
+				bool projectCreated = false;
+				bool projectFileExists = false;
+				bool projectInSolution = false;
+				bool projectSolutionOpened = false;
+				bool projectOpenActionOpenedFile = false;
+				bool projectClosed = false;
+				bool projectCleanup = false;
 
 				if (template != null) {
 					FileTemplateOptions options = new FileTemplateOptions {
@@ -1571,6 +1591,54 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					}
 				}
 
+				projectTemplate = GetLibreWpfTemplateSmokeProjectTemplate(mode, projectTemplates);
+				projectDirectory = Path.Combine(Path.GetTempPath(), "librewpf-sharpdevelop-project-template-smoke-" + Guid.NewGuid().ToString("N"));
+				const string projectName = "LibreWpfTemplateProject";
+				const string solutionName = "LibreWpfTemplateSolution";
+				string solutionDirectory = Path.Combine(projectDirectory, solutionName);
+				string newProjectDirectory = Path.Combine(solutionDirectory, projectName);
+				Directory.CreateDirectory(newProjectDirectory);
+				solutionFileName = FileName.Create(Path.Combine(solutionDirectory, solutionName + ".sln"));
+				if (projectTemplate != null) {
+					ProjectTemplateOptions projectOptions = new ProjectTemplateOptions {
+						ProjectBasePath = DirectoryName.Create(newProjectDirectory),
+						ProjectName = projectName,
+						TargetFramework = projectTemplate.SupportedTargetFrameworks.FirstOrDefault()
+					};
+					projectResult = projectTemplate.CreateAndOpenSolution(projectOptions, solutionDirectory, solutionName);
+					if (projectResult != null) {
+						projectTemplate.RunOpenActions(projectResult);
+					}
+
+					projectCreated = projectResult != null && projectResult.NewProjects.Count > 0;
+					IProject createdProject = projectCreated ? projectResult.NewProjects[0] : null;
+					projectFileExists = createdProject != null && File.Exists(createdProject.FileName);
+					projectSolutionOpened = SD.ProjectService.CurrentSolution != null
+						&& SD.ProjectService.CurrentSolution.FileName == solutionFileName;
+					projectInSolution = createdProject != null
+						&& SD.ProjectService.CurrentSolution != null
+						&& SD.ProjectService.CurrentSolution.Projects.Any(project => project == createdProject || project.FileName == createdProject.FileName);
+					projectOpenActionOpenedFile = SD.FileService.OpenedFiles.Any(openedFile =>
+						openedFile != null
+						&& openedFile.FileName != null
+						&& IsLibreWpfTemplateSmokePathUnderRoot(openedFile.FileName.ToString(), projectDirectory));
+				}
+
+				CloseLibreWpfTemplateSmokeOpenFiles(projectDirectory);
+				if (SD.ProjectService.CurrentSolution != null
+				    && solutionFileName != null
+				    && SD.ProjectService.CurrentSolution.FileName == solutionFileName) {
+					projectClosed = SD.ProjectService.CloseSolution(allowCancel: false);
+				} else {
+					projectClosed = SD.ProjectService.CurrentSolution == null
+						|| solutionFileName == null
+						|| SD.ProjectService.CurrentSolution.FileName != solutionFileName;
+				}
+				if (projectDirectory != null && Directory.Exists(projectDirectory)) {
+					Directory.Delete(projectDirectory, true);
+				}
+				projectCleanup = projectDirectory != null && !Directory.Exists(projectDirectory);
+
 				if (filePath != null && File.Exists(filePath)) {
 					File.Delete(filePath);
 				}
@@ -1582,8 +1650,16 @@ namespace ICSharpCode.SharpDevelop.Workbench
 
 				bool loadedTemplates = categories.Count > 0 && fileTemplates.Count > 0 && projectTemplates.Count > 0;
 				bool createdTemplateOutput = (createdDiskFile && resultContainsDiskFile) || createdOpenedFile;
+				bool createdProjectOutput = projectTemplate != null
+					&& projectResult != null
+					&& projectCreated
+					&& projectFileExists
+					&& projectInSolution
+					&& projectSolutionOpened
+					&& projectClosed
+					&& projectCleanup;
 				string message = "LibreWPF template smoke result="
-					+ (loadedTemplates && template != null && result != null && createdTemplateOutput && openedFileRegistered && createdOpenFilesClosed && cleanup ? "Success" : "Partial")
+					+ (loadedTemplates && template != null && result != null && createdTemplateOutput && openedFileRegistered && createdOpenFilesClosed && cleanup && createdProjectOutput ? "Success" : "Partial")
 					+ " categories=" + categories.Count
 					+ " fileTemplates=" + fileTemplates.Count
 					+ " projectTemplates=" + projectTemplates.Count
@@ -1594,13 +1670,32 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					+ " createdOpenedFile=" + createdOpenedFile
 					+ " openedFileRegistered=" + openedFileRegistered
 					+ " createdOpenFilesClosed=" + createdOpenFilesClosed
-					+ " cleanup=" + cleanup;
+					+ " cleanup=" + cleanup
+					+ " selectedProjectTemplate=" + (projectTemplate != null ? projectTemplate.DisplayName : "<none>")
+					+ " projectCreated=" + projectCreated
+					+ " projectFileExists=" + projectFileExists
+					+ " projectInSolution=" + projectInSolution
+					+ " projectSolutionOpened=" + projectSolutionOpened
+					+ " projectOpenActionOpenedFile=" + projectOpenActionOpenedFile
+					+ " projectClosed=" + projectClosed
+					+ " projectCleanup=" + projectCleanup;
 				Console.WriteLine(message);
 				SD.StatusBar.SetMessage(message);
 			} catch (Exception ex) {
 				Console.WriteLine("LibreWPF template smoke failed: " + ex);
 				SD.StatusBar.SetMessage("LibreWPF template smoke failed: " + ex.Message);
 				try {
+					if (projectDirectory != null) {
+						CloseLibreWpfTemplateSmokeOpenFiles(projectDirectory);
+					}
+					if (solutionFileName != null
+					    && SD.ProjectService.CurrentSolution != null
+					    && SD.ProjectService.CurrentSolution.FileName == solutionFileName) {
+						SD.ProjectService.CloseSolution(allowCancel: false);
+					}
+					if (projectDirectory != null && Directory.Exists(projectDirectory)) {
+						Directory.Delete(projectDirectory, true);
+					}
 					if (filePath != null && File.Exists(filePath)) {
 						File.Delete(filePath);
 					}
@@ -1973,6 +2068,100 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				return false;
 
 			return true;
+		}
+
+		static ProjectTemplate GetLibreWpfTemplateSmokeProjectTemplate(string mode, IList<ProjectTemplate> templates)
+		{
+			if (templates == null || templates.Count == 0)
+				return null;
+
+			string requested = NormalizeLibreWpfTemplateSmokeName(mode);
+			if (requested != null) {
+				ProjectTemplate requestedTemplate = templates.FirstOrDefault(template =>
+					string.Equals(template.Name, requested, StringComparison.OrdinalIgnoreCase)
+					|| string.Equals(template.DisplayName, requested, StringComparison.OrdinalIgnoreCase));
+				if (IsLibreWpfTemplateSmokeProjectBackedTemplate(requestedTemplate))
+					return requestedTemplate;
+			}
+
+			ProjectTemplate consoleTemplate = templates.FirstOrDefault(template =>
+				IsLibreWpfTemplateSmokeProjectCandidate(template, "Console"));
+			if (consoleTemplate != null)
+				return consoleTemplate;
+
+			ProjectTemplate fallbackTemplate = templates.FirstOrDefault(IsLibreWpfTemplateSmokeDefaultProjectCandidate);
+			if (fallbackTemplate != null)
+				return fallbackTemplate;
+
+			return templates.FirstOrDefault(IsLibreWpfTemplateSmokeProjectBackedTemplate);
+		}
+
+		static bool IsLibreWpfTemplateSmokeDefaultProjectCandidate(ProjectTemplate template)
+		{
+			return IsLibreWpfTemplateSmokeProjectCandidate(template, "Class Library")
+				|| IsLibreWpfTemplateSmokeProjectCandidate(template, "Empty");
+		}
+
+		static bool IsLibreWpfTemplateSmokeProjectCandidate(ProjectTemplate template, string displayToken)
+		{
+			ProjectTemplateImpl templateImpl = template as ProjectTemplateImpl;
+			if (templateImpl == null || !IsLibreWpfTemplateSmokeProjectBackedTemplate(template))
+				return false;
+			if (!string.Equals(templateImpl.Category, "C#", StringComparison.OrdinalIgnoreCase))
+				return false;
+
+			string displayName = templateImpl.DisplayName ?? string.Empty;
+			return displayName.IndexOf(displayToken, StringComparison.OrdinalIgnoreCase) >= 0;
+		}
+
+		static bool IsLibreWpfTemplateSmokeProjectBackedTemplate(ProjectTemplate template)
+		{
+			ProjectTemplateImpl templateImpl = template as ProjectTemplateImpl;
+			return templateImpl != null
+				&& templateImpl.ProjectDescriptor != null
+				&& templateImpl.IsVisible(null);
+		}
+
+		static void CloseLibreWpfTemplateSmokeOpenFiles(string rootDirectory)
+		{
+			if (string.IsNullOrWhiteSpace(rootDirectory))
+				return;
+
+			foreach (OpenedFile openedFile in SD.FileService.OpenedFiles.ToArray()) {
+				if (openedFile == null || openedFile.FileName == null)
+					continue;
+				if (!IsLibreWpfTemplateSmokePathUnderRoot(openedFile.FileName.ToString(), rootDirectory))
+					continue;
+
+				foreach (IViewContent viewContent in openedFile.RegisteredViewContents.ToArray()) {
+					if (viewContent.WorkbenchWindow != null) {
+						viewContent.WorkbenchWindow.CloseWindow(true);
+					} else {
+						viewContent.Dispose();
+					}
+				}
+				openedFile.CloseIfAllViewsClosed();
+			}
+		}
+
+		static bool IsLibreWpfTemplateSmokePathUnderRoot(string path, string rootDirectory)
+		{
+			if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(rootDirectory))
+				return false;
+
+			string fullPath;
+			string fullRoot;
+			try {
+				fullPath = Path.GetFullPath(path);
+				fullRoot = Path.GetFullPath(rootDirectory);
+			} catch {
+				return false;
+			}
+
+			fullRoot = fullRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+			return string.Equals(fullPath, fullRoot, StringComparison.OrdinalIgnoreCase)
+				|| fullPath.StartsWith(fullRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+				|| fullPath.StartsWith(fullRoot + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 		}
 
 		static string NormalizeLibreWpfTemplateSmokeName(string mode)
