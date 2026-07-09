@@ -374,6 +374,13 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				}), DispatcherPriority.ApplicationIdle);
 			}
 
+			string closeReopenSolutionSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_CLOSE_REOPEN_SOLUTION_SMOKE");
+			if (!string.IsNullOrEmpty(closeReopenSolutionSmoke)) {
+				Dispatcher.BeginInvoke(new Action(async delegate {
+					await RunLibreWpfCloseReopenSolutionSmoke(closeReopenSolutionSmoke);
+				}), DispatcherPriority.ApplicationIdle);
+			}
+
 			string formsDesignerSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_FORMS_DESIGNER_SMOKE");
 			if (!string.IsNullOrEmpty(formsDesignerSmoke)) {
 				Dispatcher.BeginInvoke(new Action(async delegate {
@@ -1606,6 +1613,85 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			} catch (Exception ex) {
 				Console.WriteLine("LibreWPF close-all smoke failed: " + ex);
 				SD.StatusBar.SetMessage("LibreWPF close-all smoke failed: " + ex.Message);
+			}
+		}
+
+		async Task RunLibreWpfCloseReopenSolutionSmoke(string mode)
+		{
+			try {
+				await WaitForLibreWpfProjectLoadAsync();
+
+				ISolution solution = SD.ProjectService.CurrentSolution;
+				if (solution == null || solution.FileName == null || !File.Exists(solution.FileName)) {
+					Console.WriteLine("LibreWPF close/reopen solution smoke unavailable: no file-backed solution is open.");
+					SD.StatusBar.SetMessage("LibreWPF close/reopen solution smoke unavailable: no file-backed solution is open.");
+					return;
+				}
+
+				FileName solutionFileName = solution.FileName;
+				int beforeProjects = solution.Projects.Count();
+				List<FileName> fileNames = GetLibreWpfCloseAllSmokeFileNames(mode).ToList();
+				List<IViewContent> openedContents = new List<IViewContent>();
+				foreach (FileName fileName in fileNames) {
+					IViewContent content = SD.FileService.OpenFile(fileName, true);
+					CodeEditor editor = GetLibreWpfCodeEditor(content);
+					for (int attempt = 0; attempt < 50 && (editor == null || editor.Document == null || !IsLibreWpfCodeEditorPresentationReady(editor)); attempt++) {
+						await Task.Delay(100);
+						editor = GetLibreWpfCodeEditor(content);
+					}
+					if (content != null && editor != null && editor.Document != null)
+						openedContents.Add(content);
+				}
+
+				int beforeViews = SD.Workbench.ViewContentCollection.Count;
+				int beforeTrackedOpenFiles = fileNames.Count(fileName => SD.FileService.GetOpenedFile(fileName) != null);
+
+				new ICSharpCode.SharpDevelop.Project.Commands.CloseSolution().Run();
+				await Task.Delay(700);
+
+				bool closeClearedSolution = SD.ProjectService.CurrentSolution == null;
+				int viewsAfterClose = SD.Workbench.ViewContentCollection.Count;
+				int trackedOpenFilesAfterClose = fileNames.Count(fileName => SD.FileService.GetOpenedFile(fileName) != null);
+				int remainingOpenedContentsAfterClose = openedContents.Count(content => SD.Workbench.ViewContentCollection.Contains(content));
+
+				bool reopened = SD.ProjectService.OpenSolutionOrProject(solutionFileName);
+				await WaitForLibreWpfProjectLoadAsync();
+				await Task.Delay(500);
+
+				ISolution reopenedSolution = SD.ProjectService.CurrentSolution;
+				bool reopenedCurrentSolution = reopenedSolution != null
+					&& reopenedSolution.FileName != null
+					&& string.Equals(
+						Path.GetFullPath(reopenedSolution.FileName.ToString()),
+						Path.GetFullPath(solutionFileName.ToString()),
+						StringComparison.Ordinal);
+				int afterProjects = reopenedSolution != null ? reopenedSolution.Projects.Count() : 0;
+				bool projectCountRestored = afterProjects == beforeProjects;
+
+				string message = "LibreWPF close/reopen solution smoke result="
+					+ (closeClearedSolution
+					    && viewsAfterClose == 0
+					    && trackedOpenFilesAfterClose == 0
+					    && remainingOpenedContentsAfterClose == 0
+					    && reopened
+					    && reopenedCurrentSolution
+					    && projectCountRestored ? "Success" : "Partial")
+					+ " solution=" + Path.GetFileName(solutionFileName.ToString())
+					+ " beforeProjects=" + beforeProjects
+					+ " afterProjects=" + afterProjects
+					+ " beforeViews=" + beforeViews
+					+ " viewsAfterClose=" + viewsAfterClose
+					+ " beforeTrackedOpenFiles=" + beforeTrackedOpenFiles
+					+ " trackedOpenFilesAfterClose=" + trackedOpenFilesAfterClose
+					+ " remainingOpenedContentsAfterClose=" + remainingOpenedContentsAfterClose
+					+ " closeClearedSolution=" + closeClearedSolution
+					+ " reopened=" + reopened
+					+ " reopenedCurrentSolution=" + reopenedCurrentSolution;
+				Console.WriteLine(message);
+				SD.StatusBar.SetMessage(message);
+			} catch (Exception ex) {
+				Console.WriteLine("LibreWPF close/reopen solution smoke failed: " + ex);
+				SD.StatusBar.SetMessage("LibreWPF close/reopen solution smoke failed: " + ex.Message);
 			}
 		}
 
