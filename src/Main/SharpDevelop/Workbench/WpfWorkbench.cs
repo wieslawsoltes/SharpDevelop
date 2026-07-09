@@ -335,7 +335,14 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			string saveSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_SAVE_SMOKE");
 			if (!string.IsNullOrEmpty(saveSmoke)) {
 				Dispatcher.BeginInvoke(new Action(async delegate {
-					await RunLibreWpfSaveSmoke(saveSmoke);
+					await RunLibreWpfSaveSmoke(saveSmoke, false);
+				}), DispatcherPriority.ApplicationIdle);
+			}
+
+			string saveAllSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_SAVE_ALL_SMOKE");
+			if (!string.IsNullOrEmpty(saveAllSmoke)) {
+				Dispatcher.BeginInvoke(new Action(async delegate {
+					await RunLibreWpfSaveSmoke(saveAllSmoke, true);
 				}), DispatcherPriority.ApplicationIdle);
 			}
 
@@ -1145,7 +1152,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			}
 		}
 
-		async Task RunLibreWpfSaveSmoke(string mode)
+		async Task RunLibreWpfSaveSmoke(string mode, bool saveAll)
 		{
 			try {
 				await WaitForLibreWpfProjectLoadAsync();
@@ -1195,7 +1202,11 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					await Task.Delay(100);
 					markedDirty = file.IsDirty && content.IsDirty;
 
-					ICSharpCode.SharpDevelop.Commands.SaveFile.Save(content);
+					if (saveAll) {
+						ICSharpCode.SharpDevelop.Commands.SaveAllFiles.SaveAll();
+					} else {
+						ICSharpCode.SharpDevelop.Commands.SaveFile.Save(content);
+					}
 					await Task.Delay(100);
 
 					saveClearedDirty = !file.IsDirty && !content.IsDirty;
@@ -1225,6 +1236,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 
 				string message = "LibreWPF save smoke result="
 					+ (markedDirty && saveClearedDirty && diskContainsMarker && diskRestored ? "Success" : "Partial")
+					+ " command=" + (saveAll ? "SaveAll" : "Save")
 					+ " file=" + Path.GetFileName(fileName)
 					+ " markedDirty=" + markedDirty
 					+ " saveClearedDirty=" + saveClearedDirty
