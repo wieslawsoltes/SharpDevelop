@@ -23,6 +23,7 @@ using System.Windows.Forms;
 using Hornung.ResourceToolkit.Gui;
 using Hornung.ResourceToolkit.Refactoring;
 using ICSharpCode.Core;
+using ICSharpCode.SharpDevelop.Editor.Search;
 using ICSharpCode.SharpDevelop.Gui;
 using ICSharpCode.SharpDevelop.Refactoring;
 
@@ -31,16 +32,15 @@ namespace Hornung.ResourceToolkit.Commands
 	public static class FindMissingResourceKeysHelper
 	{
 		public static void Run(SearchScope scope) {
-#if LIBREWPF
-			MessageService.ShowMessage("ResourceToolkit missing-resource search requires the legacy NRefactory resolver and is not enabled in this LibreWPF build.");
-#else
 			// Allow the menu to close
+#if !LIBREWPF
 			Application.DoEvents();
-			using(AsynchronousWaitDialog monitor = AsynchronousWaitDialog.ShowWaitDialog("${res:Hornung.ResourceToolkit.FindMissingResourceKeys}")) {
-				FindReferencesAndRenameHelper.ShowAsSearchResults(StringParser.Parse("${res:Hornung.ResourceToolkit.ReferencesToMissingKeys}"),
-				                                                  ResourceRefactoringService.FindReferencesToMissingKeys(monitor, scope));
-			}
 #endif
+			using(AsynchronousWaitDialog monitor = AsynchronousWaitDialog.ShowWaitDialog("${res:Hornung.ResourceToolkit.FindMissingResourceKeys}")) {
+				SearchResultsPad.Instance.ShowSearchResults(StringParser.Parse("${res:Hornung.ResourceToolkit.ReferencesToMissingKeys}"),
+				                                            ResourceRefactoringService.FindReferencesToMissingKeys(monitor, scope));
+				SearchResultsPad.Instance.BringToFront();
+			}
 		}
 	}
 	
@@ -95,13 +95,12 @@ namespace Hornung.ResourceToolkit.Commands
 	{
 		public override void Run()
 		{
-#if LIBREWPF
-			MessageService.ShowMessage("ResourceToolkit unused-resource search requires the legacy NRefactory resolver and is not enabled in this LibreWPF build.");
-#else
 			ICollection<ResourceItem> unusedKeys;
 			
 			// Allow the menu to close
+#if !LIBREWPF
 			Application.DoEvents();
+#endif
 			using(AsynchronousWaitDialog monitor = AsynchronousWaitDialog.ShowWaitDialog("${res:Hornung.ResourceToolkit.FindUnusedResourceKeys}")) {
 				unusedKeys = ResourceRefactoringService.FindUnusedKeys(monitor);
 			}
@@ -114,7 +113,12 @@ namespace Hornung.ResourceToolkit.Commands
 				MessageService.ShowMessage("${res:Hornung.ResourceToolkit.UnusedResourceKeys.NotFound}");
 				return;
 			}
-			
+
+#if LIBREWPF
+			MessageService.ShowMessage(String.Format(System.Globalization.CultureInfo.CurrentCulture,
+			                                        "Found {0} unused resource keys. The LibreWPF build can detect unused keys; the legacy cleanup view is not enabled yet.",
+			                                        unusedKeys.Count));
+#else
 			IWorkbench workbench = WorkbenchSingleton.Workbench;
 			if (workbench != null) {
 				UnusedResourceKeysViewContent vc = new UnusedResourceKeysViewContent(unusedKeys);

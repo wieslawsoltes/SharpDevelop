@@ -28,6 +28,7 @@ using Hornung.ResourceToolkit.Resolver;
 using ICSharpCode.Core;
 using ICSharpCode.Core.Presentation;
 using ICSharpCode.SharpDevelop.Editor;
+using ICSharpCode.SharpDevelop.Editor.Search;
 using ICSharpCode.SharpDevelop.Gui;
 using ICSharpCode.SharpDevelop.Refactoring;
 using MenuItem = System.Windows.Controls.MenuItem;
@@ -71,22 +72,20 @@ namespace Hornung.ResourceToolkit.Commands
 				item.Click += this.EditResource;
 				item.Tag = result;
 				items.Add(item);
-				
-				if (!IsLibreWpfLegacyResourceRefactoringDisabled) {
-					// find references
-					item = new MenuItem();
-					item.Header = MenuService.ConvertLabel(StringParser.Parse("${res:SharpDevelop.Refactoring.FindReferencesCommand}"));
-					item.Click += this.FindReferences;
-					item.Tag = result;
-					items.Add(item);
-					
-					// rename
-					item = new MenuItem();
-					item.Header = MenuService.ConvertLabel(StringParser.Parse("${res:SharpDevelop.Refactoring.RenameCommand}"));
-					item.Click += this.Rename;
-					item.Tag = result;
-					items.Add(item);
-				}
+
+				// find references
+				item = new MenuItem();
+				item.Header = MenuService.ConvertLabel(StringParser.Parse("${res:SharpDevelop.Refactoring.FindReferencesCommand}"));
+				item.Click += this.FindReferences;
+				item.Tag = result;
+				items.Add(item);
+
+				// rename
+				item = new MenuItem();
+				item.Header = MenuService.ConvertLabel(StringParser.Parse("${res:SharpDevelop.Refactoring.RenameCommand}"));
+				item.Click += this.Rename;
+				item.Tag = result;
+				items.Add(item);
 				
 				
 				// put the resource menu items into a submenu
@@ -101,16 +100,6 @@ namespace Hornung.ResourceToolkit.Commands
 			return EmptyControlArray;
 		}
 
-		static bool IsLibreWpfLegacyResourceRefactoringDisabled {
-			get {
-#if LIBREWPF
-				return true;
-#else
-				return false;
-#endif
-			}
-		}
-		
 		// ********************************************************************************************************************************
 		
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Globalization", "CA1303:DoNotPassLiteralsAsLocalizedParameters", MessageId = "ICSharpCode.Core.MessageService.ShowWarning(System.String)")]
@@ -157,9 +146,6 @@ namespace Hornung.ResourceToolkit.Commands
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Performance", "CA1814:PreferJaggedArraysOverMultidimensional", MessageId = "Body")]
 		void FindReferences(object sender, EventArgs e)
 		{
-#if LIBREWPF
-			MessageService.ShowMessage("ResourceToolkit find references requires the legacy NRefactory resolver and is not enabled in this LibreWPF build.");
-#else
 			MenuItem item = sender as MenuItem;
 			if (item == null) {
 				return;
@@ -171,22 +157,21 @@ namespace Hornung.ResourceToolkit.Commands
 			}
 			
 			// Allow the menu to close
+#if !LIBREWPF
 			Application.DoEvents();
+#endif
 			using(AsynchronousWaitDialog monitor = AsynchronousWaitDialog.ShowWaitDialog(ResourceService.GetString("SharpDevelop.Refactoring.FindReferences"))) {
-				FindReferencesAndRenameHelper.ShowAsSearchResults(
+				SearchResultsPad.Instance.ShowSearchResults(
 					StringParser.Parse("${res:Hornung.ResourceToolkit.ReferencesToResource}",
 					                   new StringTagPair("ResourceFileName", System.IO.Path.GetFileName(result.FileName)),
 					                   new StringTagPair("ResourceKey", result.Key)),
 					ResourceRefactoringService.FindReferences(result.FileName, result.Key, monitor));
+				SearchResultsPad.Instance.BringToFront();
 			}
-#endif
 		}
 		
 		void Rename(object sender, EventArgs e)
 		{
-#if LIBREWPF
-			MessageService.ShowMessage("ResourceToolkit rename requires the legacy NRefactory resolver and is not enabled in this LibreWPF build.");
-#else
 			MenuItem item = sender as MenuItem;
 			if (item == null) {
 				return;
@@ -198,9 +183,10 @@ namespace Hornung.ResourceToolkit.Commands
 			}
 			
 			// Allow the menu to close
+#if !LIBREWPF
 			Application.DoEvents();
-			ResourceRefactoringService.Rename(result);
 #endif
+			ResourceRefactoringService.Rename(result);
 		}
 	}
 }
