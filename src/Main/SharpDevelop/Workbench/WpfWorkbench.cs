@@ -353,6 +353,13 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				}), DispatcherPriority.ApplicationIdle);
 			}
 
+			string newFileSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_NEW_FILE_SMOKE");
+			if (!string.IsNullOrEmpty(newFileSmoke)) {
+				Dispatcher.BeginInvoke(new Action(async delegate {
+					await RunLibreWpfNewFileSmoke(newFileSmoke);
+				}), DispatcherPriority.ApplicationIdle);
+			}
+
 			string formsDesignerSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_FORMS_DESIGNER_SMOKE");
 			if (!string.IsNullOrEmpty(formsDesignerSmoke)) {
 				Dispatcher.BeginInvoke(new Action(async delegate {
@@ -1349,6 +1356,104 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			}
 		}
 
+		async Task RunLibreWpfNewFileSmoke(string mode)
+		{
+			string directory = null;
+			string savePath = null;
+			IViewContent content = null;
+			OpenedFile file = null;
+			try {
+				await WaitForLibreWpfProjectLoadAsync();
+
+				string defaultName = NormalizeLibreWpfNewFileSmokeName(mode);
+				string marker = "LibreWPF new file smoke marker " + Guid.NewGuid().ToString("N");
+				string sourceText = "using System;" + Environment.NewLine
+					+ Environment.NewLine
+					+ "public sealed class LibreWpfNewFileSmoke" + Environment.NewLine
+					+ "{" + Environment.NewLine
+					+ "\tpublic string Marker { get { return \"" + marker + "\"; } }" + Environment.NewLine
+					+ "}" + Environment.NewLine;
+
+				content = SD.FileService.NewFile(defaultName, sourceText);
+				await Task.Delay(300);
+
+				CodeEditor editor = GetLibreWpfCodeEditor(content);
+				file = content != null ? content.PrimaryFile : null;
+				bool createdView = content != null
+					&& editor != null
+					&& editor.Document != null
+					&& file != null
+					&& IsLibreWpfCodeEditorPresentationReady(editor);
+				bool untitledBeforeSave = file != null && file.IsUntitled;
+				bool editorContainsMarker = editor != null && editor.Document != null && editor.Document.Text.Contains(marker);
+
+				directory = Path.Combine(Path.GetTempPath(), "librewpf-sharpdevelop-smoke-" + Guid.NewGuid().ToString("N"));
+				Directory.CreateDirectory(directory);
+				savePath = Path.Combine(directory, defaultName);
+
+				if (file != null) {
+					file.SaveToDisk(FileName.Create(savePath));
+				}
+				await Task.Delay(150);
+
+				bool fileNameUpdated = file != null
+					&& file.FileName != null
+					&& string.Equals(Path.GetFullPath(file.FileName.ToString()), Path.GetFullPath(savePath), StringComparison.Ordinal);
+				bool savedToDisk = File.Exists(savePath);
+				bool diskContainsMarker = savedToDisk && File.ReadAllText(savePath).Contains(marker);
+				bool dirtyCleared = file != null && content != null && !file.IsUntitled && !file.IsDirty && !content.IsDirty;
+				bool openedFileRekeyed = file != null && SD.FileService.GetOpenedFile(FileName.Create(savePath)) == file;
+
+				bool closed = false;
+				if (content != null && content.WorkbenchWindow != null) {
+					content.WorkbenchWindow.CloseWindow(true);
+					await Task.Delay(200);
+					closed = !SD.Workbench.ViewContentCollection.Contains(content)
+						&& SD.FileService.GetOpenedFile(FileName.Create(savePath)) == null;
+				}
+
+				if (savePath != null && File.Exists(savePath)) {
+					File.Delete(savePath);
+				}
+				if (directory != null && Directory.Exists(directory)) {
+					Directory.Delete(directory, true);
+				}
+				bool cleanup = savePath != null && !File.Exists(savePath) && directory != null && !Directory.Exists(directory);
+
+				string message = "LibreWPF new-file smoke result="
+					+ (createdView && untitledBeforeSave && editorContainsMarker && fileNameUpdated && savedToDisk && diskContainsMarker && dirtyCleared && openedFileRekeyed && closed && cleanup ? "Success" : "Partial")
+					+ " file=" + defaultName
+					+ " createdView=" + createdView
+					+ " untitledBeforeSave=" + untitledBeforeSave
+					+ " editorContainsMarker=" + editorContainsMarker
+					+ " fileNameUpdated=" + fileNameUpdated
+					+ " savedToDisk=" + savedToDisk
+					+ " diskContainsMarker=" + diskContainsMarker
+					+ " dirtyCleared=" + dirtyCleared
+					+ " openedFileRekeyed=" + openedFileRekeyed
+					+ " closed=" + closed
+					+ " cleanup=" + cleanup;
+				Console.WriteLine(message);
+				SD.StatusBar.SetMessage(message);
+			} catch (Exception ex) {
+				Console.WriteLine("LibreWPF new-file smoke failed: " + ex);
+				SD.StatusBar.SetMessage("LibreWPF new-file smoke failed: " + ex.Message);
+				try {
+					if (content != null && content.WorkbenchWindow != null) {
+						content.WorkbenchWindow.CloseWindow(true);
+					}
+					if (savePath != null && File.Exists(savePath)) {
+						File.Delete(savePath);
+					}
+					if (directory != null && Directory.Exists(directory)) {
+						Directory.Delete(directory, true);
+					}
+				} catch (Exception cleanupException) {
+					Console.WriteLine("LibreWPF new-file smoke cleanup failed: " + cleanupException);
+				}
+			}
+		}
+
 		IViewContent GetLibreWpfSaveSmokeViewContent(string mode)
 		{
 			string requested = NormalizeLibreWpfSaveSmokePath(mode);
@@ -1390,6 +1495,21 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			}
 
 			return Path.GetFullPath(value);
+		}
+
+		static string NormalizeLibreWpfNewFileSmokeName(string mode)
+		{
+			if (string.IsNullOrWhiteSpace(mode))
+				return "LibreWpfNewFileSmoke.cs";
+			string value = mode.Trim();
+			if (string.Equals(value, "1", StringComparison.OrdinalIgnoreCase)
+			    || string.Equals(value, "Auto", StringComparison.OrdinalIgnoreCase)
+			    || string.Equals(value, "Default", StringComparison.OrdinalIgnoreCase))
+				return "LibreWpfNewFileSmoke.cs";
+			string fileName = Path.GetFileName(value);
+			if (string.IsNullOrWhiteSpace(fileName))
+				return "LibreWpfNewFileSmoke.cs";
+			return fileName;
 		}
 
 		static async Task WaitForLibreWpfProjectLoadAsync()
