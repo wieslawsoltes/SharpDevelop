@@ -349,6 +349,13 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				}), DispatcherPriority.ApplicationIdle);
 			}
 
+			string commandRoutingSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_COMMAND_ROUTING_SMOKE");
+			if (!string.IsNullOrEmpty(commandRoutingSmoke)) {
+				Dispatcher.BeginInvoke(new Action(async delegate {
+					await RunLibreWpfCommandRoutingSmoke(commandRoutingSmoke);
+				}), DispatcherPriority.ApplicationIdle);
+			}
+
 			string reloadSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_RELOAD_SMOKE");
 			if (!string.IsNullOrEmpty(reloadSmoke)) {
 				Dispatcher.BeginInvoke(new Action(async delegate {
@@ -1306,6 +1313,184 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			}
 		}
 
+		async Task RunLibreWpfCommandRoutingSmoke(string mode)
+		{
+			string directory = null;
+			string filePath = null;
+			IViewContent content = null;
+			OpenedFile file = null;
+			try {
+				TraceLibreWpfCommandRoutingSmoke("starting mode=" + mode);
+				if (SD.ParserService.LoadSolutionProjectsThread.IsRunning) {
+					TraceLibreWpfCommandRoutingSmoke("continuing while project load is still running");
+				}
+
+				directory = Path.Combine(Path.GetTempPath(), "librewpf-sharpdevelop-command-routing-" + Guid.NewGuid().ToString("N"));
+				Directory.CreateDirectory(directory);
+				filePath = Path.Combine(directory, "LibreWpfCommandRoutingSmoke.cs");
+				string originalText = "public sealed class LibreWpfCommandRoutingSmoke" + Environment.NewLine
+					+ "{" + Environment.NewLine
+					+ "\tpublic string Value { get { return \"Initial\"; } }" + Environment.NewLine
+					+ "}" + Environment.NewLine;
+				File.WriteAllText(filePath, originalText);
+
+				content = SD.FileService.OpenFile(FileName.Create(filePath), true);
+				TraceLibreWpfCommandRoutingSmoke("opened temp file content=" + (content != null ? content.GetType().FullName : "<null>"));
+				CodeEditor editor = null;
+				for (int attempt = 0; attempt < 80; attempt++) {
+					editor = GetLibreWpfCodeEditor(content);
+					if (content != null
+					    && editor != null
+					    && editor.Document != null
+					    && content.PrimaryFile != null
+					    && content.PrimaryFile.FileName != null
+					    && File.Exists(content.PrimaryFile.FileName)
+					    && IsLibreWpfCodeEditorPresentationReady(editor)) {
+						break;
+					}
+					await Task.Delay(100);
+				}
+				TraceLibreWpfCommandRoutingSmoke("editor wait complete editor=" + (editor != null) + " document=" + (editor != null && editor.Document != null));
+
+				file = content != null ? content.PrimaryFile : null;
+				bool openedEditor = content != null
+					&& editor != null
+					&& editor.Document != null
+					&& file != null
+					&& file.FileName != null
+					&& string.Equals(Path.GetFullPath(file.FileName.ToString()), Path.GetFullPath(filePath), StringComparison.Ordinal);
+
+				SelectLibreWpfViewContent(content);
+				UpdateMenu();
+				TraceLibreWpfCommandRoutingSmoke("menu status updated openedEditor=" + openedEditor);
+
+				int menuCommandItems = CountLibreWpfMenuCommandItems();
+				int toolBarCount = toolBars != null ? toolBars.Length : 0;
+				int toolBarCommandItems = CountLibreWpfToolBarCommandItems();
+				TraceLibreWpfCommandRoutingSmoke("command counts menu=" + menuCommandItems + " toolbars=" + toolBarCount + " toolbarCommands=" + toolBarCommandItems);
+
+				MenuItem menuSaveAllItem = FindLibreWpfSaveAllMenuItem();
+				ButtonBase toolBarSaveAllButton = FindLibreWpfSaveAllToolBarButton();
+				TraceLibreWpfCommandRoutingSmoke("save-all located menu=" + (menuSaveAllItem != null) + " toolbar=" + (toolBarSaveAllButton != null));
+
+				string menuMarker = Environment.NewLine + "// LibreWPF command routing menu marker";
+				TraceLibreWpfCommandRoutingSmoke("marking menu dirty");
+				bool menuMarkedDirty = MarkLibreWpfCommandRoutingFileDirty(content, editor, file, menuMarker);
+				TraceLibreWpfCommandRoutingSmoke("menu dirty marked=" + menuMarkedDirty);
+				UpdateMenu();
+				bool menuLocated = menuSaveAllItem != null && menuSaveAllItem.Command != null;
+				bool menuCanExecute = menuLocated && CanExecuteCommand(menuSaveAllItem.Command, menuSaveAllItem.CommandParameter);
+				TraceLibreWpfCommandRoutingSmoke("menu can execute=" + menuCanExecute);
+				bool menuExecuted = false;
+				if (menuCanExecute) {
+					TraceLibreWpfCommandRoutingSmoke("executing menu save-all");
+					ExecuteCommand(menuSaveAllItem.Command, menuSaveAllItem.CommandParameter);
+					menuExecuted = true;
+					TraceLibreWpfCommandRoutingSmoke("menu save-all executed");
+				}
+				bool menuSaved = filePath != null && File.Exists(filePath) && File.ReadAllText(filePath).Contains(menuMarker);
+				bool menuClearedDirty = file != null && content != null && !file.IsDirty && !content.IsDirty;
+				TraceLibreWpfCommandRoutingSmoke("menu saved=" + menuSaved + " cleared=" + menuClearedDirty);
+
+				string toolBarMarker = Environment.NewLine + "// LibreWPF command routing toolbar marker";
+				TraceLibreWpfCommandRoutingSmoke("marking toolbar dirty");
+				bool toolBarMarkedDirty = MarkLibreWpfCommandRoutingFileDirty(content, editor, file, toolBarMarker);
+				TraceLibreWpfCommandRoutingSmoke("toolbar dirty marked=" + toolBarMarkedDirty);
+				UpdateMenu();
+				bool toolBarLocated = toolBarSaveAllButton != null && toolBarSaveAllButton.Command != null;
+				bool toolBarCanExecute = toolBarLocated && CanExecuteCommand(toolBarSaveAllButton.Command, toolBarSaveAllButton.CommandParameter);
+				TraceLibreWpfCommandRoutingSmoke("toolbar can execute=" + toolBarCanExecute);
+				bool toolBarExecuted = false;
+				if (toolBarCanExecute) {
+					TraceLibreWpfCommandRoutingSmoke("executing toolbar save-all");
+					ExecuteCommand(toolBarSaveAllButton.Command, toolBarSaveAllButton.CommandParameter);
+					toolBarExecuted = true;
+					TraceLibreWpfCommandRoutingSmoke("toolbar save-all executed");
+				}
+				bool toolBarSaved = filePath != null && File.Exists(filePath) && File.ReadAllText(filePath).Contains(toolBarMarker);
+				bool toolBarClearedDirty = file != null && content != null && !file.IsDirty && !content.IsDirty;
+				TraceLibreWpfCommandRoutingSmoke("toolbar saved=" + toolBarSaved + " cleared=" + toolBarClearedDirty);
+
+				bool closed = false;
+				if (content != null && content.WorkbenchWindow != null) {
+					TraceLibreWpfCommandRoutingSmoke("closing temp view");
+					content.WorkbenchWindow.CloseWindow(true);
+					closed = !SD.Workbench.ViewContentCollection.Contains(content)
+						&& SD.FileService.GetOpenedFile(FileName.Create(filePath)) == null;
+					TraceLibreWpfCommandRoutingSmoke("temp view closed=" + closed);
+				}
+
+				TraceLibreWpfCommandRoutingSmoke("cleaning temp files");
+				if (File.Exists(filePath)) {
+					File.Delete(filePath);
+				}
+				if (Directory.Exists(directory)) {
+					Directory.Delete(directory, true);
+				}
+				bool cleanup = !File.Exists(filePath) && !Directory.Exists(directory);
+				TraceLibreWpfCommandRoutingSmoke("cleanup=" + cleanup);
+
+				bool success = openedEditor
+					&& menuCommandItems > 0
+					&& toolBarCount > 0
+					&& toolBarCommandItems > 0
+					&& menuLocated
+					&& menuMarkedDirty
+					&& menuCanExecute
+					&& menuExecuted
+					&& menuSaved
+					&& menuClearedDirty
+					&& toolBarLocated
+					&& toolBarMarkedDirty
+					&& toolBarCanExecute
+					&& toolBarExecuted
+					&& toolBarSaved
+					&& toolBarClearedDirty
+					&& closed
+					&& cleanup;
+
+				string message = "LibreWPF command-routing smoke result="
+					+ (success ? "Success" : "Partial")
+					+ " mode=" + NormalizeLibreWpfCommandRoutingSmokeMode(mode)
+					+ " openedEditor=" + openedEditor
+					+ " menuCommandItems=" + menuCommandItems
+					+ " toolBars=" + toolBarCount
+					+ " toolBarCommandItems=" + toolBarCommandItems
+					+ " menuLocated=" + menuLocated
+					+ " menuMarkedDirty=" + menuMarkedDirty
+					+ " menuCanExecute=" + menuCanExecute
+					+ " menuExecuted=" + menuExecuted
+					+ " menuSaved=" + menuSaved
+					+ " menuClearedDirty=" + menuClearedDirty
+					+ " toolBarLocated=" + toolBarLocated
+					+ " toolBarMarkedDirty=" + toolBarMarkedDirty
+					+ " toolBarCanExecute=" + toolBarCanExecute
+					+ " toolBarExecuted=" + toolBarExecuted
+					+ " toolBarSaved=" + toolBarSaved
+					+ " toolBarClearedDirty=" + toolBarClearedDirty
+					+ " closed=" + closed
+					+ " cleanup=" + cleanup;
+				Console.WriteLine(message);
+				SD.StatusBar.SetMessage(message);
+			} catch (Exception ex) {
+				Console.WriteLine("LibreWPF command-routing smoke failed: " + ex);
+				SD.StatusBar.SetMessage("LibreWPF command-routing smoke failed: " + ex.Message);
+				try {
+					if (content != null && content.WorkbenchWindow != null) {
+						content.WorkbenchWindow.CloseWindow(true);
+					}
+					if (filePath != null && File.Exists(filePath)) {
+						File.Delete(filePath);
+					}
+					if (directory != null && Directory.Exists(directory)) {
+						Directory.Delete(directory, true);
+					}
+				} catch (Exception cleanupException) {
+					Console.WriteLine("LibreWPF command-routing smoke cleanup failed: " + cleanupException);
+				}
+			}
+		}
+
 		async Task RunLibreWpfReloadSmoke(string mode)
 		{
 			try {
@@ -1994,6 +2179,137 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			}
 
 			return Path.GetFullPath(value);
+		}
+
+		static string NormalizeLibreWpfCommandRoutingSmokeMode(string mode)
+		{
+			if (string.IsNullOrWhiteSpace(mode))
+				return "Default";
+			string value = mode.Trim();
+			if (string.Equals(value, "1", StringComparison.OrdinalIgnoreCase)
+			    || string.Equals(value, "Auto", StringComparison.OrdinalIgnoreCase))
+				return "Default";
+			return value;
+		}
+
+		static bool MarkLibreWpfCommandRoutingFileDirty(IViewContent content, CodeEditor editor, OpenedFile file, string marker)
+		{
+			if (content == null || editor == null || editor.Document == null || file == null)
+				return false;
+
+			editor.Document.Insert(editor.Document.TextLength, marker);
+			file.MakeDirty();
+			return editor.Document.Text.Contains(marker) && file.IsDirty && content.IsDirty;
+		}
+
+		static void TraceLibreWpfCommandRoutingSmoke(string message)
+		{
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF command-routing smoke " + message);
+			}
+		}
+
+		int CountLibreWpfMenuCommandItems()
+		{
+			return EnumerateLibreWpfMenuItems(mainMenu.ItemsSource).Count(item => item.Command != null);
+		}
+
+		int CountLibreWpfToolBarCommandItems()
+		{
+			int count = 0;
+			if (toolBars == null)
+				return count;
+
+			foreach (ToolBar toolBar in toolBars) {
+				foreach (object item in GetLibreWpfItems(toolBar)) {
+					ButtonBase button = item as ButtonBase;
+					if (button != null && button.Command != null)
+						count++;
+				}
+			}
+			return count;
+		}
+
+		MenuItem FindLibreWpfSaveAllMenuItem()
+		{
+			foreach (MenuItem item in EnumerateLibreWpfMenuItems(mainMenu.ItemsSource)) {
+				if (IsLibreWpfSaveAllCommand(item.Command))
+					return item;
+			}
+			return null;
+		}
+
+		ButtonBase FindLibreWpfSaveAllToolBarButton()
+		{
+			if (toolBars == null)
+				return null;
+
+			foreach (ToolBar toolBar in toolBars) {
+				foreach (object item in GetLibreWpfItems(toolBar)) {
+					ButtonBase button = item as ButtonBase;
+					if (button != null && IsLibreWpfSaveAllCommand(button.Command))
+						return button;
+				}
+			}
+			return null;
+		}
+
+		static bool IsLibreWpfSaveAllCommand(ICommand command)
+		{
+			if (command == null)
+				return false;
+
+			try {
+				return CommandWrapper.Unwrap(command) is ICSharpCode.SharpDevelop.Commands.SaveAllFiles;
+			} catch (Exception ex) {
+				if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+					Console.WriteLine("LibreWPF command-routing smoke ignored command unwrap failure: " + ex.Message);
+				}
+				return false;
+			}
+		}
+
+		static IEnumerable<MenuItem> EnumerateLibreWpfMenuItems(System.Collections.IEnumerable items)
+		{
+			HashSet<MenuItem> visited = new HashSet<MenuItem>();
+			foreach (MenuItem item in EnumerateLibreWpfMenuItems(items, visited)) {
+				yield return item;
+			}
+		}
+
+		static IEnumerable<MenuItem> EnumerateLibreWpfMenuItems(System.Collections.IEnumerable items, HashSet<MenuItem> visited)
+		{
+			if (items == null)
+				yield break;
+
+			foreach (object value in items) {
+				MenuItem item = value as MenuItem;
+				if (item == null || !visited.Add(item))
+					continue;
+
+				yield return item;
+				EnsureLibreWpfMenuItemExpanded(item);
+				foreach (MenuItem child in EnumerateLibreWpfMenuItems(GetLibreWpfItems(item), visited)) {
+					yield return child;
+				}
+			}
+		}
+
+		static void EnsureLibreWpfMenuItemExpanded(MenuItem item)
+		{
+			if (item == null)
+				return;
+
+			item.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuOpenedEvent, item));
+			item.ApplyTemplate();
+			item.UpdateLayout();
+		}
+
+		static System.Collections.IEnumerable GetLibreWpfItems(ItemsControl itemsControl)
+		{
+			if (itemsControl == null)
+				return null;
+			return itemsControl.ItemsSource ?? itemsControl.Items;
 		}
 
 		static string NormalizeLibreWpfNewFileSmokeName(string mode)
