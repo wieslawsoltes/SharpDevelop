@@ -346,6 +346,13 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				}), DispatcherPriority.ApplicationIdle);
 			}
 
+			string reloadSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_RELOAD_SMOKE");
+			if (!string.IsNullOrEmpty(reloadSmoke)) {
+				Dispatcher.BeginInvoke(new Action(async delegate {
+					await RunLibreWpfReloadSmoke(reloadSmoke);
+				}), DispatcherPriority.ApplicationIdle);
+			}
+
 			string formsDesignerSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_FORMS_DESIGNER_SMOKE");
 			if (!string.IsNullOrEmpty(formsDesignerSmoke)) {
 				Dispatcher.BeginInvoke(new Action(async delegate {
@@ -1248,6 +1255,97 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			} catch (Exception ex) {
 				Console.WriteLine("LibreWPF save smoke failed: " + ex);
 				SD.StatusBar.SetMessage("LibreWPF save smoke failed: " + ex.Message);
+			}
+		}
+
+		async Task RunLibreWpfReloadSmoke(string mode)
+		{
+			try {
+				await WaitForLibreWpfProjectLoadAsync();
+
+				IViewContent content = null;
+				CodeEditor editor = null;
+				for (int attempt = 0; attempt < 100; attempt++) {
+					content = GetLibreWpfSaveSmokeViewContent(mode);
+					editor = GetLibreWpfCodeEditor(content);
+					if (content != null
+					    && editor != null
+					    && editor.Document != null
+					    && content.PrimaryFile != null
+					    && content.PrimaryFile.FileName != null
+					    && File.Exists(content.PrimaryFile.FileName)
+					    && IsLibreWpfCodeEditorPresentationReady(editor)) {
+						break;
+					}
+					content = null;
+					editor = null;
+					await Task.Delay(100);
+				}
+
+				if (content == null || editor == null || content.PrimaryFile == null || content.PrimaryFile.FileName == null) {
+					Console.WriteLine("LibreWPF reload smoke unavailable: no file-backed code editor is open.");
+					SD.StatusBar.SetMessage("LibreWPF reload smoke unavailable: no file-backed code editor is open.");
+					return;
+				}
+
+				OpenedFile file = content.PrimaryFile;
+				string fileName = file.FileName.ToString();
+				byte[] originalBytes = File.ReadAllBytes(fileName);
+				string originalText = editor.Document.Text;
+				bool originalDirty = file.IsDirty;
+				string marker = Environment.NewLine + "// LibreWPF reload smoke marker";
+				bool diskChanged = false;
+				bool commandReloaded = false;
+				bool dirtyCleared = false;
+				bool diskRestored = false;
+				bool editorRestored = false;
+
+				try {
+					SelectLibreWpfViewContent(content);
+					string diskText = File.ReadAllText(fileName);
+					File.WriteAllText(fileName, diskText + marker);
+					diskChanged = File.ReadAllText(fileName).Contains(marker);
+					await Task.Delay(650);
+
+					new ICSharpCode.SharpDevelop.Commands.ReloadFile().Run();
+					await Task.Delay(200);
+
+					commandReloaded = editor.Document.Text.Contains(marker);
+					dirtyCleared = !file.IsDirty && !content.IsDirty;
+				} finally {
+					File.WriteAllBytes(fileName, originalBytes);
+					try {
+						file.ReloadFromDisk();
+						editorRestored = editor.Document != null && editor.Document.Text == originalText;
+					} catch (Exception ex) {
+						Console.WriteLine("LibreWPF reload smoke restore reload failed: " + ex);
+						if (editor.Document != null) {
+							editor.Document.Text = originalText;
+							editorRestored = true;
+						}
+					} finally {
+						if (editor.Document != null && !originalDirty) {
+							editor.Document.UndoStack.MarkAsOriginalFile();
+						}
+						file.IsDirty = originalDirty;
+						diskRestored = originalBytes.SequenceEqual(File.ReadAllBytes(fileName));
+					}
+				}
+
+				string message = "LibreWPF reload smoke result="
+					+ (diskChanged && commandReloaded && dirtyCleared && diskRestored && editorRestored ? "Success" : "Partial")
+					+ " command=Reload"
+					+ " file=" + Path.GetFileName(fileName)
+					+ " diskChanged=" + diskChanged
+					+ " commandReloaded=" + commandReloaded
+					+ " dirtyCleared=" + dirtyCleared
+					+ " diskRestored=" + diskRestored
+					+ " editorRestored=" + editorRestored;
+				Console.WriteLine(message);
+				SD.StatusBar.SetMessage(message);
+			} catch (Exception ex) {
+				Console.WriteLine("LibreWPF reload smoke failed: " + ex);
+				SD.StatusBar.SetMessage("LibreWPF reload smoke failed: " + ex.Message);
 			}
 		}
 
