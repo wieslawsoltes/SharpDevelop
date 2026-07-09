@@ -339,6 +339,8 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				}), DispatcherPriority.ApplicationIdle);
 			}
 
+			ScheduleLibreWpfAddInSmokeHooks();
+
 			string exitAfter = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_EXIT_AFTER_MS");
 			int exitAfterMs;
 			if (int.TryParse(exitAfter, out exitAfterMs) && exitAfterMs > 0) {
@@ -354,6 +356,35 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				libreWpfSmokeTimers.Add(timer);
 				timer.Start();
 			}
+			}
+
+			void ScheduleLibreWpfAddInSmokeHooks()
+			{
+				try {
+					foreach (ILibreWpfSmokeHook hook in AddInTree.BuildItems<ILibreWpfSmokeHook>("/SharpDevelop/LibreWpf/SmokeHooks", this, false)) {
+						string mode = Environment.GetEnvironmentVariable(hook.EnvironmentVariableName);
+						if (string.IsNullOrEmpty(mode)) {
+							continue;
+						}
+
+						Dispatcher.BeginInvoke(new Action(async delegate {
+							await RunLibreWpfAddInSmokeHook(hook, mode);
+						}), DispatcherPriority.ApplicationIdle);
+					}
+				} catch (Exception ex) {
+					Console.WriteLine("LibreWPF add-in smoke hook discovery failed: " + ex);
+					SD.StatusBar.SetMessage("LibreWPF add-in smoke hook discovery failed: " + ex.Message);
+				}
+			}
+
+			async Task RunLibreWpfAddInSmokeHook(ILibreWpfSmokeHook hook, string mode)
+			{
+				try {
+					await hook.RunAsync(mode);
+				} catch (Exception ex) {
+					Console.WriteLine("LibreWPF add-in smoke hook failed: " + hook.GetType().FullName + ": " + ex);
+					SD.StatusBar.SetMessage("LibreWPF add-in smoke hook failed: " + ex.Message);
+				}
 			}
 
 			async Task RunLibreWpfFormsDesignerSmoke(string mode)

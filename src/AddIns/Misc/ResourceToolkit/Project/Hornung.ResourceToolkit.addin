@@ -112,6 +112,12 @@
 		<Class id="ResourceToolTips" class="Hornung.ResourceToolkit.ToolTips.ResourceToolTipProvider" insertafter="DefaultDebuggerToolTips"/>
 	</Path>
 	
+	<!-- LibreWPF validation hooks -->
+	
+	<Path name="/SharpDevelop/LibreWpf/SmokeHooks">
+		<Class id="ResourceToolkitSmoke" class="Hornung.ResourceToolkit.LibreWpf.LibreWpfResourceToolkitSmokeHook"/>
+	</Path>
+	
 	<!-- Resource file content factories -->
 	
 	<Path name="/AddIns/ResourceToolkit/ResourceFileContentFactories">
