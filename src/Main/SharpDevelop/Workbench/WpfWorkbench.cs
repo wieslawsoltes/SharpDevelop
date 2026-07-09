@@ -360,6 +360,13 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				}), DispatcherPriority.ApplicationIdle);
 			}
 
+			string editorNavigationSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_EDITOR_NAVIGATION_SMOKE");
+			if (!string.IsNullOrEmpty(editorNavigationSmoke)) {
+				Dispatcher.BeginInvoke(new Action(async delegate {
+					await RunLibreWpfEditorNavigationSmoke(editorNavigationSmoke);
+				}), DispatcherPriority.ApplicationIdle);
+			}
+
 			string formsDesignerSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_FORMS_DESIGNER_SMOKE");
 			if (!string.IsNullOrEmpty(formsDesignerSmoke)) {
 				Dispatcher.BeginInvoke(new Action(async delegate {
@@ -1454,6 +1461,96 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			}
 		}
 
+		async Task RunLibreWpfEditorNavigationSmoke(string mode)
+		{
+			try {
+				await WaitForLibreWpfProjectLoadAsync();
+
+				IViewContent content = null;
+				CodeEditor editor = null;
+				for (int attempt = 0; attempt < 100; attempt++) {
+					content = GetLibreWpfSaveSmokeViewContent(mode);
+					editor = GetLibreWpfCodeEditor(content);
+					if (content != null
+					    && editor != null
+					    && editor.Document != null
+					    && content.PrimaryFile != null
+					    && content.PrimaryFile.FileName != null
+					    && File.Exists(content.PrimaryFile.FileName)
+					    && IsLibreWpfCodeEditorPresentationReady(editor)) {
+						break;
+					}
+					content = null;
+					editor = null;
+					await Task.Delay(100);
+				}
+
+				if (content == null || editor == null || editor.Document == null || content.PrimaryFile == null || content.PrimaryFile.FileName == null) {
+					Console.WriteLine("LibreWPF editor navigation smoke unavailable: no file-backed code editor is open.");
+					SD.StatusBar.SetMessage("LibreWPF editor navigation smoke unavailable: no file-backed code editor is open.");
+					return;
+				}
+
+				string marker = GetLibreWpfEditorNavigationMarker(mode);
+				int markerOffset = editor.Document.Text.IndexOf(marker, StringComparison.Ordinal);
+				if (markerOffset < 0) {
+					marker = "class ";
+					markerOffset = editor.Document.Text.IndexOf(marker, StringComparison.Ordinal);
+				}
+				if (markerOffset < 0) {
+					marker = "using ";
+					markerOffset = editor.Document.Text.IndexOf(marker, StringComparison.Ordinal);
+				}
+				if (markerOffset < 0) {
+					Console.WriteLine("LibreWPF editor navigation smoke unavailable: no navigation marker in " + content.PrimaryFile.FileName);
+					SD.StatusBar.SetMessage("LibreWPF editor navigation smoke unavailable: no navigation marker.");
+					return;
+				}
+
+				var location = editor.Document.GetLocation(markerOffset);
+				string fileName = content.PrimaryFile.FileName.ToString();
+				IViewContent jumpedContent = SD.FileService.JumpToFilePosition(content.PrimaryFile.FileName, location.Line, location.Column);
+				await Task.Delay(350);
+
+				CodeEditor jumpedEditor = GetLibreWpfCodeEditor(jumpedContent) ?? GetLibreWpfActiveCodeEditor();
+				bool active = jumpedContent != null
+					&& jumpedContent.WorkbenchWindow != null
+					&& jumpedContent.WorkbenchWindow.ActiveViewContent == jumpedContent;
+				bool sameFile = jumpedContent != null
+					&& jumpedContent.PrimaryFile != null
+					&& jumpedContent.PrimaryFile.FileName != null
+					&& string.Equals(
+						Path.GetFullPath(jumpedContent.PrimaryFile.FileName.ToString()),
+						Path.GetFullPath(fileName),
+						StringComparison.Ordinal);
+				int caretLine = jumpedEditor != null && jumpedEditor.PrimaryTextEditor != null ? jumpedEditor.PrimaryTextEditor.TextArea.Caret.Line : -1;
+				int caretColumn = jumpedEditor != null && jumpedEditor.PrimaryTextEditor != null ? jumpedEditor.PrimaryTextEditor.TextArea.Caret.Column : -1;
+				int caretOffset = jumpedEditor != null && jumpedEditor.PrimaryTextEditor != null ? jumpedEditor.PrimaryTextEditor.TextArea.Caret.Offset : -1;
+				bool caretMatched = caretLine == location.Line && caretColumn == location.Column;
+				bool offsetMatched = Math.Abs(caretOffset - markerOffset) <= 1;
+				bool visible = jumpedEditor != null && IsLibreWpfCodeEditorPresentationReady(jumpedEditor);
+
+				string message = "LibreWPF editor navigation smoke result="
+					+ (active && sameFile && caretMatched && offsetMatched && visible ? "Success" : "Partial")
+					+ " file=" + Path.GetFileName(fileName)
+					+ " marker=" + marker
+					+ " requestedLine=" + location.Line
+					+ " requestedColumn=" + location.Column
+					+ " caretLine=" + caretLine
+					+ " caretColumn=" + caretColumn
+					+ " caretOffset=" + caretOffset
+					+ " expectedOffset=" + markerOffset
+					+ " active=" + active
+					+ " sameFile=" + sameFile
+					+ " visible=" + visible;
+				Console.WriteLine(message);
+				SD.StatusBar.SetMessage(message);
+			} catch (Exception ex) {
+				Console.WriteLine("LibreWPF editor navigation smoke failed: " + ex);
+				SD.StatusBar.SetMessage("LibreWPF editor navigation smoke failed: " + ex.Message);
+			}
+		}
+
 		IViewContent GetLibreWpfSaveSmokeViewContent(string mode)
 		{
 			string requested = NormalizeLibreWpfSaveSmokePath(mode);
@@ -1510,6 +1607,25 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			if (string.IsNullOrWhiteSpace(fileName))
 				return "LibreWpfNewFileSmoke.cs";
 			return fileName;
+		}
+
+		static string GetLibreWpfEditorNavigationMarker(string mode)
+		{
+			if (string.IsNullOrWhiteSpace(mode))
+				return "LineCounterBrowser";
+			string value = mode.Trim();
+			if (string.Equals(value, "1", StringComparison.OrdinalIgnoreCase)
+			    || string.Equals(value, "Auto", StringComparison.OrdinalIgnoreCase)
+			    || string.Equals(value, "Default", StringComparison.OrdinalIgnoreCase))
+				return "LineCounterBrowser";
+
+			foreach (string token in value.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)) {
+				string marker = token.Trim();
+				if (marker.Length > 0 && !marker.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+					return marker;
+			}
+
+			return "LineCounterBrowser";
 		}
 
 		static async Task WaitForLibreWpfProjectLoadAsync()
