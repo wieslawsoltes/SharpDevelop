@@ -24,11 +24,13 @@ using System.Reflection;
 using System.Windows.Forms;
 
 using ICSharpCode.Core;
+using ICSharpCode.SharpDevelop.Debugging;
 using ICSharpCode.SharpDevelop.Gui;
 using ICSharpCode.SharpDevelop.Workbench;
 using ICSharpCode.SharpDevelop.Logging;
 using ICSharpCode.SharpDevelop.Project;
 using ICSharpCode.SharpDevelop.Sda;
+using ICSharpCode.SharpDevelop.Services;
 
 namespace ICSharpCode.SharpDevelop.Startup
 {
@@ -306,6 +308,9 @@ namespace ICSharpCode.SharpDevelop.Startup
 				}
 				
 				SharpDevelopHost host = new SharpDevelopHost(AppDomain.CurrentDomain, startup);
+#if LIBREWPF
+				InstallLibreWpfPortableServices();
+#endif
 				
 				string[] fileList = SplashScreenForm.GetRequestedFileList();
 				if (fileList.Length > 0) {
@@ -335,6 +340,12 @@ namespace ICSharpCode.SharpDevelop.Startup
 		}
 
 #if LIBREWPF
+		static void InstallLibreWpfPortableServices()
+		{
+			SD.Services.RemoveService(typeof(IDebuggerService));
+			SD.Services.AddService(typeof(IDebuggerService), new LibreWpfPortableDebuggerService());
+		}
+
 		static string ResolveLibreWpfApplicationRoot(string startDirectory)
 		{
 			DirectoryInfo directory = new DirectoryInfo(startDirectory);

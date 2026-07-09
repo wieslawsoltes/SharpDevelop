@@ -43,9 +43,11 @@ using ICSharpCode.Core.Presentation;
 using ICSharpCode.AvalonEdit.AddIn;
 using ICSharpCode.FormsDesigner;
 #endif
+using ICSharpCode.SharpDevelop.Editor;
 using ICSharpCode.SharpDevelop.Gui;
 using ICSharpCode.SharpDevelop.Parser;
 using ICSharpCode.SharpDevelop.Project;
+using ICSharpCode.SharpDevelop.Services;
 using ICSharpCode.SharpDevelop.Startup;
 using ICSharpCode.SharpDevelop.Templates;
 using ICSharpCode.SharpDevelop.WinForms;
@@ -353,6 +355,13 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			if (!string.IsNullOrEmpty(commandRoutingSmoke)) {
 				Dispatcher.BeginInvoke(new Action(async delegate {
 					await RunLibreWpfCommandRoutingSmoke(commandRoutingSmoke);
+				}), DispatcherPriority.ApplicationIdle);
+			}
+
+			string debugCommandSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_DEBUG_COMMAND_SMOKE");
+			if (!string.IsNullOrEmpty(debugCommandSmoke)) {
+				Dispatcher.BeginInvoke(new Action(async delegate {
+					await RunLibreWpfDebugCommandSmoke(debugCommandSmoke);
 				}), DispatcherPriority.ApplicationIdle);
 			}
 
@@ -1491,6 +1500,162 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			}
 		}
 
+		async Task RunLibreWpfDebugCommandSmoke(string mode)
+		{
+			string directory = null;
+			string filePath = null;
+			IViewContent content = null;
+			try {
+				TraceLibreWpfDebugCommandSmoke("starting mode=" + mode);
+				if (SD.ParserService.LoadSolutionProjectsThread.IsRunning) {
+					TraceLibreWpfDebugCommandSmoke("continuing while project load is still running");
+				}
+
+				directory = Path.Combine(Path.GetTempPath(), "librewpf-sharpdevelop-debug-command-" + Guid.NewGuid().ToString("N"));
+				Directory.CreateDirectory(directory);
+				filePath = Path.Combine(directory, "LibreWpfDebugCommandSmoke.cs");
+				File.WriteAllText(filePath,
+					"public sealed class LibreWpfDebugCommandSmoke" + Environment.NewLine
+					+ "{" + Environment.NewLine
+					+ "\tpublic int Value { get { return 42; } }" + Environment.NewLine
+					+ "}" + Environment.NewLine);
+
+				content = SD.FileService.OpenFile(FileName.Create(filePath), true);
+				CodeEditor codeEditor = null;
+				ITextEditor textEditor = null;
+				for (int attempt = 0; attempt < 80; attempt++) {
+					codeEditor = GetLibreWpfCodeEditor(content);
+					textEditor = content != null ? content.GetService<ITextEditor>() : null;
+					if (content != null
+					    && codeEditor != null
+					    && textEditor != null
+					    && textEditor.Document != null
+					    && content.PrimaryFile != null
+					    && content.PrimaryFile.FileName != null
+					    && File.Exists(content.PrimaryFile.FileName)
+					    && IsLibreWpfCodeEditorPresentationReady(codeEditor)) {
+						break;
+					}
+					await Task.Delay(100);
+				}
+
+				bool openedEditor = content != null
+					&& codeEditor != null
+					&& textEditor != null
+					&& textEditor.Document != null
+					&& content.PrimaryFile != null
+					&& content.PrimaryFile.FileName != null
+					&& string.Equals(Path.GetFullPath(content.PrimaryFile.FileName.ToString()), Path.GetFullPath(filePath), StringComparison.Ordinal);
+
+				SelectLibreWpfViewContent(content);
+				if (textEditor != null) {
+					textEditor.JumpTo(2, 2);
+				}
+				UpdateMenu();
+
+				bool serviceIsPortable = SD.Debugger is LibreWpfPortableDebuggerService;
+				bool supportsStartWithoutDebugging = SD.Debugger.Supports(ICSharpCode.SharpDevelop.Debugging.DebuggerFeatures.StartWithoutDebugging);
+				bool supportsStartWithDebugger = SD.Debugger.Supports(ICSharpCode.SharpDevelop.Debugging.DebuggerFeatures.Start);
+				int debugCommandItems = CountLibreWpfDebugMenuCommandItems();
+				MenuItem toggleBreakpointItem = FindLibreWpfToggleBreakpointMenuItem();
+				bool toggleLocated = toggleBreakpointItem != null && toggleBreakpointItem.Command != null;
+				bool toggleCanExecute = toggleLocated && CanExecuteCommand(toggleBreakpointItem.Command, toggleBreakpointItem.CommandParameter);
+				TraceLibreWpfDebugCommandSmoke("servicePortable=" + serviceIsPortable + " debugCommands=" + debugCommandItems + " toggleCanExecute=" + toggleCanExecute);
+
+				FileName fileName = FileName.Create(filePath);
+				int lineNumber = textEditor != null ? textEditor.Caret.Line : 2;
+				RemoveLibreWpfPortableBreakpoints(fileName);
+				int initialBreakpointCount = CountLibreWpfPortableBreakpoints(fileName, lineNumber);
+				bool toggleAddExecuted = false;
+				if (toggleCanExecute) {
+					ExecuteCommand(toggleBreakpointItem.Command, toggleBreakpointItem.CommandParameter);
+					toggleAddExecuted = true;
+				}
+				int afterAddBreakpointCount = CountLibreWpfPortableBreakpoints(fileName, lineNumber);
+				bool breakpointAdded = afterAddBreakpointCount == initialBreakpointCount + 1;
+
+				UpdateMenu();
+				bool toggleRemoveCanExecute = toggleLocated && CanExecuteCommand(toggleBreakpointItem.Command, toggleBreakpointItem.CommandParameter);
+				bool toggleRemoveExecuted = false;
+				if (toggleRemoveCanExecute) {
+					ExecuteCommand(toggleBreakpointItem.Command, toggleBreakpointItem.CommandParameter);
+					toggleRemoveExecuted = true;
+				}
+				int afterRemoveBreakpointCount = CountLibreWpfPortableBreakpoints(fileName, lineNumber);
+				bool breakpointRemoved = afterRemoveBreakpointCount == initialBreakpointCount;
+				RemoveLibreWpfPortableBreakpoints(fileName);
+
+				bool closed = false;
+				if (content != null && content.WorkbenchWindow != null) {
+					content.WorkbenchWindow.CloseWindow(true);
+					closed = !SD.Workbench.ViewContentCollection.Contains(content)
+						&& SD.FileService.GetOpenedFile(FileName.Create(filePath)) == null;
+				}
+
+				if (File.Exists(filePath)) {
+					File.Delete(filePath);
+				}
+				if (Directory.Exists(directory)) {
+					Directory.Delete(directory, true);
+				}
+				bool cleanup = !File.Exists(filePath) && !Directory.Exists(directory);
+
+				bool success = openedEditor
+					&& serviceIsPortable
+					&& supportsStartWithoutDebugging
+					&& !supportsStartWithDebugger
+					&& debugCommandItems > 0
+					&& toggleLocated
+					&& toggleCanExecute
+					&& toggleAddExecuted
+					&& breakpointAdded
+					&& toggleRemoveCanExecute
+					&& toggleRemoveExecuted
+					&& breakpointRemoved
+					&& closed
+					&& cleanup;
+
+				string message = "LibreWPF debug-command smoke result="
+					+ (success ? "Success" : "Partial")
+					+ " mode=" + NormalizeLibreWpfCommandRoutingSmokeMode(mode)
+					+ " openedEditor=" + openedEditor
+					+ " serviceIsPortable=" + serviceIsPortable
+					+ " supportsStartWithoutDebugging=" + supportsStartWithoutDebugging
+					+ " supportsStartWithDebugger=" + supportsStartWithDebugger
+					+ " debugCommandItems=" + debugCommandItems
+					+ " toggleLocated=" + toggleLocated
+					+ " toggleCanExecute=" + toggleCanExecute
+					+ " toggleAddExecuted=" + toggleAddExecuted
+					+ " breakpointAdded=" + breakpointAdded
+					+ " toggleRemoveCanExecute=" + toggleRemoveCanExecute
+					+ " toggleRemoveExecuted=" + toggleRemoveExecuted
+					+ " breakpointRemoved=" + breakpointRemoved
+					+ " closed=" + closed
+					+ " cleanup=" + cleanup;
+				Console.WriteLine(message);
+				SD.StatusBar.SetMessage(message);
+			} catch (Exception ex) {
+				Console.WriteLine("LibreWPF debug-command smoke failed: " + ex);
+				SD.StatusBar.SetMessage("LibreWPF debug-command smoke failed: " + ex.Message);
+				try {
+					if (content != null && content.WorkbenchWindow != null) {
+						content.WorkbenchWindow.CloseWindow(true);
+					}
+					if (filePath != null) {
+						RemoveLibreWpfPortableBreakpoints(FileName.Create(filePath));
+						if (File.Exists(filePath)) {
+							File.Delete(filePath);
+						}
+					}
+					if (directory != null && Directory.Exists(directory)) {
+						Directory.Delete(directory, true);
+					}
+				} catch (Exception cleanupException) {
+					Console.WriteLine("LibreWPF debug-command smoke cleanup failed: " + cleanupException);
+				}
+			}
+		}
+
 		async Task RunLibreWpfReloadSmoke(string mode)
 		{
 			try {
@@ -2266,6 +2431,76 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					Console.WriteLine("LibreWPF command-routing smoke ignored command unwrap failure: " + ex.Message);
 				}
 				return false;
+			}
+		}
+
+		int CountLibreWpfDebugMenuCommandItems()
+		{
+			return EnumerateLibreWpfMenuItems(mainMenu.ItemsSource).Count(item => IsLibreWpfDebugCommand(item.Command));
+		}
+
+		MenuItem FindLibreWpfToggleBreakpointMenuItem()
+		{
+			foreach (MenuItem item in EnumerateLibreWpfMenuItems(mainMenu.ItemsSource)) {
+				if (IsLibreWpfToggleBreakpointCommand(item.Command))
+					return item;
+			}
+			return null;
+		}
+
+		static bool IsLibreWpfDebugCommand(ICommand command)
+		{
+			if (command == null)
+				return false;
+
+			try {
+				object unwrapped = CommandWrapper.Unwrap(command);
+				return unwrapped is ICSharpCode.SharpDevelop.Project.Commands.Execute
+					|| unwrapped is ICSharpCode.SharpDevelop.Project.Commands.ExecuteWithoutDebugger
+					|| unwrapped is ICSharpCode.SharpDevelop.Project.Commands.ContinueDebuggingCommand
+					|| unwrapped is ICSharpCode.SharpDevelop.Project.Commands.BreakDebuggingCommand
+					|| unwrapped is ICSharpCode.SharpDevelop.Project.Commands.StopDebuggingCommand
+					|| unwrapped is ICSharpCode.SharpDevelop.Project.Commands.StepDebuggingCommand
+					|| unwrapped is ICSharpCode.SharpDevelop.Project.Commands.StepIntoDebuggingCommand
+					|| unwrapped is ICSharpCode.SharpDevelop.Project.Commands.StepOutDebuggingCommand
+					|| unwrapped is ICSharpCode.SharpDevelop.Project.Commands.ToggleBreakpointCommand
+					|| unwrapped is ICSharpCode.SharpDevelop.Project.Commands.AttachToProcessCommand
+					|| unwrapped is ICSharpCode.SharpDevelop.Project.Commands.DetachFromProcessCommand;
+			} catch (Exception ex) {
+				TraceLibreWpfDebugCommandSmoke("ignored command unwrap failure: " + ex.Message);
+				return false;
+			}
+		}
+
+		static bool IsLibreWpfToggleBreakpointCommand(ICommand command)
+		{
+			if (command == null)
+				return false;
+
+			try {
+				return CommandWrapper.Unwrap(command) is ICSharpCode.SharpDevelop.Project.Commands.ToggleBreakpointCommand;
+			} catch (Exception ex) {
+				TraceLibreWpfDebugCommandSmoke("ignored toggle unwrap failure: " + ex.Message);
+				return false;
+			}
+		}
+
+		static int CountLibreWpfPortableBreakpoints(FileName fileName, int lineNumber)
+		{
+			return SD.BookmarkManager.Bookmarks
+				.OfType<LibreWpfPortableBreakpointBookmark>()
+				.Count(bookmark => bookmark.FileName == fileName && bookmark.LineNumber == lineNumber);
+		}
+
+		static void RemoveLibreWpfPortableBreakpoints(FileName fileName)
+		{
+			SD.BookmarkManager.RemoveAll(bookmark => bookmark is LibreWpfPortableBreakpointBookmark && bookmark.FileName == fileName);
+		}
+
+		static void TraceLibreWpfDebugCommandSmoke(string message)
+		{
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1") {
+				Console.WriteLine("LibreWPF debug-command smoke " + message);
 			}
 		}
 
