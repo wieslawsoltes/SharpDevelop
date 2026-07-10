@@ -651,6 +651,35 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			async Task RunLibreWpfFormsDesignerMutationSmoke(FormsDesignerViewContent designerContent, PropertyContainer designerProperties, object rootComponent)
 			{
 				try {
+					PadDescriptor propertyPad = SD.Workbench.GetPad(typeof(PropertyPad));
+					if (propertyPad != null) {
+						propertyPad.BringPadToFront();
+					}
+
+					int stableHostObservations = 0;
+					System.ComponentModel.Design.IDesignerHost observedHost = null;
+					for (int attempt = 0; attempt < 20 && stableHostObservations < 2; attempt++) {
+						await Task.Delay(100);
+						PropertyContainer currentProperties = designerContent != null
+							? designerContent.PropertyContainer
+							: null;
+						System.ComponentModel.Design.IDesignerHost currentHost = currentProperties != null
+							? currentProperties.Host
+							: null;
+						if (currentHost != null && ReferenceEquals(currentHost, observedHost)) {
+							stableHostObservations++;
+						} else {
+							observedHost = currentHost;
+							stableHostObservations = currentHost != null ? 1 : 0;
+						}
+					}
+
+					designerProperties = designerContent != null ? designerContent.PropertyContainer : designerProperties;
+					if (designerProperties == null || designerProperties.Host == null) {
+						throw new InvalidOperationException("The FormsDesigner host did not stabilize.");
+					}
+					rootComponent = designerProperties.Host.RootComponent;
+
 					IComponent mutationTarget = designerProperties.Host.Container.Components
 						.Cast<IComponent>()
 						.FirstOrDefault(component => !ReferenceEquals(component, rootComponent)
@@ -672,11 +701,14 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					bool selectedByGrid = false;
 					bool valueVisible = false;
 					bool flushPersisted = false;
+					bool siteHasChangeService = false;
+					bool shouldSerializeText = false;
+					string serializationName = string.Empty;
 					int rowCount = 0;
 
+					string originalDesignerCode = designerContent != null ? designerContent.DesignerCodeFileContent : null;
+					bool originalDesignerDirty = designerContent != null && designerContent.DesignerCodeFile != null && designerContent.DesignerCodeFile.IsDirty;
 					try {
-						string originalDesignerCode = designerContent != null ? designerContent.DesignerCodeFileContent : null;
-						bool originalDesignerDirty = designerContent != null && designerContent.DesignerCodeFile != null && designerContent.DesignerCodeFile.IsDirty;
 						System.ComponentModel.Design.ISelectionService selectionService =
 							designerProperties.Host.GetService(typeof(System.ComponentModel.Design.ISelectionService)) as System.ComponentModel.Design.ISelectionService;
 						if (selectionService != null) {
@@ -690,12 +722,15 @@ namespace ICSharpCode.SharpDevelop.Workbench
 						PropertyPad.UpdateSelectedObjectIfActive(designerProperties);
 
 						textProperty.SetValue(mutationTarget, testValue);
-
-						PadDescriptor propertyPad = SD.Workbench.GetPad(typeof(PropertyPad));
-						if (propertyPad != null) {
-							propertyPad.BringPadToFront();
-							await Task.Delay(100);
-						}
+						siteHasChangeService = mutationTarget.Site != null
+							&& mutationTarget.Site.GetService(typeof(System.ComponentModel.Design.IComponentChangeService)) != null;
+						shouldSerializeText = textProperty.ShouldSerializeValue(mutationTarget);
+						var serializationManager = designerProperties.Host.GetService(
+							typeof(System.ComponentModel.Design.Serialization.IDesignerSerializationManager))
+							as System.ComponentModel.Design.Serialization.IDesignerSerializationManager;
+						serializationName = serializationManager != null
+							? serializationManager.GetName(mutationTarget) ?? string.Empty
+							: string.Empty;
 
 						System.Windows.Forms.PropertyGrid grid = PropertyPad.Grid;
 						if (grid != null) {
@@ -710,25 +745,31 @@ namespace ICSharpCode.SharpDevelop.Workbench
 								&& string.Equals(row.ValueText, testValue, StringComparison.Ordinal));
 						}
 
-						selectedByContainer = ReferenceEquals(designerProperties.SelectedObject, mutationTarget);
+						selectedByContainer = ReferenceEquals(designerProperties.SelectedObject, mutationTarget)
+							|| (designerProperties.SelectedObjects != null
+								&& designerProperties.SelectedObjects.Contains(mutationTarget));
 
+						if (designerContent != null && originalDesignerCode != null) {
+							designerContent.MergeFormChanges();
+							flushPersisted = designerContent.DesignerCodeFileContent != null
+								&& designerContent.DesignerCodeFileContent.Contains(testValue);
+						}
+					} finally {
+						textProperty.SetValue(mutationTarget, oldValue);
 						if (designerContent != null && originalDesignerCode != null) {
 							try {
 								designerContent.MergeFormChanges();
-								flushPersisted = designerContent.DesignerCodeFileContent != null
-									&& designerContent.DesignerCodeFileContent.Contains(testValue);
 							} finally {
 								designerContent.DesignerCodeFileContent = originalDesignerCode;
 								if (designerContent.DesignerCodeFile != null)
 									designerContent.DesignerCodeFile.IsDirty = originalDesignerDirty;
 							}
 						}
-					} finally {
-						textProperty.SetValue(mutationTarget, oldValue);
 					}
 
 					string message = "LibreWPF FormsDesigner mutation smoke result="
-						+ (selectedByService && selectedByContainer && selectedByGrid && valueVisible && flushPersisted ? "Success" : "Partial")
+						+ (selectedByService && selectedByContainer && selectedByGrid && valueVisible
+							&& flushPersisted && siteHasChangeService && shouldSerializeText ? "Success" : "Partial")
 						+ " component=" + mutationTarget.GetType().FullName
 						+ " name=" + (mutationTarget.Site != null ? mutationTarget.Site.Name : string.Empty)
 						+ " selectedByService=" + selectedByService
@@ -736,6 +777,9 @@ namespace ICSharpCode.SharpDevelop.Workbench
 						+ " selectedByGrid=" + selectedByGrid
 						+ " valueVisible=" + valueVisible
 						+ " flushPersisted=" + flushPersisted
+						+ " siteHasChangeService=" + siteHasChangeService
+						+ " shouldSerializeText=" + shouldSerializeText
+						+ " serializationName=" + serializationName
 						+ " rows=" + rowCount;
 					Console.WriteLine(message);
 					SD.StatusBar.SetMessage(message);
