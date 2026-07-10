@@ -45,6 +45,7 @@ using ICSharpCode.FormsDesigner;
 #endif
 using ICSharpCode.SharpDevelop.Editor;
 using ICSharpCode.SharpDevelop.Gui;
+using ICSharpCode.SharpDevelop.Logging;
 using ICSharpCode.SharpDevelop.Parser;
 using ICSharpCode.SharpDevelop.Project;
 using ICSharpCode.SharpDevelop.Services;
@@ -330,6 +331,16 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				}), DispatcherPriority.ApplicationIdle);
 			}
 
+			string winFormsDialogSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_WINFORMS_DIALOG_SMOKE");
+			if (!string.IsNullOrEmpty(winFormsDialogSmoke)) {
+				Dispatcher.BeginInvoke(new Action(async delegate {
+					await libreWpfWinFormsContextMenuSmokeTask;
+					await libreWpfAvalonDockSmokeTask;
+					await Task.Delay(100);
+					RunLibreWpfWinFormsDialogSmoke(winFormsDialogSmoke);
+				}), DispatcherPriority.ApplicationIdle);
+			}
+
 			string editorCompletionSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_EDITOR_COMPLETION_SMOKE");
 			if (!string.IsNullOrEmpty(editorCompletionSmoke)) {
 				Dispatcher.BeginInvoke(new Action(async delegate {
@@ -566,6 +577,75 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					Console.WriteLine("LibreWPF FormsDesigner smoke failed: " + ex);
 					SD.StatusBar.SetMessage("LibreWPF FormsDesigner smoke failed: " + ex.Message);
 				}
+			}
+
+			void RunLibreWpfWinFormsDialogSmoke(string mode)
+			{
+				try {
+					bool shown = false;
+					bool closed = false;
+					bool ownerLinked = false;
+					bool hasPresentationSource = false;
+					int controlCount = 0;
+
+					using (var dialog = new ExceptionBox(
+						new InvalidOperationException("LibreWPF SharpDevelop WinForms dialog smoke"),
+						"LibreWPF SharpDevelop WinForms dialog smoke",
+						false)) {
+						dialog.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
+						var closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+						closeTimer.Tick += delegate {
+							closeTimer.Stop();
+							dialog.DialogResult = System.Windows.Forms.DialogResult.OK;
+							dialog.Close();
+						};
+						dialog.Shown += delegate {
+							shown = true;
+							controlCount = CountLibreWpfWinFormsControls(dialog);
+							Window dialogWindow = Application.Current.Windows
+								.Cast<Window>()
+								.FirstOrDefault(window => !ReferenceEquals(window, this)
+									&& ReferenceEquals(window.Owner, this));
+							ownerLinked = dialogWindow != null;
+							hasPresentationSource = dialogWindow != null
+								&& PresentationSource.FromVisual(dialogWindow) != null;
+							closeTimer.Start();
+						};
+						dialog.FormClosed += delegate { closed = true; };
+
+						System.Windows.Forms.DialogResult result = dialog.ShowDialog(SD.WinForms.MainWin32Window);
+						closeTimer.Stop();
+						bool succeeded = shown
+							&& closed
+							&& ownerLinked
+							&& hasPresentationSource
+							&& controlCount >= 5
+							&& result == System.Windows.Forms.DialogResult.OK;
+						string message = "LibreWPF WinForms dialog smoke result=" + (succeeded ? "Success" : "Partial")
+							+ " mode=" + mode
+							+ " form=" + dialog.GetType().FullName
+							+ " shown=" + shown
+							+ " closed=" + closed
+							+ " ownerLinked=" + ownerLinked
+							+ " presentationSource=" + hasPresentationSource
+							+ " controls=" + controlCount
+							+ " result=" + result;
+						Console.WriteLine(message);
+						SD.StatusBar.SetMessage(message);
+					}
+				} catch (Exception ex) {
+					Console.WriteLine("LibreWPF WinForms dialog smoke failed: " + ex);
+					SD.StatusBar.SetMessage("LibreWPF WinForms dialog smoke failed: " + ex.Message);
+				}
+			}
+
+			static int CountLibreWpfWinFormsControls(System.Windows.Forms.Control root)
+			{
+				int count = 1;
+				foreach (System.Windows.Forms.Control child in root.Controls) {
+					count += CountLibreWpfWinFormsControls(child);
+				}
+				return count;
 			}
 
 			async Task RunLibreWpfFormsDesignerMutationSmoke(FormsDesignerViewContent designerContent, PropertyContainer designerProperties, object rootComponent)
