@@ -1046,27 +1046,34 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				if (grid == null || grid.ContextMenuStrip == null) {
 					Console.WriteLine("LibreWPF WinForms context menu smoke failed: property grid context menu unavailable.");
 					SD.StatusBar.SetMessage("LibreWPF WinForms context menu smoke failed: property grid context menu unavailable.");
-						return;
-					}
+					return;
+				}
 
-					await CloseLibreWpfSmokePopupsAsync();
+				await CloseLibreWpfSmokePopupsAsync();
 
-					grid.ContextMenuStrip.Opened += delegate {
-						Console.WriteLine("LibreWPF WinForms context menu Opened event");
-					};
-				grid.ContextMenuStrip.Closed += delegate {
+				bool opened = false;
+				EventHandler openedHandler = delegate {
+					opened = true;
+					Console.WriteLine("LibreWPF WinForms context menu Opened event");
+				};
+				EventHandler closedHandler = delegate {
 					Console.WriteLine("LibreWPF WinForms context menu Closed event");
 				};
+				grid.ContextMenuStrip.Opened += openedHandler;
+				grid.ContextMenuStrip.Closed += closedHandler;
 				grid.ContextMenuStrip.Show(grid, new System.Drawing.Point(24, 24));
 
 				string message = "LibreWPF WinForms context menu smoke result="
-					+ (grid.ContextMenuStrip.Visible ? "Opened" : "NotVisible")
+					+ (opened ? "Opened" : "NotOpened")
+					+ " visibleAfterShow=" + grid.ContextMenuStrip.Visible
 					+ " items=" + grid.ContextMenuStrip.Items.Count;
 				Console.WriteLine(message);
 				SD.StatusBar.SetMessage(message);
 				await Task.Delay(200);
 				grid.ContextMenuStrip.Close();
 				await Task.Delay(100);
+				grid.ContextMenuStrip.Opened -= openedHandler;
+				grid.ContextMenuStrip.Closed -= closedHandler;
 			} catch (Exception ex) {
 				Console.WriteLine("LibreWPF WinForms context menu smoke failed: " + ex);
 				SD.StatusBar.SetMessage("LibreWPF WinForms context menu smoke failed: " + ex.Message);
