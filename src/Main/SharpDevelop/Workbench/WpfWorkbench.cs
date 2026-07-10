@@ -717,16 +717,19 @@ namespace ICSharpCode.SharpDevelop.Workbench
 						try {
 							if (rootControl != null) {
 								var toolboxItem = new System.Drawing.Design.ToolboxItem(typeof(System.Windows.Forms.Button));
-								var toolboxDefaults = new System.Collections.Hashtable {
-									["Parent"] = rootControl,
-									[nameof(System.Windows.Forms.Control.Location)] = new System.Drawing.Point(24, 32),
-									[nameof(System.Windows.Forms.Control.Size)] = new System.Drawing.Size(120, 28),
-									[nameof(System.Windows.Forms.Control.Text)] = "LibreWPF toolbox smoke"
-								};
-								IComponent[] toolboxComponents = toolboxItem.CreateComponents(designerProperties.Host, toolboxDefaults);
-								toolboxButton = toolboxComponents.Length == 1
-									? toolboxComponents[0] as System.Windows.Forms.Button
-									: null;
+								var existingComponents = new HashSet<IComponent>(
+									designerProperties.Host.Container.Components.Cast<IComponent>());
+								ToolboxProvider.ToolboxService.SetSelectedToolboxItem(toolboxItem);
+								rootControl.RaiseMouseDown(new System.Windows.Forms.MouseEventArgs(
+									System.Windows.Forms.MouseButtons.Left, 1, 24, 32, 0));
+								rootControl.RaiseMouseMove(new System.Windows.Forms.MouseEventArgs(
+									System.Windows.Forms.MouseButtons.Left, 0, 144, 60, 0));
+								rootControl.RaiseMouseUp(new System.Windows.Forms.MouseEventArgs(
+									System.Windows.Forms.MouseButtons.Left, 1, 144, 60, 0));
+								toolboxButton = designerProperties.Host.Container.Components
+									.Cast<IComponent>()
+									.OfType<System.Windows.Forms.Button>()
+									.FirstOrDefault(control => !existingComponents.Contains(control));
 								toolboxCreated = toolboxButton != null
 									&& toolboxButton.Site != null
 									&& ReferenceEquals(toolboxButton.Site.Container, designerProperties.Host.Container)
@@ -736,7 +739,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 									&& rootControl.Controls.Contains(toolboxButton)
 									&& toolboxButton.Location == new System.Drawing.Point(24, 32)
 									&& toolboxButton.Size == new System.Drawing.Size(120, 28)
-									&& string.Equals(toolboxButton.Text, "LibreWPF toolbox smoke", StringComparison.Ordinal);
+									&& ToolboxProvider.ToolboxService.GetSelectedToolboxItem() == null;
 							}
 						} finally {
 							if (toolboxButton != null)
