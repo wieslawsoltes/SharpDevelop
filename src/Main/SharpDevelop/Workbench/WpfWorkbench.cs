@@ -703,12 +703,52 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					bool flushPersisted = false;
 					bool siteHasChangeService = false;
 					bool shouldSerializeText = false;
+					bool toolboxCreated = false;
+					bool toolboxRemoved = false;
 					string serializationName = string.Empty;
 					int rowCount = 0;
 
 					string originalDesignerCode = designerContent != null ? designerContent.DesignerCodeFileContent : null;
 					bool originalDesignerDirty = designerContent != null && designerContent.DesignerCodeFile != null && designerContent.DesignerCodeFile.IsDirty;
 					try {
+						System.Windows.Forms.Control rootControl = rootComponent as System.Windows.Forms.Control;
+						System.Windows.Forms.Button toolboxButton = null;
+						int componentCountBeforeToolbox = designerProperties.Host.Container.Components.Count;
+						try {
+							if (rootControl != null) {
+								var toolboxItem = new System.Drawing.Design.ToolboxItem(typeof(System.Windows.Forms.Button));
+								var toolboxDefaults = new System.Collections.Hashtable {
+									["Parent"] = rootControl,
+									[nameof(System.Windows.Forms.Control.Location)] = new System.Drawing.Point(24, 32),
+									[nameof(System.Windows.Forms.Control.Size)] = new System.Drawing.Size(120, 28),
+									[nameof(System.Windows.Forms.Control.Text)] = "LibreWPF toolbox smoke"
+								};
+								IComponent[] toolboxComponents = toolboxItem.CreateComponents(designerProperties.Host, toolboxDefaults);
+								toolboxButton = toolboxComponents.Length == 1
+									? toolboxComponents[0] as System.Windows.Forms.Button
+									: null;
+								toolboxCreated = toolboxButton != null
+									&& toolboxButton.Site != null
+									&& ReferenceEquals(toolboxButton.Site.Container, designerProperties.Host.Container)
+									&& designerProperties.Host.Container.Components.Count == componentCountBeforeToolbox + 1
+									&& designerProperties.Host.GetDesigner(toolboxButton) is System.ComponentModel.Design.IComponentInitializer
+									&& ReferenceEquals(toolboxButton.Parent, rootControl)
+									&& rootControl.Controls.Contains(toolboxButton)
+									&& toolboxButton.Location == new System.Drawing.Point(24, 32)
+									&& toolboxButton.Size == new System.Drawing.Size(120, 28)
+									&& string.Equals(toolboxButton.Text, "LibreWPF toolbox smoke", StringComparison.Ordinal);
+							}
+						} finally {
+							if (toolboxButton != null)
+								designerProperties.Host.DestroyComponent(toolboxButton);
+							toolboxRemoved = toolboxButton != null
+								&& toolboxButton.Site == null
+								&& toolboxButton.Parent == null
+								&& !rootControl.Controls.Contains(toolboxButton)
+								&& designerProperties.Host.GetDesigner(toolboxButton) == null
+								&& designerProperties.Host.Container.Components.Count == componentCountBeforeToolbox;
+						}
+
 						System.ComponentModel.Design.ISelectionService selectionService =
 							designerProperties.Host.GetService(typeof(System.ComponentModel.Design.ISelectionService)) as System.ComponentModel.Design.ISelectionService;
 						if (selectionService != null) {
@@ -769,7 +809,8 @@ namespace ICSharpCode.SharpDevelop.Workbench
 
 					string message = "LibreWPF FormsDesigner mutation smoke result="
 						+ (selectedByService && selectedByContainer && selectedByGrid && valueVisible
-							&& flushPersisted && siteHasChangeService && shouldSerializeText ? "Success" : "Partial")
+							&& flushPersisted && siteHasChangeService && shouldSerializeText
+							&& toolboxCreated && toolboxRemoved ? "Success" : "Partial")
 						+ " component=" + mutationTarget.GetType().FullName
 						+ " name=" + (mutationTarget.Site != null ? mutationTarget.Site.Name : string.Empty)
 						+ " selectedByService=" + selectedByService
@@ -779,6 +820,8 @@ namespace ICSharpCode.SharpDevelop.Workbench
 						+ " flushPersisted=" + flushPersisted
 						+ " siteHasChangeService=" + siteHasChangeService
 						+ " shouldSerializeText=" + shouldSerializeText
+						+ " toolboxCreated=" + toolboxCreated
+						+ " toolboxRemoved=" + toolboxRemoved
 						+ " serializationName=" + serializationName
 						+ " rows=" + rowCount;
 					Console.WriteLine(message);
