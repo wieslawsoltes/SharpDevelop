@@ -317,18 +317,14 @@ namespace ICSharpCode.SharpDevelop.Workbench
 
 			string avalonDockSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_AVALONDOCK_SMOKE");
 			if (!string.IsNullOrEmpty(avalonDockSmoke)) {
-				Dispatcher.BeginInvoke(new Action(async delegate {
-					libreWpfAvalonDockSmokeTask = RunLibreWpfAvalonDockSmoke(avalonDockSmoke);
-					await libreWpfAvalonDockSmokeTask;
-				}), DispatcherPriority.ApplicationIdle);
+				libreWpfAvalonDockSmokeTask = ScheduleLibreWpfSmokeTask(
+					delegate { return RunLibreWpfAvalonDockSmoke(avalonDockSmoke); });
 			}
 
 			string winFormsContextMenuSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_WINFORMS_CONTEXT_MENU_SMOKE");
 			if (!string.IsNullOrEmpty(winFormsContextMenuSmoke)) {
-				Dispatcher.BeginInvoke(new Action(async delegate {
-					libreWpfWinFormsContextMenuSmokeTask = RunLibreWpfWinFormsContextMenuSmoke(winFormsContextMenuSmoke);
-					await libreWpfWinFormsContextMenuSmokeTask;
-				}), DispatcherPriority.ApplicationIdle);
+				libreWpfWinFormsContextMenuSmokeTask = ScheduleLibreWpfSmokeTask(
+					delegate { return RunLibreWpfWinFormsContextMenuSmoke(winFormsContextMenuSmoke); });
 			}
 
 			string winFormsDialogSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_WINFORMS_DIALOG_SMOKE");
@@ -452,6 +448,22 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				libreWpfSmokeTimers.Add(timer);
 				timer.Start();
 			}
+			}
+
+			Task ScheduleLibreWpfSmokeTask(Func<Task> run)
+			{
+				var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+				Dispatcher.BeginInvoke(new Action(async delegate {
+					try {
+						await run();
+					} catch (Exception ex) {
+						Console.WriteLine("LibreWPF scheduled smoke task failed: " + ex);
+						SD.StatusBar.SetMessage("LibreWPF scheduled smoke task failed: " + ex.Message);
+					} finally {
+						completion.TrySetResult(true);
+					}
+				}), DispatcherPriority.ApplicationIdle);
+				return completion.Task;
 			}
 
 			void ScheduleLibreWpfAddInSmokeHooks()
@@ -705,6 +717,9 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					bool shouldSerializeText = false;
 					bool toolboxCreated = false;
 					bool toolboxRemoved = false;
+					bool toolboxMoved = false;
+					bool toolboxResized = false;
+					bool toolboxUndoRedo = false;
 					string serializationName = string.Empty;
 					int rowCount = 0;
 
@@ -740,6 +755,95 @@ namespace ICSharpCode.SharpDevelop.Workbench
 									&& toolboxButton.Location == new System.Drawing.Point(24, 32)
 									&& toolboxButton.Size == new System.Drawing.Size(120, 28)
 									&& ToolboxProvider.ToolboxService.GetSelectedToolboxItem() == null;
+								if (toolboxCreated) {
+									var changeService = designerProperties.Host.GetService(
+										typeof(System.ComponentModel.Design.IComponentChangeService))
+										as System.ComponentModel.Design.IComponentChangeService;
+									int locationChanging = 0;
+									int locationChanged = 0;
+									int sizeChanging = 0;
+									int sizeChanged = 0;
+									int manipulationTransactions = 0;
+									int manipulationTransactionsClosed = 0;
+									System.ComponentModel.Design.ComponentChangingEventHandler changingHandler = (sender, eventArgs) => {
+										if (!ReferenceEquals(eventArgs.Component, toolboxButton))
+											return;
+										if (string.Equals(eventArgs.Member != null ? eventArgs.Member.Name : null, "Location", StringComparison.Ordinal))
+											locationChanging++;
+										if (string.Equals(eventArgs.Member != null ? eventArgs.Member.Name : null, "Size", StringComparison.Ordinal))
+											sizeChanging++;
+									};
+									System.ComponentModel.Design.ComponentChangedEventHandler changedHandler = (sender, eventArgs) => {
+										if (!ReferenceEquals(eventArgs.Component, toolboxButton))
+											return;
+										if (string.Equals(eventArgs.Member != null ? eventArgs.Member.Name : null, "Location", StringComparison.Ordinal))
+											locationChanged++;
+										if (string.Equals(eventArgs.Member != null ? eventArgs.Member.Name : null, "Size", StringComparison.Ordinal))
+											sizeChanged++;
+									};
+									EventHandler transactionOpenedHandler = (sender, eventArgs) => manipulationTransactions++;
+									System.ComponentModel.Design.DesignerTransactionCloseEventHandler transactionClosedHandler =
+										(sender, eventArgs) => manipulationTransactionsClosed++;
+									if (changeService != null) {
+										changeService.ComponentChanging += changingHandler;
+										changeService.ComponentChanged += changedHandler;
+									}
+									designerProperties.Host.TransactionOpened += transactionOpenedHandler;
+									designerProperties.Host.TransactionClosed += transactionClosedHandler;
+									try {
+										toolboxButton.RaiseMouseDown(new System.Windows.Forms.MouseEventArgs(
+											System.Windows.Forms.MouseButtons.Left, 1, 60, 14, 0));
+										toolboxButton.RaiseMouseMove(new System.Windows.Forms.MouseEventArgs(
+											System.Windows.Forms.MouseButtons.Left, 0, 80, 24, 0));
+										toolboxButton.RaiseMouseUp(new System.Windows.Forms.MouseEventArgs(
+											System.Windows.Forms.MouseButtons.Left, 1, 80, 24, 0));
+										toolboxMoved = toolboxButton.Location == new System.Drawing.Point(44, 42)
+											&& toolboxButton.Size == new System.Drawing.Size(120, 28);
+
+										toolboxButton.RaiseMouseDown(new System.Windows.Forms.MouseEventArgs(
+											System.Windows.Forms.MouseButtons.Left, 1, toolboxButton.Width, toolboxButton.Height, 0));
+										toolboxButton.RaiseMouseMove(new System.Windows.Forms.MouseEventArgs(
+											System.Windows.Forms.MouseButtons.Left, 0, 150, 48, 0));
+										toolboxButton.RaiseMouseUp(new System.Windows.Forms.MouseEventArgs(
+											System.Windows.Forms.MouseButtons.Left, 1, 150, 48, 0));
+										toolboxResized = toolboxButton.Location == new System.Drawing.Point(44, 42)
+											&& toolboxButton.Size == new System.Drawing.Size(150, 48);
+									} finally {
+										designerProperties.Host.TransactionOpened -= transactionOpenedHandler;
+										designerProperties.Host.TransactionClosed -= transactionClosedHandler;
+										if (changeService != null) {
+											changeService.ComponentChanging -= changingHandler;
+											changeService.ComponentChanged -= changedHandler;
+										}
+									}
+
+									bool resizeUndoAvailable = designerContent.EnableUndo;
+									designerContent.Undo();
+									bool resizeUndone = toolboxButton.Location == new System.Drawing.Point(44, 42)
+										&& toolboxButton.Size == new System.Drawing.Size(120, 28);
+									bool moveUndoAvailable = designerContent.EnableUndo;
+									designerContent.Undo();
+									bool moveUndone = toolboxButton.Location == new System.Drawing.Point(24, 32)
+										&& toolboxButton.Size == new System.Drawing.Size(120, 28);
+									bool moveRedoAvailable = designerContent.EnableRedo;
+									designerContent.Redo();
+									bool moveRedone = toolboxButton.Location == new System.Drawing.Point(44, 42)
+										&& toolboxButton.Size == new System.Drawing.Size(120, 28);
+									bool resizeRedoAvailable = designerContent.EnableRedo;
+									designerContent.Redo();
+									bool resizeRedone = toolboxButton.Location == new System.Drawing.Point(44, 42)
+										&& toolboxButton.Size == new System.Drawing.Size(150, 48);
+									toolboxUndoRedo = resizeUndoAvailable && resizeUndone
+										&& moveUndoAvailable && moveUndone
+										&& moveRedoAvailable && moveRedone
+										&& resizeRedoAvailable && resizeRedone
+										&& manipulationTransactions == 2
+										&& manipulationTransactionsClosed == 2
+										&& locationChanging == 1
+										&& locationChanged == 1
+										&& sizeChanging == 1
+										&& sizeChanged == 1;
+								}
 							}
 						} finally {
 							if (toolboxButton != null)
@@ -813,7 +917,8 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					string message = "LibreWPF FormsDesigner mutation smoke result="
 						+ (selectedByService && selectedByContainer && selectedByGrid && valueVisible
 							&& flushPersisted && siteHasChangeService && shouldSerializeText
-							&& toolboxCreated && toolboxRemoved ? "Success" : "Partial")
+							&& toolboxCreated && toolboxMoved && toolboxResized && toolboxUndoRedo
+							&& toolboxRemoved ? "Success" : "Partial")
 						+ " component=" + mutationTarget.GetType().FullName
 						+ " name=" + (mutationTarget.Site != null ? mutationTarget.Site.Name : string.Empty)
 						+ " selectedByService=" + selectedByService
@@ -824,6 +929,9 @@ namespace ICSharpCode.SharpDevelop.Workbench
 						+ " siteHasChangeService=" + siteHasChangeService
 						+ " shouldSerializeText=" + shouldSerializeText
 						+ " toolboxCreated=" + toolboxCreated
+						+ " toolboxMoved=" + toolboxMoved
+						+ " toolboxResized=" + toolboxResized
+						+ " toolboxUndoRedo=" + toolboxUndoRedo
 						+ " toolboxRemoved=" + toolboxRemoved
 						+ " serializationName=" + serializationName
 						+ " rows=" + rowCount;
