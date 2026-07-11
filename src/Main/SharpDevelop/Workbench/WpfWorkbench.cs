@@ -42,6 +42,7 @@ using ICSharpCode.Core.Presentation;
 #if LIBREWPF
 using ICSharpCode.AvalonEdit.AddIn;
 using ICSharpCode.FormsDesigner;
+using ICSharpCode.SharpDevelop.Project.Dialogs;
 #endif
 using ICSharpCode.SharpDevelop.Editor;
 using ICSharpCode.SharpDevelop.Gui;
@@ -283,6 +284,65 @@ namespace ICSharpCode.SharpDevelop.Workbench
 		readonly List<DispatcherTimer> libreWpfSmokeTimers = new List<DispatcherTimer>();
 		Task libreWpfWinFormsContextMenuSmokeTask = Task.CompletedTask;
 		Task libreWpfAvalonDockSmokeTask = Task.CompletedTask;
+		Task libreWpfWinFormsDialogSmokeTask = Task.CompletedTask;
+
+		sealed class LibreWpfTemplateDialogSmokeResult
+		{
+			public string Kind;
+			public bool Shown;
+			public bool Closed;
+			public bool OwnerLinked;
+			public bool PresentationSource;
+			public bool ControlsFound;
+			public bool ViewButtons;
+			public bool ViewSwitch;
+			public bool ImageLists;
+			public bool Layout;
+			public bool HitTest;
+			public bool CategorySelected;
+			public bool ItemSelected;
+			public bool OpenEnabled;
+			public bool Description;
+			public bool CancelClick;
+			public bool CancelResult;
+			public int CategoryCount;
+			public int ItemCount;
+			public string Error;
+
+			public bool Success {
+				get {
+					return Shown && Closed && OwnerLinked && PresentationSource
+						&& ControlsFound && ViewButtons && ViewSwitch && ImageLists
+						&& Layout && HitTest && CategorySelected && ItemSelected
+						&& OpenEnabled && Description && CancelClick && CancelResult
+						&& string.IsNullOrEmpty(Error);
+				}
+			}
+
+			public string ToLogValue()
+			{
+				return Kind + ":" + (Success ? "Success" : "Partial")
+					+ ",shown=" + Shown
+					+ ",closed=" + Closed
+					+ ",owner=" + OwnerLinked
+					+ ",source=" + PresentationSource
+					+ ",controls=" + ControlsFound
+					+ ",viewButtons=" + ViewButtons
+					+ ",viewSwitch=" + ViewSwitch
+					+ ",images=" + ImageLists
+					+ ",layout=" + Layout
+					+ ",hitTest=" + HitTest
+					+ ",category=" + CategorySelected
+					+ ",selection=" + ItemSelected
+					+ ",open=" + OpenEnabled
+					+ ",description=" + Description
+					+ ",cancel=" + CancelClick
+					+ ",result=" + CancelResult
+					+ ",categories=" + CategoryCount
+					+ ",items=" + ItemCount
+					+ ",error=" + (string.IsNullOrEmpty(Error) ? "none" : Error.Replace(' ', '_').Replace(',', ';'));
+			}
+		}
 
 		void ScheduleLibreWpfSmokeHooks()
 		{
@@ -329,12 +389,23 @@ namespace ICSharpCode.SharpDevelop.Workbench
 
 			string winFormsDialogSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_WINFORMS_DIALOG_SMOKE");
 			if (!string.IsNullOrEmpty(winFormsDialogSmoke)) {
-				Dispatcher.BeginInvoke(new Action(async delegate {
+				libreWpfWinFormsDialogSmokeTask = ScheduleLibreWpfSmokeTask(async delegate {
 					await libreWpfWinFormsContextMenuSmokeTask;
 					await libreWpfAvalonDockSmokeTask;
 					await Task.Delay(100);
 					RunLibreWpfWinFormsDialogSmoke(winFormsDialogSmoke);
-				}), DispatcherPriority.ApplicationIdle);
+				});
+			}
+
+			string templateDialogSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TEMPLATE_DIALOG_SMOKE");
+			if (!string.IsNullOrEmpty(templateDialogSmoke)) {
+				ScheduleLibreWpfSmokeTask(async delegate {
+					await libreWpfWinFormsContextMenuSmokeTask;
+					await libreWpfAvalonDockSmokeTask;
+					await libreWpfWinFormsDialogSmokeTask;
+					await Task.Delay(100);
+					await RunLibreWpfTemplateDialogSmoke(templateDialogSmoke);
+				});
 			}
 
 			string editorCompletionSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_EDITOR_COMPLETION_SMOKE");
@@ -584,10 +655,102 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					Console.WriteLine(success);
 					SD.StatusBar.SetMessage(success);
 
+					await RunLibreWpfFormsDesignerCustomPaintSmoke();
+					await RunLibreWpfOwnerDrawSmoke();
 					await RunLibreWpfFormsDesignerMutationSmoke(designerContent as FormsDesignerViewContent, designerProperties, rootComponent);
 				} catch (Exception ex) {
 					Console.WriteLine("LibreWPF FormsDesigner smoke failed: " + ex);
 					SD.StatusBar.SetMessage("LibreWPF FormsDesigner smoke failed: " + ex.Message);
+				}
+			}
+
+			async Task RunLibreWpfFormsDesignerCustomPaintSmoke()
+			{
+				try {
+					PadDescriptor toolsPad = SD.Workbench.GetPad(typeof(ToolsPad));
+					if (toolsPad == null) {
+						Console.WriteLine("LibreWPF FormsDesigner custom-paint smoke result=Partial reason=ToolsPadMissing");
+						return;
+					}
+
+					toolsPad.BringPadToFront();
+					System.Windows.Forms.Integration.WindowsFormsHost host = null;
+					for (int attempt = 0; attempt < 30; attempt++) {
+						ToolsPad padContent = toolsPad.PadContent as ToolsPad;
+						ContentPresenter presenter = padContent != null ? padContent.Control as ContentPresenter : null;
+						host = presenter != null
+							? presenter.Content as System.Windows.Forms.Integration.WindowsFormsHost
+							: null;
+						if (host != null && host.Child != null)
+							break;
+
+						await Task.Delay(100);
+					}
+
+					System.Windows.Forms.Control child = host != null ? host.Child : null;
+					System.Windows.Forms.IPortableWinFormsPaintSource paintSource = child as System.Windows.Forms.IPortableWinFormsPaintSource;
+					long before = host != null ? host.PortableCustomPaintDispatchCount : 0;
+					if (child != null) {
+						child.Invalidate();
+						host.InvalidateVisual();
+					}
+					await Task.Delay(250);
+					long after = host != null ? host.PortableCustomPaintDispatchCount : 0;
+					bool success = host != null
+						&& child != null
+						&& paintSource != null
+						&& paintSource.SupportsPortablePainting
+						&& after > before;
+					string message = "LibreWPF FormsDesigner custom-paint smoke result=" + (success ? "Success" : "Partial")
+						+ " host=" + (host != null)
+						+ " child=" + (child != null ? child.GetType().FullName : "<null>")
+						+ " typed=" + (paintSource != null)
+						+ " enabled=" + (paintSource != null && paintSource.SupportsPortablePainting)
+						+ " before=" + before
+						+ " after=" + after;
+					Console.WriteLine(message);
+					SD.StatusBar.SetMessage(message);
+				} catch (Exception ex) {
+					Console.WriteLine("LibreWPF FormsDesigner custom-paint smoke failed: " + ex);
+					SD.StatusBar.SetMessage("LibreWPF FormsDesigner custom-paint smoke failed: " + ex.Message);
+				}
+			}
+
+			async Task RunLibreWpfOwnerDrawSmoke()
+			{
+				try {
+					PadDescriptor projectBrowserPad = SD.Workbench.GetPad(typeof(ProjectBrowserPad));
+					if (projectBrowserPad == null) {
+						Console.WriteLine("LibreWPF owner-draw smoke result=Partial reason=ProjectBrowserMissing");
+						return;
+					}
+
+					projectBrowserPad.BringPadToFront();
+					await Task.Delay(100);
+					System.Windows.Forms.TreeView tree = ProjectBrowserPad.Instance.ProjectBrowserControl.TreeView;
+					int drawDispatches = 0;
+					System.Windows.Forms.DrawTreeNodeEventHandler probe = delegate { drawDispatches++; };
+					tree.DrawNode += probe;
+					try {
+						tree.Invalidate();
+						await Task.Delay(250);
+					} finally {
+						tree.DrawNode -= probe;
+					}
+
+					bool success = tree.DrawMode != System.Windows.Forms.TreeViewDrawMode.Normal
+						&& tree.Nodes.Count > 0
+						&& drawDispatches > 0;
+					string message = "LibreWPF owner-draw smoke result=" + (success ? "Success" : "Partial")
+						+ " tree=" + tree.GetType().FullName
+						+ " drawMode=" + tree.DrawMode
+						+ " nodes=" + tree.Nodes.Count
+						+ " directDispatches=" + drawDispatches;
+					Console.WriteLine(message);
+					SD.StatusBar.SetMessage(message);
+				} catch (Exception ex) {
+					Console.WriteLine("LibreWPF owner-draw smoke failed: " + ex);
+					SD.StatusBar.SetMessage("LibreWPF owner-draw smoke failed: " + ex.Message);
 				}
 			}
 
@@ -648,6 +811,235 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				} catch (Exception ex) {
 					Console.WriteLine("LibreWPF WinForms dialog smoke failed: " + ex);
 					SD.StatusBar.SetMessage("LibreWPF WinForms dialog smoke failed: " + ex.Message);
+				}
+			}
+
+			async Task RunLibreWpfTemplateDialogSmoke(string mode)
+			{
+				LibreWpfTemplateDialogSmokeResult projectResult = null;
+				LibreWpfTemplateDialogSmokeResult fileResult = null;
+				try {
+					SD.Templates.UpdateTemplates();
+					IReadOnlyList<TemplateCategory> categories = SD.Templates.TemplateCategories;
+					bool runProject = string.Equals(mode, "Both", StringComparison.OrdinalIgnoreCase)
+						|| string.Equals(mode, "Project", StringComparison.OrdinalIgnoreCase)
+						|| string.Equals(mode, "NewProject", StringComparison.OrdinalIgnoreCase);
+					bool runFile = string.Equals(mode, "Both", StringComparison.OrdinalIgnoreCase)
+						|| string.Equals(mode, "File", StringComparison.OrdinalIgnoreCase)
+						|| string.Equals(mode, "NewFile", StringComparison.OrdinalIgnoreCase);
+					if (!runProject && !runFile) {
+						runProject = true;
+						runFile = true;
+					}
+
+					if (runProject) {
+						using (var dialog = new NewProjectDialog(categories, true)) {
+							projectResult = RunLibreWpfTemplateDialogSmokeCore(dialog, "Project");
+						}
+					}
+
+					if (runProject && runFile) {
+						await Task.Delay(100);
+					}
+
+					if (runFile) {
+						using (var dialog = new NewFileDialog(null, null, categories)) {
+							fileResult = RunLibreWpfTemplateDialogSmokeCore(dialog, "File");
+						}
+					}
+
+					bool success = (projectResult == null || projectResult.Success)
+						&& (fileResult == null || fileResult.Success);
+					string message = "LibreWPF template-dialog smoke result=" + (success ? "Success" : "Partial")
+						+ " mode=" + mode
+						+ " project=" + (projectResult == null ? "Skipped" : projectResult.ToLogValue())
+						+ " file=" + (fileResult == null ? "Skipped" : fileResult.ToLogValue());
+					Console.WriteLine(message);
+					SD.StatusBar.SetMessage(message);
+				} catch (Exception ex) {
+					Console.WriteLine("LibreWPF template-dialog smoke failed: " + ex);
+					SD.StatusBar.SetMessage("LibreWPF template-dialog smoke failed: " + ex.Message);
+				}
+			}
+
+			LibreWpfTemplateDialogSmokeResult RunLibreWpfTemplateDialogSmokeCore(
+				System.Windows.Forms.Form dialog,
+				string kind)
+			{
+				var smoke = new LibreWpfTemplateDialogSmokeResult { Kind = kind };
+				var interactionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+				var watchdogTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(8) };
+
+				dialog.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
+				dialog.FormClosed += delegate { smoke.Closed = true; };
+				dialog.Shown += delegate {
+					smoke.Shown = true;
+					Window dialogWindow = Application.Current.Windows
+						.Cast<Window>()
+						.FirstOrDefault(window => !ReferenceEquals(window, this)
+							&& ReferenceEquals(window.Owner, this));
+					smoke.OwnerLinked = dialogWindow != null;
+					smoke.PresentationSource = dialogWindow != null
+						&& System.Windows.PresentationSource.FromVisual(dialogWindow) != null;
+					interactionTimer.Start();
+				};
+
+				interactionTimer.Tick += delegate {
+					interactionTimer.Stop();
+					try {
+						System.Windows.Forms.TreeView categoryTree = FindLibreWpfWinFormsControl<System.Windows.Forms.TreeView>(dialog, "categoryTreeView");
+						System.Windows.Forms.ListView templateList = FindLibreWpfWinFormsControl<System.Windows.Forms.ListView>(dialog, "templateListView");
+						System.Windows.Forms.RadioButton largeButton = FindLibreWpfWinFormsControl<System.Windows.Forms.RadioButton>(dialog, "largeIconsRadioButton");
+						System.Windows.Forms.RadioButton smallButton = FindLibreWpfWinFormsControl<System.Windows.Forms.RadioButton>(dialog, "smallIconsRadioButton");
+						System.Windows.Forms.Label description = FindLibreWpfWinFormsControl<System.Windows.Forms.Label>(dialog, "descriptionLabel");
+						System.Windows.Forms.Button openButton = FindLibreWpfWinFormsControl<System.Windows.Forms.Button>(dialog, "openButton");
+						System.Windows.Forms.Button cancelButton = FindLibreWpfWinFormsControl<System.Windows.Forms.Button>(dialog, "cancelButton");
+						smoke.ControlsFound = categoryTree != null && templateList != null
+							&& largeButton != null && smallButton != null && description != null
+							&& openButton != null && cancelButton != null;
+						if (!smoke.ControlsFound) {
+							throw new InvalidOperationException(
+								"required controls were not found: categoryTreeView=" + (categoryTree != null)
+								+ ",templateListView=" + (templateList != null)
+								+ ",largeIconsRadioButton=" + (largeButton != null)
+								+ ",smallIconsRadioButton=" + (smallButton != null)
+								+ ",descriptionLabel=" + (description != null)
+								+ ",openButton=" + (openButton != null)
+								+ ",cancelButton=" + (cancelButton != null)
+								+ ",rootChildren=" + dialog.Controls.Count);
+						}
+
+						smoke.ViewButtons = ReferenceEquals(largeButton.Parent, smallButton.Parent)
+							&& largeButton.Appearance == System.Windows.Forms.Appearance.Button
+							&& smallButton.Appearance == System.Windows.Forms.Appearance.Button
+							&& string.IsNullOrEmpty(largeButton.Text)
+							&& string.IsNullOrEmpty(smallButton.Text)
+							&& largeButton.Image != null
+							&& smallButton.Image != null
+							&& largeButton.Checked != smallButton.Checked;
+
+						bool categorySelectionRaised = false;
+						categoryTree.AfterSelect += delegate { categorySelectionRaised = true; };
+						List<System.Windows.Forms.TreeNode> nodes = EnumerateLibreWpfTemplateDialogNodes(categoryTree.Nodes).ToList();
+						smoke.CategoryCount = nodes.Count;
+						System.Windows.Forms.TreeNode selectedCategory = null;
+						int selectedItemCount = -1;
+						foreach (System.Windows.Forms.TreeNode node in nodes) {
+							categoryTree.SelectedNode = node;
+							if (templateList.Items.Count > selectedItemCount) {
+								selectedCategory = node;
+								selectedItemCount = templateList.Items.Count;
+							}
+							if (templateList.Items.Count >= 2)
+								break;
+						}
+						if (selectedCategory != null && !ReferenceEquals(categoryTree.SelectedNode, selectedCategory)) {
+							categoryTree.SelectedNode = selectedCategory;
+						}
+						smoke.ItemCount = templateList.Items.Count;
+						smoke.CategorySelected = categorySelectionRaised
+							&& selectedCategory != null
+							&& templateList.Items.Count > 0;
+
+						largeButton.PerformClick();
+						bool largeState = largeButton.Checked && !smallButton.Checked
+							&& templateList.View == System.Windows.Forms.View.LargeIcon;
+						System.Drawing.Rectangle largeFirst = templateList.GetItemRect(0);
+						System.Drawing.Rectangle largeSecond = templateList.Items.Count > 1
+							? templateList.GetItemRect(1)
+							: largeFirst;
+						bool largeHit = ReferenceEquals(
+							templateList.GetItemAt(largeFirst.Left + Math.Max(1, largeFirst.Width / 2), largeFirst.Top + Math.Max(1, largeFirst.Height / 2)),
+							templateList.Items[0]);
+
+						smallButton.PerformClick();
+						bool smallState = smallButton.Checked && !largeButton.Checked
+							&& templateList.View == System.Windows.Forms.View.List;
+						System.Drawing.Rectangle listFirst = templateList.GetItemRect(0);
+						System.Drawing.Rectangle listSecond = templateList.Items.Count > 1
+							? templateList.GetItemRect(1)
+							: listFirst;
+						bool listHit = ReferenceEquals(
+							templateList.GetItemAt(listFirst.Left + Math.Max(1, listFirst.Width / 2), listFirst.Top + Math.Max(1, listFirst.Height / 2)),
+							templateList.Items[0]);
+
+						largeButton.PerformClick();
+						smoke.ViewSwitch = largeState && smallState
+							&& largeButton.Checked && !smallButton.Checked
+							&& templateList.View == System.Windows.Forms.View.LargeIcon;
+						smoke.ImageLists = templateList.LargeImageList != null
+							&& templateList.SmallImageList != null
+							&& templateList.LargeImageList.Images.Count > 0
+							&& templateList.SmallImageList.Images.Count > 0
+							&& templateList.Items[0].ImageIndex >= 0
+							&& templateList.Items[0].ImageIndex < templateList.LargeImageList.Images.Count
+							&& templateList.Items[0].ImageIndex < templateList.SmallImageList.Images.Count;
+						smoke.Layout = largeFirst.Height > listFirst.Height
+							&& (templateList.Items.Count < 2
+								|| largeSecond.X != listSecond.X
+								|| largeSecond.Y != listSecond.Y);
+						smoke.HitTest = largeHit && listHit;
+
+						templateList.SelectedItems.Clear();
+						templateList.Items[0].Selected = true;
+						smoke.ItemSelected = templateList.SelectedItems.Count == 1
+							&& ReferenceEquals(templateList.SelectedItems[0], templateList.Items[0]);
+						smoke.OpenEnabled = openButton.Enabled;
+						smoke.Description = !string.IsNullOrWhiteSpace(description.Text);
+
+						cancelButton.PerformClick();
+						smoke.CancelClick = dialog.DialogResult == System.Windows.Forms.DialogResult.Cancel
+							|| !dialog.Visible;
+					} catch (Exception ex) {
+						smoke.Error = ex.GetType().Name + ":" + ex.Message;
+					} finally {
+						if (dialog.Visible) {
+							dialog.DialogResult = System.Windows.Forms.DialogResult.Cancel;
+							dialog.Close();
+						}
+					}
+				};
+
+				watchdogTimer.Tick += delegate {
+					watchdogTimer.Stop();
+					if (dialog.Visible) {
+						if (string.IsNullOrEmpty(smoke.Error))
+							smoke.Error = "Timeout:dialog did not close";
+						dialog.DialogResult = System.Windows.Forms.DialogResult.Cancel;
+						dialog.Close();
+					}
+				};
+
+				watchdogTimer.Start();
+				System.Windows.Forms.DialogResult result = dialog.ShowDialog(SD.WinForms.MainWin32Window);
+				interactionTimer.Stop();
+				watchdogTimer.Stop();
+				smoke.CancelResult = result == System.Windows.Forms.DialogResult.Cancel;
+				return smoke;
+			}
+
+			static T FindLibreWpfWinFormsControl<T>(System.Windows.Forms.Control root, string name)
+				where T : System.Windows.Forms.Control
+			{
+				if (root is T match && string.Equals(root.Name, name, StringComparison.Ordinal))
+					return match;
+
+				foreach (System.Windows.Forms.Control child in root.Controls) {
+					T childMatch = FindLibreWpfWinFormsControl<T>(child, name);
+					if (childMatch != null)
+						return childMatch;
+				}
+
+				return null;
+			}
+
+			static IEnumerable<System.Windows.Forms.TreeNode> EnumerateLibreWpfTemplateDialogNodes(
+				System.Windows.Forms.TreeNodeCollection nodes)
+			{
+				foreach (System.Windows.Forms.TreeNode node in nodes) {
+					yield return node;
+					foreach (System.Windows.Forms.TreeNode descendant in EnumerateLibreWpfTemplateDialogNodes(node.Nodes))
+						yield return descendant;
 				}
 			}
 
@@ -720,6 +1112,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					bool toolboxMoved = false;
 					bool toolboxResized = false;
 					bool toolboxUndoRedo = false;
+					bool toolboxDeleteUndoRedo = false;
 					string serializationName = string.Empty;
 					int rowCount = 0;
 
@@ -843,10 +1236,51 @@ namespace ICSharpCode.SharpDevelop.Workbench
 										&& locationChanged == 1
 										&& sizeChanging == 1
 										&& sizeChanged == 1;
+
+									string toolboxButtonName = toolboxButton.Site != null ? toolboxButton.Site.Name : null;
+									var toolboxSelectionService = designerProperties.Host.GetService(
+										typeof(System.ComponentModel.Design.ISelectionService))
+										as System.ComponentModel.Design.ISelectionService;
+									if (toolboxSelectionService != null) {
+										toolboxSelectionService.SetSelectedComponents(
+											new object[] { toolboxButton },
+											System.ComponentModel.Design.SelectionTypes.Replace);
+									}
+
+									bool deleteEnabled = designerContent.EnableDelete;
+									designerContent.Delete();
+									bool deleted = toolboxButton.Site == null
+										&& toolboxButton.Parent == null
+										&& !rootControl.Controls.Contains(toolboxButton)
+										&& designerProperties.Host.Container.Components.Count == componentCountBeforeToolbox;
+									bool deleteUndoAvailable = designerContent.EnableUndo;
+									designerContent.Undo();
+									var restoredToolboxButton = string.IsNullOrEmpty(toolboxButtonName)
+										? null
+										: designerProperties.Host.Container.Components[toolboxButtonName] as System.Windows.Forms.Button;
+									bool deleteUndone = restoredToolboxButton != null
+										&& restoredToolboxButton.Location == new System.Drawing.Point(44, 42)
+										&& restoredToolboxButton.Size == new System.Drawing.Size(150, 48)
+										&& ReferenceEquals(restoredToolboxButton.Parent, rootControl)
+										&& ReferenceEquals(restoredToolboxButton.Site != null ? restoredToolboxButton.Site.Container : null,
+											designerProperties.Host.Container)
+										&& toolboxSelectionService != null
+										&& toolboxSelectionService.GetComponentSelected(restoredToolboxButton);
+									if (restoredToolboxButton != null)
+										toolboxButton = restoredToolboxButton;
+									bool deleteRedoAvailable = designerContent.EnableRedo;
+									designerContent.Redo();
+									bool deleteRedone = toolboxButton.Site == null
+										&& toolboxButton.Parent == null
+										&& !rootControl.Controls.Contains(toolboxButton)
+										&& designerProperties.Host.Container.Components.Count == componentCountBeforeToolbox;
+									toolboxDeleteUndoRedo = deleteEnabled && deleted
+										&& deleteUndoAvailable && deleteUndone
+										&& deleteRedoAvailable && deleteRedone;
 								}
 							}
 						} finally {
-							if (toolboxButton != null)
+							if (toolboxButton != null && toolboxButton.Site != null)
 								designerProperties.Host.DestroyComponent(toolboxButton);
 							toolboxRemoved = toolboxButton != null
 								&& toolboxButton.Site == null
@@ -918,6 +1352,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 						+ (selectedByService && selectedByContainer && selectedByGrid && valueVisible
 							&& flushPersisted && siteHasChangeService && shouldSerializeText
 							&& toolboxCreated && toolboxMoved && toolboxResized && toolboxUndoRedo
+							&& toolboxDeleteUndoRedo
 							&& toolboxRemoved ? "Success" : "Partial")
 						+ " component=" + mutationTarget.GetType().FullName
 						+ " name=" + (mutationTarget.Site != null ? mutationTarget.Site.Name : string.Empty)
@@ -932,6 +1367,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 						+ " toolboxMoved=" + toolboxMoved
 						+ " toolboxResized=" + toolboxResized
 						+ " toolboxUndoRedo=" + toolboxUndoRedo
+						+ " toolboxDeleteUndoRedo=" + toolboxDeleteUndoRedo
 						+ " toolboxRemoved=" + toolboxRemoved
 						+ " serializationName=" + serializationName
 						+ " rows=" + rowCount;
