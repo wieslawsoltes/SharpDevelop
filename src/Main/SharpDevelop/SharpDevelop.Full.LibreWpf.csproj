@@ -47,6 +47,7 @@
     </EmbeddedResource>
     <Content Include="app.template.config" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\Libraries\ICSharpCode.Build.Tasks\Project\SharpDevelop.TargetingPack.targets" Link="SharpDevelop.TargetingPack.targets" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Base\Project\ICSharpCode.SharpDevelop.addin" TargetPath="ICSharpCode.SharpDevelop.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\BackendBindings\CSharpBinding\Project\CSharpBinding.LibreWpf.addin" TargetPath="CSharpBinding.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\DisplayBindings\FormsDesigner\Project\FormsDesigner.addin" TargetPath="FormsDesigner.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\DisplayBindings\XmlEditor\Project\XmlEditor.addin" TargetPath="XmlEditor.addin" CopyToOutputDirectory="PreserveNewest" />

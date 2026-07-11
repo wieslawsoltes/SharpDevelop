@@ -288,17 +288,30 @@ namespace ICSharpCode.SharpDevelop.Startup
 				}
 				
 #if LIBREWPF
-				string addInsDirectory = Path.Combine(startup.ApplicationRootPath, "src", "AddIns");
-				string coreAddInFile = Path.Combine(startup.ApplicationRootPath, "src", "Main", "Base", "Project", "ICSharpCode.SharpDevelop.addin");
+				// The LibreWPF aggregate project copies only its supported add-in manifests
+				// beside the executable. Scanning the source tree also discovers manifests
+				// for add-ins that were not built (and duplicate bin/obj copies), which then
+				// fail assembly loading during normal startup.
+				string addInsDirectory = Path.GetDirectoryName(exe.Location);
+				string coreAddInFile = Path.Combine(addInsDirectory, "ICSharpCode.SharpDevelop.addin");
 				if (File.Exists(coreAddInFile)) {
 					startup.AddAddInFile(coreAddInFile);
 				}
+				if (Directory.Exists(addInsDirectory)) {
+					string[] addInFiles = Directory.GetFiles(addInsDirectory, "*.addin", SearchOption.TopDirectoryOnly);
+					Array.Sort(addInFiles, StringComparer.OrdinalIgnoreCase);
+					foreach (string addInFile in addInFiles) {
+						if (!String.Equals(addInFile, coreAddInFile, StringComparison.OrdinalIgnoreCase)) {
+							startup.AddAddInFile(addInFile);
+						}
+					}
+				}
 #else
 				string addInsDirectory = Path.Combine(startup.ApplicationRootPath, "AddIns");
-#endif
 				if (Directory.Exists(addInsDirectory)) {
 					startup.AddAddInsFromDirectory(addInsDirectory);
 				}
+#endif
 				
 				// allows testing addins without having to install them
 				foreach (string parameter in SplashScreenForm.GetParameterList()) {
