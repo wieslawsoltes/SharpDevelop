@@ -20,6 +20,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Remove="Resources\*.xfrm;Resources\DefaultManifest.manifest" />
+    <EmbeddedResource Include="Resources\*.xfrm;Resources\DefaultManifest.manifest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="..\..\GlobalAssemblyInfo.cs" Link="Configuration\GlobalAssemblyInfo.cs" />
     <Compile Include="..\..\..\Libraries\ICSharpCode.Build.Tasks\Project\KnownFrameworkAssemblies.cs" Link="Src\Gui\Dialogs\ReferenceDialog\KnownFrameworkAssemblies.cs" />
   </ItemGroup>
