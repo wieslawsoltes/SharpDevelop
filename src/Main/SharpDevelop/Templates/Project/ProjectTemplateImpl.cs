@@ -236,12 +236,12 @@ namespace ICSharpCode.SharpDevelop.Templates
 						try {
 							ICommand command = SD.AddInTree.BuildItem(path, null) as ICommand;
 							if (command == null) {
-								MessageService.ShowWarning("Template command not found: " + path + " - in " + el.OwnerDocument.DocumentElement.GetAttribute("fileName"));
+								ReportWarning("Template command not found: " + path + " - in " + el.OwnerDocument.DocumentElement.GetAttribute("fileName"));
 								return null;
 							}
 							return command.Execute;
 						} catch (TreePathNotFoundException ex) {
-							MessageService.ShowWarning(ex.Message + " - in " + el.OwnerDocument.DocumentElement.GetAttribute("fileName"));
+							ReportWarning(ex.Message + " - in " + el.OwnerDocument.DocumentElement.GetAttribute("fileName"));
 							return null;
 						}
 					} else {
@@ -256,25 +256,35 @@ namespace ICSharpCode.SharpDevelop.Templates
 		
 		internal static void WarnObsoleteNode(XmlElement element, string message)
 		{
-			MessageService.ShowWarning("Obsolete node <" + element.Name +
-			                           "> used in '" + element.OwnerDocument.DocumentElement.GetAttribute("fileName") +
-			                           "':\n" + message);
+			ReportWarning("Obsolete node <" + element.Name +
+			              "> used in '" + element.OwnerDocument.DocumentElement.GetAttribute("fileName") +
+			              "':\n" + message);
 		}
 		
 		internal static void WarnObsoleteAttribute(XmlElement element, string attribute, string message)
 		{
-			MessageService.ShowWarning("Obsolete attribute <" + element.Name +
-			                           " " + attribute + "=...>" +
-			                           "used in '" + element.OwnerDocument.DocumentElement.GetAttribute("fileName") +
-			                           "':\n" + message);
+			ReportWarning("Obsolete attribute <" + element.Name +
+			              " " + attribute + "=...>" +
+			              "used in '" + element.OwnerDocument.DocumentElement.GetAttribute("fileName") +
+			              "':\n" + message);
 		}
 		
 		internal static void WarnAttributeMissing(XmlElement element, string attribute)
 		{
-			MessageService.ShowWarning("Missing attribute <" + element.Name +
-			                           " " + attribute + "=...>" +
-			                           " in '" + element.OwnerDocument.DocumentElement.GetAttribute("fileName") +
-			                           "'");
+			ReportWarning("Missing attribute <" + element.Name +
+			              " " + attribute + "=...>" +
+			              " in '" + element.OwnerDocument.DocumentElement.GetAttribute("fileName") +
+			              "'");
+		}
+
+		internal static void ReportWarning(string message)
+		{
+#if LIBREWPF
+			LoggingService.Warn(message);
+			Console.WriteLine("LibreWPF template warning: " + message);
+#else
+			MessageService.ShowWarning(message);
+#endif
 		}
 		
 		public override ProjectTemplateResult CreateProjects(ProjectTemplateOptions options)

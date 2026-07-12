@@ -329,15 +329,15 @@ namespace ICSharpCode.SharpDevelop.Templates
 						try {
 							ICommand command = SD.AddInTree.BuildItem(path, null) as ICommand;
 							if (command == null) {
-								MessageService.ShowWarning("Template action command is unavailable: " + path + " - in " + el.OwnerDocument.DocumentElement.GetAttribute("fileName"));
+								ProjectTemplateImpl.ReportWarning("Template action command is unavailable: " + path + " - in " + el.OwnerDocument.DocumentElement.GetAttribute("fileName"));
 								return null;
 							}
 							return command.Execute;
 						} catch (TreePathNotFoundException ex) {
-							MessageService.ShowWarning(ex.Message + " - in " + el.OwnerDocument.DocumentElement.GetAttribute("fileName"));
+							ProjectTemplateImpl.ReportWarning(ex.Message + " - in " + el.OwnerDocument.DocumentElement.GetAttribute("fileName"));
 							return null;
 						} catch (Exception ex) {
-							MessageService.ShowWarning("Template action command failed: " + path + " - in " + el.OwnerDocument.DocumentElement.GetAttribute("fileName") + Environment.NewLine + ex.Message);
+							ProjectTemplateImpl.ReportWarning("Template action command failed: " + path + " - in " + el.OwnerDocument.DocumentElement.GetAttribute("fileName") + Environment.NewLine + ex.Message);
 							return null;
 						}
 					} else {
