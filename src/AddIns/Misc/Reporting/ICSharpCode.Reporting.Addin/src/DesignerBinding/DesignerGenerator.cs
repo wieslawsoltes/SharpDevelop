@@ -46,7 +46,8 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 		
 		public void Detach()
 		{
-			throw new NotImplementedException();
+			viewContent = null;
+			reportFileContent = null;
 		}
 		
 		public System.Collections.Generic.IEnumerable<OpenedFile> GetSourceFiles(out OpenedFile designerCodeFile)

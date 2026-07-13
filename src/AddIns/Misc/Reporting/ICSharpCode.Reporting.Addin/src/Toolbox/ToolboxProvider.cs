@@ -41,6 +41,13 @@ namespace ICSharpCode.Reporting.Addin.Toolbox
 			}
 			ViewCount++;
 		}
+
+		public static void RemoveViewContent(IViewContent viewContent){
+			if (viewContent == null)
+				throw new ArgumentNullException("viewContent");
+			if (ViewCount > 0)
+				ViewCount--;
+		}
 		
 		static void Initialise(){
 			initialised = true;
@@ -190,7 +197,12 @@ namespace ICSharpCode.Reporting.Addin.Toolbox
 				viewCount = value;
 				
 				if (viewCount == 0)	{
+					if (reportingSideBar != null) {
+						reportingSideBar.Dispose();
+						reportingSideBar = null;
+					}
 					standardSideTab = null;
+					initialised = false;
 				}
 			}
 		}

@@ -559,6 +559,79 @@ namespace ICSharpCode.Reporting.Addin.Views
 			}
 			loader.WriteReportContent(stream);
 		}
+
+		public override void Dispose()
+		{
+			if (IsDisposed) {
+				return;
+			}
+
+			try {
+				base.Dispose();
+			} finally {
+				DisposeDesignerResources();
+			}
+		}
+
+		void DisposeDesignerResources()
+		{
+			unloading = true;
+			propertyContainer.Clear();
+
+			if (designSurface != null) {
+				var selectionService = designSurface.GetService(typeof(ISelectionService)) as ISelectionService;
+				if (selectionService != null) {
+					selectionService.SelectionChanged -= SelectionChangedHandler;
+				}
+
+				var componentChangeService = designSurface.GetService(typeof(IComponentChangeService)) as IComponentChangeService;
+				if (componentChangeService != null) {
+					componentChangeService.ComponentChanged -= OnComponentChanged;
+					componentChangeService.ComponentAdded -= OnComponentListChanged;
+					componentChangeService.ComponentRemoved -= OnComponentListChanged;
+					componentChangeService.ComponentRename -= OnComponentListChanged;
+				}
+
+				var host = designSurface.GetService(typeof(IDesignerHost)) as IDesignerHost;
+				if (host != null) {
+					host.TransactionClosed -= TransactionClose;
+				}
+
+				designSurface.Loading -= DesignerLoading;
+				designSurface.Loaded -= DesignerLoaded;
+				designSurface.Flushed -= DesignerFlushed;
+				designSurface.Unloading -= DesingerUnloading;
+				if (ReferenceEquals(designSurfaceManager.ActiveDesignSurface, designSurface)) {
+					designSurfaceManager.ActiveDesignSurface = null;
+				}
+			}
+
+			if (loader != null) {
+				loader.ReloadFailed -= ReportReloadFailed;
+			}
+			if (undoEngine != null) {
+				undoEngine.Dispose();
+				undoEngine = null;
+			}
+
+			if (designSurface != null) {
+				designSurface.Dispose();
+				designSurface = null;
+			}
+			loader = null;
+
+			if (defaultServiceContainer != null) {
+				defaultServiceContainer.Dispose();
+				defaultServiceContainer = null;
+			}
+			if (panel != null) {
+				panel.Dispose();
+				panel = null;
+			}
+
+			generator.Detach();
+			ToolboxProvider.RemoveViewContent(this);
+		}
 		
 		#endregion
 	}
