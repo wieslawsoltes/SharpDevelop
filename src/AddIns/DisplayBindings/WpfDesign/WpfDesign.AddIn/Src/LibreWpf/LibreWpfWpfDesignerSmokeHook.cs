@@ -32,6 +32,8 @@ using ICSharpCode.Core;
 using ICSharpCode.SharpDevelop;
 using ICSharpCode.SharpDevelop.Project;
 using ICSharpCode.SharpDevelop.Workbench;
+using ICSharpCode.WpfDesign.Adorners;
+using ICSharpCode.WpfDesign.Designer.Extensions;
 using ICSharpCode.WpfDesign.Designer.OutlineView;
 using ICSharpCode.WpfDesign.Designer.PropertyGrid;
 using ICSharpCode.WpfDesign.Designer.Services;
@@ -107,7 +109,15 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					|| !toolboxResult.SelectionReady || !toolboxResult.PropertyGridReady
 					|| !toolboxResult.XamlReady || !toolboxResult.UndoReady
 					|| !toolboxResult.RedoReady || !toolboxResult.RestoreReady
-					|| !toolboxResult.ToolResetReady)
+					|| !toolboxResult.ToolResetReady
+					|| !toolboxResult.PointerToolReady || !toolboxResult.PointerMissFailClosed
+					|| !toolboxResult.PointerHitReady || !toolboxResult.PointerSelectionReady
+					|| !toolboxResult.PointerPropertyGridReady
+					|| !toolboxResult.PointerAdornerExtensionReady
+					|| !toolboxResult.PointerAdornerPanelReady
+					|| !toolboxResult.PointerMoveReady || !toolboxResult.PointerXamlReady
+					|| !toolboxResult.PointerUndoReady || !toolboxResult.PointerRedoReady
+					|| !toolboxResult.PointerRestoreReady)
 					throw new InvalidOperationException(
 						"The WPF designer did not reach its selected, editable, and presented state."
 						+ " selected=" + selectionReady
@@ -137,7 +147,19 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 						+ " toolboxUndo=" + toolboxResult.UndoReady
 						+ " toolboxRedo=" + toolboxResult.RedoReady
 						+ " toolboxRestore=" + toolboxResult.RestoreReady
-						+ " toolboxToolReset=" + toolboxResult.ToolResetReady);
+						+ " toolboxToolReset=" + toolboxResult.ToolResetReady
+						+ " pointerTool=" + toolboxResult.PointerToolReady
+						+ " pointerMissFailClosed=" + toolboxResult.PointerMissFailClosed
+						+ " pointerHit=" + toolboxResult.PointerHitReady
+						+ " pointerSelection=" + toolboxResult.PointerSelectionReady
+						+ " pointerPropertyGrid=" + toolboxResult.PointerPropertyGridReady
+						+ " pointerAdornerExtension=" + toolboxResult.PointerAdornerExtensionReady
+						+ " pointerAdornerPanel=" + toolboxResult.PointerAdornerPanelReady
+						+ " pointerMove=" + toolboxResult.PointerMoveReady
+						+ " pointerXaml=" + toolboxResult.PointerXamlReady
+						+ " pointerUndo=" + toolboxResult.PointerUndoReady
+						+ " pointerRedo=" + toolboxResult.PointerRedoReady
+						+ " pointerRestore=" + toolboxResult.PointerRestoreReady);
 
 				WriteResult(
 					"Success",
@@ -151,7 +173,12 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					+ " toolboxToolSelected=True toolboxInserted=True"
 					+ " toolboxPrimary=" + toolboxResult.PrimaryTypeName
 					+ " toolboxSelection=True toolboxPropertyGrid=True toolboxXaml=True"
-					+ " toolboxUndo=True toolboxRedo=True toolboxRestore=True toolboxToolReset=True");
+					+ " toolboxUndo=True toolboxRedo=True toolboxRestore=True toolboxToolReset=True"
+					+ " pointerTool=True pointerMissFailClosed=True pointerHit=True"
+					+ " pointerSelection=True pointerPropertyGrid=True"
+					+ " pointerAdornerExtension=True pointerAdornerPanel=True"
+					+ " pointerMove=True pointerXaml=True pointerUndo=True pointerRedo=True"
+					+ " pointerRestore=True");
 			} finally {
 				if (primary != null && primary.WorkbenchWindow != null)
 					primary.WorkbenchWindow.CloseWindow(true);
@@ -361,6 +388,8 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				string insertedXaml = SaveDesignerToString(designer);
 				result.XamlReady = !string.Equals(insertedXaml, originalXaml, StringComparison.Ordinal)
 					&& CountElementsByLocalName(insertedXaml, "Button") == originalButtonCount + 1;
+				if (result.XamlReady)
+					await VerifyPointerManipulationAsync(designer, createdItem, insertedXaml, result);
 
 				designer.DesignSurface.Undo();
 				result.UndoReady = !ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(createdItem)
@@ -397,6 +426,143 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			}
 
 			return result;
+		}
+
+		static async Task VerifyPointerManipulationAsync(
+			WpfViewContent designer,
+			ICSharpCode.WpfDesign.DesignItem item,
+			string originalXaml,
+			ToolboxSmokeResult result)
+		{
+			var context = designer.DesignContext;
+			var selection = context.Services.Selection;
+			var propertyGridView = designer.PropertyContainer.PropertyGridReplacementContent as PropertyGridView;
+			var pointerTool = context.Services.Tool.PointerTool as ICSharpCode.WpfDesign.IPointerTool;
+			var view = item.View as FrameworkElement;
+			var undoService = context.Services.GetService<UndoService>();
+			result.PointerToolReady = pointerTool != null
+				&& ReferenceEquals(context.Services.Tool.CurrentTool, context.Services.Tool.PointerTool)
+				&& view != null
+				&& undoService != null;
+			if (!result.PointerToolReady)
+				return;
+
+			selection.SetSelectedComponents(null);
+			int originalUndoCount = undoService.UndoActions.Count();
+			result.PointerMissFailClosed = pointerTool.TryStartGesture(
+				designer.DesignSurface.DesignPanel,
+				new Point(double.NaN, 0),
+				1,
+				ICSharpCode.WpfDesign.SelectionTypes.Primary) == null
+				&& pointerTool.TryStartGesture(
+					designer.DesignSurface.DesignPanel,
+					new Point(-8, -8),
+					1,
+					ICSharpCode.WpfDesign.SelectionTypes.Primary) == null
+				&& selection.SelectionCount == 0
+				&& undoService.UndoActions.Count() == originalUndoCount
+				&& string.Equals(SaveDesignerToString(designer), originalXaml, StringComparison.Ordinal);
+			if (!result.PointerMissFailClosed)
+				return;
+
+			designer.DesignSurface.ApplyTemplate();
+			designer.DesignSurface.UpdateLayout();
+			Point pointerPosition = view.TranslatePoint(
+				new Point(view.ActualWidth / 2, view.ActualHeight / 2),
+				designer.DesignSurface.DesignPanel);
+			var hit = designer.DesignSurface.DesignPanel.HitTest(
+				pointerPosition,
+				false,
+				true,
+				ICSharpCode.WpfDesign.HitTestType.ElementSelection);
+			result.PointerHitReady = ReferenceEquals(hit.ModelHit, item);
+			if (!result.PointerHitReady)
+				return;
+
+			var gesture = pointerTool.TryStartGesture(
+				designer.DesignSurface.DesignPanel,
+				pointerPosition,
+				1,
+				ICSharpCode.WpfDesign.SelectionTypes.Primary);
+			if (gesture == null || !ReferenceEquals(gesture.HitItem, item))
+				return;
+
+			for (int attempt = 0; attempt < 50; attempt++) {
+				result.PointerSelectionReady = ReferenceEquals(selection.PrimarySelection, item)
+					&& selection.SelectionCount == 1
+					&& selection.SelectedItems.Contains(item);
+				result.PointerPropertyGridReady = propertyGridView != null
+					&& ReferenceEquals(propertyGridView.PropertyGrid.SingleItem, item)
+					&& propertyGridView.PropertyGrid.SelectedItems != null
+					&& propertyGridView.PropertyGrid.SelectedItems.Contains(item);
+
+				var resizeExtension = item.Extensions.OfType<ResizeThumbExtension>().SingleOrDefault();
+				var selectionAdorners = item.Extensions
+					.OfType<SelectionAdornerProvider>()
+					.SelectMany(provider => provider.Adorners)
+					.ToArray();
+				result.PointerAdornerExtensionReady = resizeExtension != null
+					&& resizeExtension.Adorners.Count > 0
+					&& selectionAdorners.Length > 0;
+				result.PointerAdornerPanelReady = result.PointerAdornerExtensionReady
+					&& selectionAdorners.All(designer.DesignSurface.DesignPanel.Adorners.Contains);
+				if (result.PointerSelectionReady
+					&& result.PointerPropertyGridReady
+					&& result.PointerAdornerExtensionReady
+					&& result.PointerAdornerPanelReady)
+					break;
+				await Task.Delay(50);
+			}
+
+			if (!result.PointerSelectionReady
+				|| !result.PointerPropertyGridReady
+				|| !result.PointerAdornerExtensionReady
+				|| !result.PointerAdornerPanelReady) {
+				gesture.Cancel();
+				return;
+			}
+
+			result.PointerMoveReady = gesture.Move(pointerPosition + new Vector(16, 12))
+				&& gesture.HasMoved;
+			if (!result.PointerMoveReady) {
+				gesture.Cancel();
+				return;
+			}
+
+			gesture.Complete();
+			string movedXaml = SaveDesignerToString(designer);
+			result.PointerMoveReady = result.PointerMoveReady
+				&& !gesture.IsActive
+				&& undoService.UndoActions.Count() == originalUndoCount + 1;
+			result.PointerXamlReady = !string.Equals(movedXaml, originalXaml, StringComparison.Ordinal);
+
+			designer.DesignSurface.Undo();
+			result.PointerUndoReady = undoService.UndoActions.Count() == originalUndoCount
+				&& string.Equals(SaveDesignerToString(designer), originalXaml, StringComparison.Ordinal)
+				&& designer.DesignSurface.CanRedo();
+
+			designer.DesignSurface.Redo();
+			result.PointerRedoReady = string.Equals(
+				SaveDesignerToString(designer),
+				movedXaml,
+				StringComparison.Ordinal);
+
+			designer.DesignSurface.Undo();
+			for (int attempt = 0; attempt < 50; attempt++) {
+				bool sourceRestored = undoService.UndoActions.Count() == originalUndoCount
+					&& string.Equals(SaveDesignerToString(designer), originalXaml, StringComparison.Ordinal);
+				bool selectionRestored = ReferenceEquals(selection.PrimarySelection, item)
+					&& selection.SelectionCount == 1
+					&& selection.SelectedItems.Contains(item);
+				bool propertyGridRestored = propertyGridView != null
+					&& ReferenceEquals(propertyGridView.PropertyGrid.SingleItem, item);
+				result.PointerRestoreReady = sourceRestored
+					&& selectionRestored
+					&& propertyGridRestored;
+				if (result.PointerRestoreReady)
+					break;
+				await Task.Delay(50);
+			}
 		}
 
 		static string SaveDesignerToString(WpfViewContent designer)
@@ -439,6 +605,18 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			public bool RedoReady;
 			public bool RestoreReady;
 			public bool ToolResetReady;
+			public bool PointerToolReady;
+			public bool PointerMissFailClosed;
+			public bool PointerHitReady;
+			public bool PointerSelectionReady;
+			public bool PointerPropertyGridReady;
+			public bool PointerAdornerExtensionReady;
+			public bool PointerAdornerPanelReady;
+			public bool PointerMoveReady;
+			public bool PointerXamlReady;
+			public bool PointerUndoReady;
+			public bool PointerRedoReady;
+			public bool PointerRestoreReady;
 		}
 
 		static async Task WaitForProjectAsync()
