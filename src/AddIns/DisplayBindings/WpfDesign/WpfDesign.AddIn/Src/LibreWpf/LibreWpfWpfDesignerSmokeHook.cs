@@ -32,6 +32,7 @@ using ICSharpCode.Core;
 using ICSharpCode.SharpDevelop;
 using ICSharpCode.SharpDevelop.Project;
 using ICSharpCode.SharpDevelop.Workbench;
+using ICSharpCode.WpfDesign.Designer.OutlineView;
 using ICSharpCode.WpfDesign.Designer.PropertyGrid;
 
 namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
@@ -93,8 +94,13 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				bool redoReady;
 				bool saveReady;
 				VerifyEditUndoRedoAndSave(designer, out editReady, out undoReady, out redoReady, out saveReady);
+				var outlineResult = await VerifyOutlineSelectionAsync(designer);
 				if (!selectionReady || !propertyGridReady || !rootViewReady || !presented
-					|| !editReady || !undoReady || !redoReady || !saveReady)
+					|| !editReady || !undoReady || !redoReady || !saveReady
+					|| !outlineResult.SelectionReady || !outlineResult.PropertyGridReady
+					|| !outlineResult.EditReady || !outlineResult.UndoReady
+					|| !outlineResult.RedoReady || !outlineResult.SaveReady
+					|| !outlineResult.RestoreReady)
 					throw new InvalidOperationException(
 						"The WPF designer did not reach its selected, editable, and presented state."
 						+ " selected=" + selectionReady
@@ -106,14 +112,25 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 						+ " edit=" + editReady
 						+ " undo=" + undoReady
 						+ " redo=" + redoReady
-						+ " save=" + saveReady);
+						+ " save=" + saveReady
+						+ " outlineSelection=" + outlineResult.SelectionReady
+						+ " outlinePrimary=" + outlineResult.PrimaryTypeName
+						+ " outlinePropertyGrid=" + outlineResult.PropertyGridReady
+						+ " outlineEdit=" + outlineResult.EditReady
+						+ " outlineUndo=" + outlineResult.UndoReady
+						+ " outlineRedo=" + outlineResult.RedoReady
+						+ " outlineSave=" + outlineResult.SaveReady
+						+ " outlineRestore=" + outlineResult.RestoreReady);
 
 				WriteResult(
 					"Success",
 					"file=" + Path.GetFileName(filePath)
 					+ " root=" + designer.DesignContext.RootItem.ComponentType.FullName
 					+ " selected=" + primarySelection.ComponentType.FullName
-					+ " propertyGrid=True presented=True edit=True undo=True redo=True save=True");
+					+ " propertyGrid=True presented=True edit=True undo=True redo=True save=True"
+					+ " outlineSelection=True outlinePrimary=" + outlineResult.PrimaryTypeName
+					+ " outlinePropertyGrid=True outlineEdit=True outlineUndo=True outlineRedo=True"
+					+ " outlineSave=True outlineRestore=True");
 			} finally {
 				if (primary != null && primary.WorkbenchWindow != null)
 					primary.WorkbenchWindow.CloseWindow(true);
@@ -176,6 +193,106 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			}
 
 			return designer.DesignContext.Services.Selection;
+		}
+
+		static async Task<OutlineSmokeResult> VerifyOutlineSelectionAsync(WpfViewContent designer)
+		{
+			var selection = designer.DesignContext.Services.Selection;
+			var originalItems = selection.SelectedItems.ToArray();
+			var originalPrimary = selection.PrimarySelection;
+			var propertyGridView = designer.PropertyContainer.PropertyGridReplacementContent as PropertyGridView;
+			var outlineRoot = designer.Outline.Root;
+			if (outlineRoot == null)
+				throw new InvalidOperationException("The WPF designer outline did not publish a root node.");
+
+			var outlineTarget = outlineRoot.Children.FirstOrDefault();
+			if (outlineTarget == null)
+				throw new InvalidOperationException("The WPF designer outline did not publish a selectable child node.");
+
+			var result = new OutlineSmokeResult {
+				PrimaryTypeName = outlineTarget.DesignItem.ComponentType.FullName
+			};
+			try {
+				selection.SetSelectedComponents(null);
+				outlineTarget.IsSelected = true;
+				for (int attempt = 0; attempt < 50; attempt++) {
+					result.SelectionReady = ReferenceEquals(selection.PrimarySelection, outlineTarget.DesignItem)
+						&& selection.SelectedItems.Count == 1
+						&& selection.SelectedItems.Contains(outlineTarget.DesignItem)
+						&& outlineTarget.IsSelected;
+					result.PropertyGridReady = propertyGridView != null
+						&& ReferenceEquals(propertyGridView.PropertyGrid.SingleItem, outlineTarget.DesignItem)
+						&& propertyGridView.PropertyGrid.SelectedItems != null
+						&& propertyGridView.PropertyGrid.SelectedItems.Contains(outlineTarget.DesignItem);
+					if (result.SelectionReady && result.PropertyGridReady)
+						break;
+					await Task.Delay(50);
+				}
+
+				VerifyOutlineEditUndoRedoAndSave(designer, outlineTarget.DesignItem, result);
+			} finally {
+				selection.SetSelectedComponents(originalItems, ICSharpCode.WpfDesign.SelectionTypes.Replace);
+				if (originalPrimary != null) {
+					selection.SetSelectedComponents(
+						new[] { originalPrimary },
+						ICSharpCode.WpfDesign.SelectionTypes.Primary);
+				}
+			}
+
+			for (int attempt = 0; attempt < 50; attempt++) {
+				bool selectionRestored = ReferenceEquals(selection.PrimarySelection, originalPrimary)
+					&& selection.SelectedItems.Count == originalItems.Length
+					&& originalItems.All(selection.SelectedItems.Contains)
+					&& !outlineTarget.IsSelected;
+				bool propertyGridRestored = propertyGridView != null
+					&& ReferenceEquals(propertyGridView.PropertyGrid.SingleItem, originalPrimary);
+				result.RestoreReady = selectionRestored && propertyGridRestored;
+				if (result.RestoreReady)
+					break;
+				await Task.Delay(50);
+			}
+
+			return result;
+		}
+
+		static void VerifyOutlineEditUndoRedoAndSave(
+			WpfViewContent designer,
+			ICSharpCode.WpfDesign.DesignItem outlineItem,
+			OutlineSmokeResult result)
+		{
+			const string editedTag = "LibreWPF outline smoke edit";
+			var tagProperty = outlineItem.Properties.GetProperty("Tag");
+			object originalTag = tagProperty.ValueOnInstance;
+			tagProperty.SetValue(editedTag);
+			result.EditReady = Equals(tagProperty.ValueOnInstance, editedTag)
+				&& designer.DesignSurface.CanUndo();
+
+			designer.DesignSurface.Undo();
+			result.UndoReady = Equals(tagProperty.ValueOnInstance, originalTag)
+				&& designer.DesignSurface.CanRedo();
+			designer.DesignSurface.Redo();
+			result.RedoReady = Equals(tagProperty.ValueOnInstance, editedTag);
+
+			var output = new StringBuilder();
+			using (var writer = XmlWriter.Create(output, new XmlWriterSettings { OmitXmlDeclaration = true })) {
+				designer.DesignSurface.SaveDesigner(writer);
+			}
+			result.SaveReady = output.ToString().Contains(editedTag);
+
+			designer.DesignSurface.Undo();
+			result.UndoReady = result.UndoReady && Equals(tagProperty.ValueOnInstance, originalTag);
+		}
+
+		sealed class OutlineSmokeResult
+		{
+			public string PrimaryTypeName;
+			public bool SelectionReady;
+			public bool PropertyGridReady;
+			public bool EditReady;
+			public bool UndoReady;
+			public bool RedoReady;
+			public bool SaveReady;
+			public bool RestoreReady;
 		}
 
 		static async Task WaitForProjectAsync()
