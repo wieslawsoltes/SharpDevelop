@@ -144,5 +144,9 @@
 		                title = "Class Diagram"/>
 	</Path>
 
+	<Path name="/SharpDevelop/LibreWpf/SmokeHooks">
+		<Class id="ClassDiagramSmoke" class="ClassDiagramAddin.LibreWpf.LibreWpfClassDiagramSmokeHook"/>
+	</Path>
+
 	<BitmapResources file="Resources\Bitmaps.resources" />
 </AddIn>

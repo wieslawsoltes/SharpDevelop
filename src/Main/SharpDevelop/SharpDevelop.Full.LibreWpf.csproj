@@ -50,6 +50,8 @@
     <None Include="..\Base\Project\ICSharpCode.SharpDevelop.addin" TargetPath="ICSharpCode.SharpDevelop.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\BackendBindings\CSharpBinding\Project\CSharpBinding.LibreWpf.addin" TargetPath="CSharpBinding.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\DisplayBindings\FormsDesigner\Project\FormsDesigner.addin" TargetPath="FormsDesigner.addin" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\AddIns\DisplayBindings\ClassDiagram\ClassDiagramAddin\ClassDiagramAddin.addin" TargetPath="ClassDiagramAddin.addin" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\AddIns\DisplayBindings\ClassDiagram\ClassDiagramAddin\Resources\Bitmaps.resources" TargetPath="Resources\Bitmaps.resources" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\DisplayBindings\HexEditor\Project\HexEditor.addin" TargetPath="HexEditor.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\DisplayBindings\ResourceEditor\Project\ResourceEditor.addin" TargetPath="ResourceEditor.addin" CopyToOutputDirectory="PreserveNewest" Condition="'$(LibreWpfSharpDevelopIncludeResourceEditor)' == 'true'" />
     <None Include="..\..\AddIns\DisplayBindings\XmlEditor\Project\XmlEditor.addin" TargetPath="XmlEditor.addin" CopyToOutputDirectory="PreserveNewest" />
@@ -88,6 +90,7 @@
     <ProjectReference Include="..\..\Libraries\AvalonEdit\ICSharpCode.AvalonEdit\ICSharpCode.AvalonEdit.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\AvalonEdit.AddIn\AvalonEdit.AddIn.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\FormsDesigner\Project\FormsDesigner.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\AddIns\DisplayBindings\ClassDiagram\ClassDiagramAddin\ClassDiagramAddin.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\HexEditor\Project\HexEditor.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\ResourceEditor\Project\ResourceEditor.LibreWpf.csproj" Condition="'$(LibreWpfSharpDevelopIncludeResourceEditor)' == 'true'" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\XmlEditor\Project\XmlEditor.LibreWpf.csproj" />
