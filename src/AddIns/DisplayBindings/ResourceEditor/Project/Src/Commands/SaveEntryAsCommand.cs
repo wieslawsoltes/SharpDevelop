@@ -76,9 +76,15 @@ namespace ResourceEditor.Commands
 					FileStream fstr = new FileStream(sdialog.FileName, FileMode.Create);
 					((Icon) firstSelectedItem.ResourceValue).Save(fstr);
 					fstr.Close();
+				#if LIBREWPF
+				} else if (firstSelectedItem.ResourceValue is Bitmap) {
+					Bitmap bitmap = (Bitmap)firstSelectedItem.ResourceValue;
+					bitmap.Save(sdialog.FileName);
+				#else
 				} else if (firstSelectedItem.ResourceValue is Image) {
-					Image img = (Image) firstSelectedItem.ResourceValue;
-					img.Save(sdialog.FileName);
+					Image image = (Image)firstSelectedItem.ResourceValue;
+					image.Save(sdialog.FileName);
+				#endif
 				} else {
 					FileStream fstr = new FileStream(sdialog.FileName, FileMode.Create);
 					BinaryWriter wr = new BinaryWriter(fstr);

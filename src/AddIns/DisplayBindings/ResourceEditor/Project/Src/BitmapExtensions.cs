@@ -18,9 +18,14 @@
 
 using System;
 using System.Drawing;
+#if LIBREWPF
+using System.Drawing.Imaging;
+using System.IO;
+#else
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+#endif
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -31,12 +36,30 @@ namespace ResourceEditor
 	/// </summary>
 	public static class BitmapExtensions
 	{
+	#if !LIBREWPF
 		[DllImport("gdi32.dll")]
 		[return: MarshalAs(UnmanagedType.Bool)]
 		public static extern bool DeleteObject(IntPtr hObject);
-		
+	#endif
+
 		public static BitmapSource ToBitmapSource(this System.Drawing.Bitmap bitmap)
 		{
+		#if LIBREWPF
+			if (bitmap == null)
+				throw new ArgumentNullException("bitmap");
+
+			using (var stream = new MemoryStream()) {
+				bitmap.Save(stream, ImageFormat.Png);
+				stream.Position = 0;
+				var decoder = new PngBitmapDecoder(
+					stream,
+					BitmapCreateOptions.PreservePixelFormat,
+					BitmapCacheOption.OnLoad);
+				BitmapSource source = decoder.Frames[0];
+				source.Freeze();
+				return source;
+			}
+		#else
 			BitmapSource bs;
 			IntPtr hBitmap = bitmap.GetHbitmap();
 			try {
@@ -47,16 +70,24 @@ namespace ResourceEditor
 				DeleteObject(hBitmap);
 			}
 			return bs;
+		#endif
 		}
 		
 		public static ImageSource ToImageSource(this Icon icon)
 		{
-			ImageSource imageSource = Imaging.CreateBitmapSourceFromHIcon(
-				                          icon.Handle,
-				                          Int32Rect.Empty,
-				                          BitmapSizeOptions.FromEmptyOptions());
+		#if LIBREWPF
+			if (icon == null)
+				throw new ArgumentNullException("icon");
 
-			return imageSource;
+			using (Bitmap bitmap = icon.ToBitmap()) {
+				return bitmap.ToBitmapSource();
+			}
+		#else
+			return Imaging.CreateBitmapSourceFromHIcon(
+				icon.Handle,
+				Int32Rect.Empty,
+				BitmapSizeOptions.FromEmptyOptions());
+		#endif
 		}
 		
 		public static ImageSource ToImageSource(this System.Windows.Forms.Cursor cursor)
