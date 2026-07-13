@@ -1,0 +1,42 @@
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.10">
+  <PropertyGroup>
+    <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>ClassCanvas</AssemblyName>
+    <RootNamespace>ClassCanvas</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\..\..\Main\ICSharpCode.SharpDevelop.snk</AssemblyOriginatorKeyFile>
+    <DefineConstants>$(DefineConstants);LIBREWPF</DefineConstants>
+    <NoWarn>$(NoWarn);0809;1591;CS1591;CS0618;SYSLIB0003;SYSLIB0050;SYSLIB0051;NU1603</NoWarn>
+    <ProGpuSystemDrawingCommonAssembly Condition="'$(ProGpuSystemDrawingCommonAssembly)' == ''">$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll</ProGpuSystemDrawingCommonAssembly>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\..\..\Main\GlobalAssemblyInfo.cs" Link="GlobalAssemblyInfo.cs" />
+    <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="Decorators\**\*.cs" />
+    <Compile Include="Interactivity\**\*.cs" />
+    <Compile Include="Shapes\**\*.cs" />
+    <Compile Include="Src\**\*.cs" />
+    <EmbeddedResource Include="Src\ClassCanvas.resx">
+      <DependentUpon>ClassCanvas.Designer.cs</DependentUpon>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuWpfSdkVersion)" ExcludeAssets="compile;runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Drawing.Common"
+               HintPath="$(ProGpuSystemDrawingCommonAssembly)"
+               Private="true"
+               Condition="Exists('$(ProGpuSystemDrawingCommonAssembly)')" />
+    <ProjectReference Include="..\DiagramRouter\Diagrams.LibreWpf.csproj" />
+  </ItemGroup>
+</Project>

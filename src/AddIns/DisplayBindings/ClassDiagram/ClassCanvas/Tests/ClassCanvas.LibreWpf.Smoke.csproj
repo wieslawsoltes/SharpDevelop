@@ -1,0 +1,27 @@
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.10">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>ClassCanvas.LibreWpf.Smoke</AssemblyName>
+    <RootNamespace>ClassCanvas.LibreWpf.Smoke</RootNamespace>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <DefineConstants>$(DefineConstants);LIBREWPF</DefineConstants>
+    <NoWarn>$(NoWarn);0809;1591;CS1591;CS0618;SYSLIB0003;SYSLIB0050;SYSLIB0051;NU1603</NoWarn>
+    <ProGpuSystemDrawingCommonAssembly Condition="'$(ProGpuSystemDrawingCommonAssembly)' == ''">$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll</ProGpuSystemDrawingCommonAssembly>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuWpfSdkVersion)" ExcludeAssets="compile;runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Drawing.Common"
+               HintPath="$(ProGpuSystemDrawingCommonAssembly)"
+               Private="true"
+               Condition="Exists('$(ProGpuSystemDrawingCommonAssembly)')" />
+    <ProjectReference Include="..\ClassCanvas.LibreWpf.csproj" />
+  </ItemGroup>
+</Project>
