@@ -77,6 +77,7 @@
       <DependentUpon>StartPageControl.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="Src\StartPageBuildMetadata.cs" />
     <Compile Include="Src\StartPageViewContent.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -1,0 +1,41 @@
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.10">
+  <PropertyGroup>
+    <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>StartPage</AssemblyName>
+    <RootNamespace>ICSharpCode.StartPage</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <DefineConstants>$(DefineConstants);LIBREWPF</DefineConstants>
+    <NoWarn>$(NoWarn);0809;1591;CS1591;CS0618;NU1603</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="obj/**" />
+    <EmbeddedResource Remove="obj/**" />
+    <None Remove="obj/**" />
+    <Page Remove="obj/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Configuration/AssemblyInfo.cs" />
+    <Compile Include="Src/**/*.cs" />
+    <Compile Include="../../../../Main/GlobalAssemblyInfo.cs" Link="Configuration/GlobalAssemblyInfo.cs" />
+    <Page Include="Src/RecentProjectsControl.xaml" />
+    <Page Include="Src/StartPageControl.xaml" />
+    <Resource Include="Resources/balken_links.gif" />
+    <Resource Include="Resources/balken_mitte.gif" />
+    <Resource Include="Resources/balken_rechts.gif" />
+    <None Include="StartPage.addin" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../../Main/Base/Project/ICSharpCode.SharpDevelop.LibreWpf.csproj" />
+    <ProjectReference Include="../../../../Main/Core/Project/ICSharpCode.Core.LibreWpf.csproj" />
+    <ProjectReference Include="../../../../Main/ICSharpCode.Core.Presentation/ICSharpCode.Core.Presentation.LibreWpf.csproj" />
+  </ItemGroup>
+</Project>

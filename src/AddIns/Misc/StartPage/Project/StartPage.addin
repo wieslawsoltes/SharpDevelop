@@ -6,6 +6,7 @@
 	
 	<Manifest>
 		<Identity name = "ICSharpCode.StartPage"/>
+		<Dependency addin="SharpDevelop"/>
 	</Manifest>
 	
 	<Runtime>
@@ -29,13 +30,12 @@
 		       class = "ICSharpCode.StartPage.ShowStartPageCommand"/>
 	</Path>
 	
-	<Path name = "/SharpDevelop/Views/Browser/SchemeExtensions">
-		<BrowserSchemeExtension id    = "startpage"
-		                        class = "ICSharpCode.StartPage.StartPageScheme"/>
-	</Path>
-	
 	<Path name = "/SharpDevelop/ViewContent/StartPage/Items">
 		<Class id="RecentProjects"
                class="ICSharpCode.StartPage.RecentProjectsControl"/>
+	</Path>
+
+	<Path name="/SharpDevelop/LibreWpf/SmokeHooks">
+		<Class id="StartPageSmoke" class="ICSharpCode.StartPage.LibreWpf.LibreWpfStartPageSmokeHook"/>
 	</Path>
 </AddIn>

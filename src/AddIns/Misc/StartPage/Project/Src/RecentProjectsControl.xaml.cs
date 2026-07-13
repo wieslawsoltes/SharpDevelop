@@ -18,17 +18,20 @@
 
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.ComponentModel;
+#if !LIBREWPF
 using System.Diagnostics;
+#endif
 using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
+#if LIBREWPF
+using System.Windows.Media.ProGPU.Platform;
+#endif
 using ICSharpCode.Core;
 using ICSharpCode.Core.Presentation;
 using ICSharpCode.SharpDevelop;
@@ -42,12 +45,15 @@ namespace ICSharpCode.StartPage
 	/// </summary>
 	public partial class RecentProjectsControl : UserControl
 	{
+		Task recentProjectsBuildTask = Task.CompletedTask;
+		int recentProjectsBuildVersion;
+
 		public RecentProjectsControl()
 		{
 			InitializeComponent();
 			
 			this.SetValueToExtension(HeaderProperty, new LocalizeExtension("StartPage.StartMenu.BarNameName"));
-			BuildRecentProjectList();
+			QueueRecentProjectListBuild();
 		}
 		
 		public static readonly DependencyProperty HeaderProperty = HeaderedContentControl.HeaderProperty.AddOwner(typeof(RecentProjectsControl));
@@ -57,20 +63,27 @@ namespace ICSharpCode.StartPage
 			set { SetValue(HeaderProperty, value); }
 		}
 		
-		async void BuildRecentProjectList()
+		Task QueueRecentProjectListBuild()
+		{
+			int buildVersion = ++recentProjectsBuildVersion;
+			recentProjectsBuildTask = BuildRecentProjectListAsync(buildVersion);
+			return recentProjectsBuildTask;
+		}
+
+		async Task BuildRecentProjectListAsync(int buildVersion)
 		{
 			// When building the project list we access the .sln files (to see if they still exist).
 			// Because those might be stored on a slow network drive, we do this on a background thread so that
 			// SharpDevelop startup doesn't have to wait.
 			var projectPaths = SD.FileService.RecentOpen.RecentProjects.ToArray();
-			List<RecentOpenItem> items = new List<RecentOpenItem>();
-			await Task.Run(
+			List<RecentOpenItem> items = await Task.Run(
 				delegate {
+					var result = new List<RecentOpenItem>();
 					foreach (FileName path in projectPaths) {
 						Core.LoggingService.Debug("RecentProjectsControl: Looking up path '" + path + "'");
 						FileInfo file = new FileInfo(path);
 						if (file.Exists) {
-							items.Add(
+							result.Add(
 								new RecentOpenItem {
 									Name = Path.GetFileNameWithoutExtension(path),
 									LastModification = file.LastWriteTime.ToShortDateString(),
@@ -78,12 +91,47 @@ namespace ICSharpCode.StartPage
 								});
 						}
 					}
+					return result;
 				});
-			if (items.Count > 0) {
-				lastProjectsListView.ItemsSource = items;
-				lastProjectsListView.Visibility = Visibility.Visible;
+
+			if (buildVersion != recentProjectsBuildVersion) {
+				return;
 			}
+
+			lastProjectsListView.ItemsSource = items;
+			lastProjectsListView.Visibility = items.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
 		}
+
+#if LIBREWPF
+		internal Task RefreshRecentProjectsAsync()
+		{
+			return QueueRecentProjectListBuild();
+		}
+
+		internal int RecentProjectCount {
+			get { return lastProjectsListView.Items.Count; }
+		}
+
+		internal bool TryActivateRecentProject(string path)
+		{
+			for (int i = 0; i < lastProjectsListView.Items.Count; i++) {
+				RecentOpenItem item = lastProjectsListView.Items[i] as RecentOpenItem;
+				if (item != null && string.Equals(item.Path, path, StringComparison.Ordinal)) {
+					lastProjectsListView.SelectedIndex = i;
+					var eventArgs = new MouseButtonEventArgs(
+						Mouse.PrimaryDevice,
+						Environment.TickCount,
+						MouseButton.Left) {
+						RoutedEvent = Control.MouseDoubleClickEvent,
+						Source = lastProjectsListView
+					};
+					lastProjectsListView.RaiseEvent(eventArgs);
+					return true;
+				}
+			}
+			return false;
+		}
+#endif
 		
 		class RecentOpenItem : INotifyPropertyChanged
 		{
@@ -101,7 +149,7 @@ namespace ICSharpCode.StartPage
 		
 		void lastProjectsDoubleClick(object sender, RoutedEventArgs e)
 		{
-			RecentOpenItem item = (RecentOpenItem)lastProjectsListView.SelectedItem;
+			RecentOpenItem item = lastProjectsListView.SelectedItem as RecentOpenItem;
 			if (item != null) {
 				SD.ProjectService.OpenSolutionOrProject(FileName.Create(item.Path));
 			}
@@ -130,18 +178,39 @@ namespace ICSharpCode.StartPage
 			new ICSharpCode.SharpDevelop.Project.Commands.CreateNewSolution().Run();
 		}
 		
+#if LIBREWPF
+		async void openContainingFolderClick(object sender, RoutedEventArgs e)
+		{
+			RecentOpenItem item = lastProjectsListView.SelectedItem as RecentOpenItem;
+			if (item == null) {
+				return;
+			}
+			string folder = Path.GetDirectoryName(item.Path);
+			if (!string.IsNullOrEmpty(folder)) {
+				await CrossPlatformWpfPlatformServices.Instance.Launcher.OpenFileAsync(folder);
+			}
+		}
+#else
 		void openContainingFolderClick(object sender, RoutedEventArgs e)
 		{
-			RecentOpenItem item = (RecentOpenItem)lastProjectsListView.SelectedItem;
+			RecentOpenItem item = lastProjectsListView.SelectedItem as RecentOpenItem;
+			if (item == null) {
+				return;
+			}
 			string folder = Path.GetDirectoryName(item.Path);
-			Process.Start("explorer", "\"" + folder + "\"");
+			if (!string.IsNullOrEmpty(folder)) {
+				Process.Start("explorer", "\"" + folder + "\"");
+			}
 		}
+#endif
 		
 		void removeRecentProjectClick(object sender, RoutedEventArgs e)
 		{
-			RecentOpenItem item = (RecentOpenItem)lastProjectsListView.SelectedItem;
-			SD.FileService.RecentOpen.RemoveRecentProject(new FileName(item.Path));
-			BuildRecentProjectList();
+			RecentOpenItem item = lastProjectsListView.SelectedItem as RecentOpenItem;
+			if (item != null) {
+				SD.FileService.RecentOpen.RemoveRecentProject(new FileName(item.Path));
+				QueueRecentProjectListBuild();
+			}
 		}
 	}
 }

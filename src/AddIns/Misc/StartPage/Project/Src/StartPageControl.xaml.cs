@@ -18,7 +18,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Windows.Controls;
 
 using ICSharpCode.Core;
@@ -31,18 +30,34 @@ namespace ICSharpCode.StartPage
 	/// </summary>
 	public partial class StartPageControl : UserControl
 	{
+		RecentProjectsControl recentProjectsControl;
+
 		public StartPageControl()
 		{
 			InitializeComponent();
 			List<object> items = AddInTree.BuildItems<object>("/SharpDevelop/ViewContent/StartPage/Items", this, false);
 			// WPF does not use DataTemplates if the item already is a UIElement; so we 'box' it.
-			List<BoxEntry> entries = items.ConvertAll(control => new BoxEntry { Control = control } );
+			List<BoxEntry> entries = items.ConvertAll(
+				delegate(object control) {
+					RecentProjectsControl recentProjects = control as RecentProjectsControl;
+					if (recentProjects != null) {
+						recentProjectsControl = recentProjects;
+					}
+					return new BoxEntry { Control = control };
+				});
 			startPageItems.ItemsSource = entries;
 			
-			var aca = (AssemblyCopyrightAttribute)typeof(CommonAboutDialog).Assembly.GetCustomAttributes(typeof(AssemblyCopyrightAttribute), false)[0];
-			copyrightText.Text = aca.Copyright;
+			copyrightText.Text = StartPageBuildMetadata.Copyright;
 			
 			versionTextBlock.Text = "SharpDevelop " + RevisionClass.FullVersion;
+		}
+
+		internal RecentProjectsControl RecentProjectsControl {
+			get { return recentProjectsControl; }
+		}
+
+		internal int ItemCount {
+			get { return startPageItems.Items.Count; }
 		}
 		
 		sealed class BoxEntry
