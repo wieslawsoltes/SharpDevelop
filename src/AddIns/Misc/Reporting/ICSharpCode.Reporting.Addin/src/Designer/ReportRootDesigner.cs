@@ -312,17 +312,30 @@ namespace ICSharpCode.Reporting.Addin.Designer
 		protected override void Dispose(bool disposing){
             if (disposing)
             {
-                var componentService = (IComponentChangeService)GetService(typeof(IComponentChangeService));
-                if (componentService != null)
+                if (componentChangeService != null)
                 {
-                    componentService.ComponentChanged -= new ComponentChangedEventHandler(OnComponentChanged);
-                    componentService.ComponentChanging -= new ComponentChangingEventHandler(OnComponentChanging);
+                    componentChangeService.ComponentAdded -= OnComponentAdded;
+                    componentChangeService.ComponentChanged -= OnComponentChanged;
+                    componentChangeService.ComponentChanging -= OnComponentChanging;
                 }
 
-                ISelectionService ss = (ISelectionService)GetService(typeof(ISelectionService));
-                if (ss != null)
+                if (selectionService != null)
                 {
-                    ss.SelectionChanged -= new EventHandler(OnSelectionChanged);
+                    selectionService.SelectionChanged -= OnSelectionChanged;
+                }
+
+                if (host != null)
+                {
+                    host.LoadComplete -= OnLoadComplete;
+                }
+
+                if (sections != null)
+                {
+                    foreach (BaseSection section in sections)
+                    {
+                        section.SizeChanged -= OnSectionSizeChanged;
+                    }
+                    sections.Clear();
                 }
 /*
                 if (m_menuCommands != null && m_menuCommandService != null)
