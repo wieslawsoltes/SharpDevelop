@@ -9,4 +9,4 @@
 	url = https://github.com/wieslawsoltes/cecil.git
 [submodule "src/Libraries/WpfDesigner"]
 	path = src/Libraries/WpfDesigner
-	url = https://github.com/icsharpcode/WpfDesigner.git
+	url = https://github.com/wieslawsoltes/WpfDesigner.git
