@@ -50,8 +50,19 @@ namespace CSharpBinding.FormsDesigner
 		
 		public CSharpFullParseInformation GetPrimaryFileParseInformation()
 		{
-			return SD.ParserService.Parse(viewContent.PrimaryFileName, viewContent.PrimaryFileDocument)
+			ITextEditor editor = viewContent.PrimaryViewContent.GetService<ITextEditor>();
+			IDocument document = SelectCurrentPrimaryDocument(
+				editor != null ? editor.Document : null,
+				viewContent.PrimaryFileDocument);
+			return SD.ParserService.Parse(viewContent.PrimaryFileName, document)
 				as CSharpFullParseInformation;
+		}
+
+		internal static IDocument SelectCurrentPrimaryDocument(
+			IDocument liveEditorDocument,
+			IDocument sourceStorageDocument)
+		{
+			return liveEditorDocument ?? sourceStorageDocument;
 		}
 		
 		public ICompilation GetCompilation()
@@ -61,6 +72,11 @@ namespace CSharpBinding.FormsDesigner
 		
 		public IDocument GetDocument(FileName fileName)
 		{
+			if (fileName == viewContent.PrimaryFileName) {
+				ITextEditor editor = viewContent.PrimaryViewContent.GetService<ITextEditor>();
+				if (editor != null && editor.Document != null)
+					return editor.Document;
+			}
 			foreach (var pair in viewContent.SourceFiles) {
 				if (pair.Key.FileName == fileName)
 					return pair.Value;

@@ -49,11 +49,18 @@ namespace CSharpBinding.FormsDesigner
 		readonly IUnresolvedTypeDefinition primaryPart;
 		readonly ITypeDefinition formClass;
 		readonly IMethod initializeComponents;
+		readonly DomRegion initializeComponentsBodyRegion;
 		
 		public CSharpDesignerGenerator(ICSharpDesignerLoaderContext context)
 		{
 			this.context = context;
 			this.primaryParseInfo = context.GetPrimaryFileParseInformation();
+			IDocument designerDocument = context.DesignerCodeFileDocument;
+			if (designerDocument == null || string.IsNullOrEmpty(designerDocument.FileName))
+				throw new FormsDesignerLoadException("Could not read the designer source document");
+			var designerParseInfo = SD.ParserService.Parse(
+				FileName.Create(designerDocument.FileName),
+				designerDocument) as CSharpFullParseInformation;
 			this.compilation = context.GetCompilation();
 			
 			// Find designer class
@@ -61,6 +68,51 @@ namespace CSharpBinding.FormsDesigner
 			initializeComponents = FormsDesignerSecondaryDisplayBinding.GetInitializeComponents(formClass);
 			if (initializeComponents == null)
 				throw new FormsDesignerLoadException("Could not find InitializeComponents");
+			initializeComponentsBodyRegion = FindCurrentInitializeComponentsBodyRegion(designerParseInfo, formClass);
+			if (initializeComponentsBodyRegion.IsEmpty)
+				throw new FormsDesignerLoadException("Could not find current source for InitializeComponents");
+		}
+
+		internal static DomRegion FindCurrentInitializeComponentsBodyRegion(
+			CSharpFullParseInformation designerParseInfo,
+			ITypeDefinition formClass)
+		{
+			if (designerParseInfo == null || designerParseInfo.UnresolvedFile == null || formClass == null)
+				return DomRegion.Empty;
+
+			IUnresolvedTypeDefinition matchingPart = null;
+			foreach (IUnresolvedTypeDefinition part in EnumerateTypeDefinitions(designerParseInfo.UnresolvedFile.TopLevelTypeDefinitions)) {
+				if (!string.Equals(part.FullName, formClass.FullName, StringComparison.Ordinal))
+					continue;
+				if (matchingPart != null)
+					return DomRegion.Empty;
+				matchingPart = part;
+			}
+			if (matchingPart == null)
+				return DomRegion.Empty;
+
+			IUnresolvedMethod matchingMethod = null;
+			foreach (IUnresolvedMethod method in matchingPart.Members.OfType<IUnresolvedMethod>()) {
+				if (!string.Equals(method.Name, "InitializeComponent", StringComparison.Ordinal)
+				    || method.TypeParameters.Count != 0
+				    || method.Parameters.Count != 0) {
+					continue;
+				}
+				if (matchingMethod != null)
+					return DomRegion.Empty;
+				matchingMethod = method;
+			}
+			return matchingMethod != null ? matchingMethod.BodyRegion : DomRegion.Empty;
+		}
+
+		static IEnumerable<IUnresolvedTypeDefinition> EnumerateTypeDefinitions(
+			IEnumerable<IUnresolvedTypeDefinition> types)
+		{
+			foreach (IUnresolvedTypeDefinition type in types) {
+				yield return type;
+				foreach (IUnresolvedTypeDefinition nested in EnumerateTypeDefinitions(type.NestedTypes))
+					yield return nested;
+			}
 		}
 		
 		public void MergeFormChanges(CodeCompileUnit codeUnit)
@@ -177,7 +229,7 @@ namespace CSharpBinding.FormsDesigner
 		#region SaveInitializeComponents
 		void SaveInitializeComponents(CodeMemberMethod codeMethod)
 		{
-			var bodyRegion = initializeComponents.BodyRegion;
+			var bodyRegion = initializeComponentsBodyRegion;
 			DocumentScript script = GetScript(bodyRegion.FileName);
 			
 			string newline = DocumentUtilities.GetLineTerminator(script.OriginalDocument, bodyRegion.BeginLine);
@@ -301,10 +353,10 @@ namespace CSharpBinding.FormsDesigner
 			IField field = null;
 			if (formClass != null) {
 				field = formClass.Fields.LastOrDefault(f => string.Equals(f.Region.FileName,
-				                                                          initializeComponents.Region.FileName,
+				                                                          initializeComponentsBodyRegion.FileName,
 				                                                          StringComparison.OrdinalIgnoreCase));
 			}
-			var bodyRegion = field != null ? field.BodyRegion : initializeComponents.BodyRegion;
+			var bodyRegion = field != null ? field.BodyRegion : initializeComponentsBodyRegion;
 			DocumentScript script = GetScript(bodyRegion.FileName);
 			string newline = DocumentUtilities.GetLineTerminator(script.OriginalDocument, bodyRegion.BeginLine);
 			string indentation = DocumentUtilities.GetIndentation(script.OriginalDocument, bodyRegion.BeginLine);

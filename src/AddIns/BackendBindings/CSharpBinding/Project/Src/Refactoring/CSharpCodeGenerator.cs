@@ -74,12 +74,24 @@ namespace CSharpBinding.Refactoring
 				if (match == null || EntityModelContextUtils.IsBetterPart(part, match, ".cs"))
 					match = part;
 			}
-			
-			if (match == null) return;
-			
-			var view = SD.FileService.OpenFile(new FileName(match.Region.FileName), jumpTo);
+
+			InsertEventHandler(target, match, name, eventDefinition, jumpTo, bodyKind);
+		}
+
+		internal void InsertEventHandler(
+			ITypeDefinition target,
+			IUnresolvedTypeDefinition targetPart,
+			string name,
+			IEvent eventDefinition,
+			bool jumpTo,
+			InsertEventHandlerBodyKind bodyKind = InsertEventHandlerBodyKind.ThrowNotImplementedException)
+		{
+			if (!IsMatchingTypePart(target, targetPart))
+				return;
+
+			var view = SD.FileService.OpenFile(new FileName(targetPart.Region.FileName), jumpTo);
 			var editor = view.GetRequiredService<ITextEditor>();
-			var last = match.Members.LastOrDefault() ?? (IUnresolvedEntity)match;
+			var last = targetPart.Members.LastOrDefault() ?? (IUnresolvedEntity)targetPart;
 			editor.Caret.Location = last.BodyRegion.End;
 			var context = SDRefactoringContext.Create(editor, CancellationToken.None);
 			
@@ -104,7 +116,7 @@ namespace CSharpBinding.Refactoring
 			
 			using (Script script = context.StartScript()) {
 				int eolLen = 0;
-				if (last == match) {
+				if (last == targetPart) {
 					eolLen = 2;
 					script.AddTo((TypeDeclaration)node, decl);
 				} else {
@@ -129,6 +141,27 @@ namespace CSharpBinding.Refactoring
 						break;
 				}
 			}
+		}
+
+		internal static bool IsMatchingTypePart(ITypeDefinition target, IUnresolvedTypeDefinition targetPart)
+		{
+			if (target == null || targetPart == null || targetPart.Region.IsEmpty
+			    || string.IsNullOrEmpty(targetPart.Region.FileName)
+			    || !string.Equals(target.FullName, targetPart.FullName, StringComparison.Ordinal)) {
+				return false;
+			}
+
+			FileName expectedFile = FileName.Create(targetPart.Region.FileName);
+			return target.Parts.Any(part => {
+				FileName partFile = FileName.Create(part.Region.FileName);
+				return partFile != null
+					&& partFile.Equals(expectedFile)
+					&& part.Region.BeginLine == targetPart.Region.BeginLine
+					&& part.Region.BeginColumn == targetPart.Region.BeginColumn
+					&& part.Region.EndLine == targetPart.Region.EndLine
+					&& part.Region.EndColumn == targetPart.Region.EndColumn
+					&& string.Equals(part.FullName, targetPart.FullName, StringComparison.Ordinal);
+			});
 		}
 		
 		void AddAttribute(DomRegion region, IAttribute attribute, string target = "")

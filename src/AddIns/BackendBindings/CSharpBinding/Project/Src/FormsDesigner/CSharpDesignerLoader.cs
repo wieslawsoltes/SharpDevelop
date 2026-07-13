@@ -72,7 +72,45 @@ namespace CSharpBinding.FormsDesigner
 		
 		public ITypeDefinition GetPrimaryTypeDefinition()
 		{
-			return primaryPart.Resolve(new SimpleTypeResolveContext(context.GetCompilation().MainAssembly)).GetDefinition();
+			ITypeDefinition definition;
+			IUnresolvedTypeDefinition part;
+			CSharpFullParseInformation parseInfo;
+			ICompilation compilation;
+			return TryGetCurrentPrimaryType(out definition, out part, out parseInfo, out compilation)
+				? definition
+				: null;
+		}
+
+		internal bool TryGetCurrentPrimaryType(
+			out ITypeDefinition definition,
+			out IUnresolvedTypeDefinition part,
+			out CSharpFullParseInformation parseInfo,
+			out ICompilation compilation)
+		{
+			parseInfo = context.GetPrimaryFileParseInformation();
+			compilation = context.GetCompilation();
+			definition = null;
+			part = null;
+			if (parseInfo == null || parseInfo.UnresolvedFile == null || compilation == null)
+				return false;
+
+			definition = FormsDesignerSecondaryDisplayBinding.GetDesignableClass(
+				parseInfo.UnresolvedFile,
+				compilation,
+				out part);
+			if (definition == null || part == null)
+				return false;
+
+			FileName parsedFile = FileName.Create(parseInfo.UnresolvedFile.FileName);
+			FileName partFile = FileName.Create(part.Region.FileName);
+			if (parsedFile == null || partFile == null || !parsedFile.Equals(partFile)) {
+				definition = null;
+				part = null;
+				return false;
+			}
+
+			primaryPart = part;
+			return true;
 		}
 		
 		// Steps to load the designer:
