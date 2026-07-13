@@ -26,8 +26,11 @@ dotnet build src/Main/SharpDevelop/SharpDevelop.Full.LibreWpf.csproj -c Release
 
 Run `./eng/librewpf-public-preview-smoke.sh` on macOS or Linux to restore into a
 clean package cache, verify the complete LibreWPF/LibreWinForms/ProGPU version
-set, build the ResourceToolkit-enabled workbench, and exercise the LineCounter
-FormsDesigner in an isolated configuration directory.
+set, build the ResourceToolkit-enabled workbench, and exercise StartPage,
+Search/Replace, ClassDiagram, the LineCounter WinForms designer, the WPF/XAML
+designer, ResourceToolkit, HexEditor, and Reporting in isolated configuration
+directories. Both designer gates verify typed selection, editing, undo/redo,
+serialization, presentation, clean shutdown, and unchanged source fixtures.
 
 ## System Requirements (running #Develop)
 
