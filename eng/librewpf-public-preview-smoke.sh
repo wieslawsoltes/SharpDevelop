@@ -82,6 +82,8 @@ wpf_designer_pointer_source="$repo_root/src/Libraries/WpfDesigner/WpfDesign.Desi
 wpf_designer_resize_source="$repo_root/src/Libraries/WpfDesigner/WpfDesign.Designer/Project/Extensions/ResizeThumbExtension.cs"
 forms_designer_event_binding_source="$repo_root/src/AddIns/BackendBindings/CSharpBinding/Project/Src/FormsDesigner/CSharpEventBindingService.cs"
 forms_designer_loader_source="$repo_root/src/AddIns/BackendBindings/CSharpBinding/Project/Src/FormsDesigner/CSharpDesignerLoader.cs"
+forms_designer_key_handler_source="$repo_root/src/AddIns/DisplayBindings/FormsDesigner/Project/Src/FormKeyHandler.cs"
+forms_designer_view_source="$repo_root/src/AddIns/DisplayBindings/FormsDesigner/Project/Src/DesignerViewContent.cs"
 
 if [[ ! -f "$app_dll" ]]; then
   echo "Missing SharpDevelop runtime: $app_dll" >&2
@@ -108,6 +110,22 @@ if ! grep -Fq 'DesignerLoaderHost.AddService(typeof(System.ComponentModel.Design
   echo "The C# designer loader must register its typed event-binding service on the loader-local host." >&2
   exit 1
 fi
+
+if grep -Eq 'System\.Reflection|BindingFlags|InvokeMember|Get(Field|Method|Property|Event)\(' \
+  "$forms_designer_key_handler_source" \
+  "$forms_designer_view_source"; then
+  echo "The Forms Designer keyboard and unload paths must use typed LibreWinForms services." >&2
+  exit 1
+fi
+
+for typed_forms_service in IPortableToolStripKeyboardHandlingService IPortableDesignSurfaceServiceCleanup; do
+  if ! grep -Fq "$typed_forms_service" \
+    "$forms_designer_key_handler_source" \
+    "$forms_designer_view_source"; then
+    echo "The Forms Designer must consume the typed $typed_forms_service contract." >&2
+    exit 1
+  fi
+done
 
 for typed_toolbox_contract in TrySelectComponentTool TryInsertSelectedComponent; do
   if ! grep -Fq "$typed_toolbox_contract" "$wpf_designer_smoke_source"; then
@@ -395,6 +413,7 @@ run_designer_smoke() {
     && grep -Fq 'LibreWPF owner-draw smoke result=Success' "$log_file" \
     && grep -Fq 'LibreWPF FormsDesigner mutation smoke result=Success' "$log_file" \
     && grep -Fq 'LibreWPF FormsDesigner event-binding smoke result=Success' "$log_file" \
+    && grep -Fq 'LibreWPF FormsDesigner keyboard/unload smoke result=Success' "$log_file" \
     && grep -Fq 'service=True portableService=True serviceStable=True componentCreated=True uniqueName=True reusedName=True valueSet=True' "$log_file" \
     && grep -Fq 'undoCleared=True redoRestored=True serializedHandler=True serializedEvent=True serialized=True bindingAfterMerge=True' "$log_file" \
     && grep -Fq 'showCode=True methodCreated=True showCodeReused=True sourceActive=True caretAtHandler=True componentUnsited=True componentParentRemoved=True componentCountRestored=True' "$log_file" \
@@ -402,7 +421,7 @@ run_designer_smoke() {
     && grep -Fq 'toolboxUndoRedo=True' "$log_file" \
     && grep -Fq 'toolboxDeleteUndoRedo=True' "$log_file" \
     && grep -Fq 'LibreWPF WorkbenchStartup application exit code=0' "$log_file"; then
-    grep -E 'FormsDesigner (smoke|custom-paint smoke|mutation smoke|event-binding smoke) result=|owner-draw smoke result=|application exit code=' "$log_file"
+    grep -E 'FormsDesigner (smoke|custom-paint smoke|mutation smoke|event-binding smoke|keyboard/unload smoke) result=|owner-draw smoke result=|application exit code=' "$log_file"
     return 0
   fi
 
