@@ -33,5 +33,6 @@
                Private="true"
                Condition="Exists('$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll')" />
     <ProjectReference Include="../../ICSharpCode.Reporting.LibreWpf.csproj" />
+    <ProjectReference Include="../../../ICSharpCode.Reporting.Addin/ICSharpCode.Reporting.Addin.LibreWpf.csproj" />
   </ItemGroup>
 </Project>
