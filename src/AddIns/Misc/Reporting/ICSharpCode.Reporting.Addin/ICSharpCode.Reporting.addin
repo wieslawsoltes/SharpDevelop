@@ -7,14 +7,11 @@
 	<Manifest>
 		<Identity name="ICSharpCode.Reporting.Addin" />
 		<Dependency addin="SharpDevelop" />
-		<Dependency addin="ICSharpCode.Data.Addin" requirePreload="true" />
 	</Manifest>
 	
 	<Runtime>
 		<Import assembly="ICSharpCode.Reporting.dll" />
-		<Import assembly="ICSharpCode.Reporting.Addin.dll">
-			<Doozer name="ReportDialogPanel" class="ICSharpCode.Reports.Addin.ReportWizard.DialogPanelDoozer" />
-		</Import>
+		<Import assembly="ICSharpCode.Reporting.Addin.dll" />
 	</Runtime>
 	
 	<!-- DisplayBinding -->
