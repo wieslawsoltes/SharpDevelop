@@ -25,6 +25,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Xml;
 
@@ -447,6 +448,12 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			if (!result.PointerToolReady)
 				return;
 
+			Thickness originalMargin = view.Margin;
+			HorizontalAlignment originalHorizontalAlignment = view.HorizontalAlignment;
+			VerticalAlignment originalVerticalAlignment = view.VerticalAlignment;
+			int originalGridRow = Grid.GetRow(view);
+			int originalGridColumn = Grid.GetColumn(view);
+
 			selection.SetSelectedComponents(null);
 			int originalUndoCount = undoService.UndoActions.Count();
 			result.PointerMissFailClosed = pointerTool.TryStartGesture(
@@ -465,17 +472,25 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			if (!result.PointerMissFailClosed)
 				return;
 
-			designer.DesignSurface.ApplyTemplate();
-			designer.DesignSurface.UpdateLayout();
-			Point pointerPosition = view.TranslatePoint(
-				new Point(view.ActualWidth / 2, view.ActualHeight / 2),
-				designer.DesignSurface.DesignPanel);
-			var hit = designer.DesignSurface.DesignPanel.HitTest(
-				pointerPosition,
-				false,
-				true,
-				ICSharpCode.WpfDesign.HitTestType.ElementSelection);
-			result.PointerHitReady = ReferenceEquals(hit.ModelHit, item);
+			Point pointerPosition = new Point();
+			for (int attempt = 0; attempt < 50; attempt++) {
+				designer.DesignSurface.ApplyTemplate();
+				designer.DesignSurface.UpdateLayout();
+				if (view.ActualWidth > 0 && view.ActualHeight > 0) {
+					pointerPosition = view.TranslatePoint(
+						new Point(view.ActualWidth / 2, view.ActualHeight / 2),
+						designer.DesignSurface.DesignPanel);
+					var hit = designer.DesignSurface.DesignPanel.HitTest(
+						pointerPosition,
+						false,
+						true,
+						ICSharpCode.WpfDesign.HitTestType.ElementSelection);
+					result.PointerHitReady = ReferenceEquals(hit.ModelHit, item);
+				}
+				if (result.PointerHitReady)
+					break;
+				await Task.Delay(50);
+			}
 			if (!result.PointerHitReady)
 				return;
 
@@ -522,6 +537,46 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				return;
 			}
 
+			// Seed XamlDom's stable placement-attribute order, then prove that the
+			// reversible move preserved the typed placement values before measuring.
+			bool baselineMoveReady = gesture.Move(pointerPosition + new Vector(16, 12))
+				&& gesture.HasMoved;
+			if (!baselineMoveReady) {
+				gesture.Cancel();
+				return;
+			}
+
+			gesture.Complete();
+			bool baselineCommitReady = !gesture.IsActive
+				&& undoService.UndoActions.Count() == originalUndoCount + 1;
+			if (!baselineCommitReady)
+				return;
+
+			designer.DesignSurface.Undo();
+			string stableXaml = SaveDesignerToString(designer);
+			bool baselineRestoreReady = undoService.UndoActions.Count() == originalUndoCount
+				&& designer.DesignSurface.CanRedo()
+				&& originalMargin.Equals(view.Margin)
+				&& originalHorizontalAlignment == view.HorizontalAlignment
+				&& originalVerticalAlignment == view.VerticalAlignment
+				&& originalGridRow == Grid.GetRow(view)
+				&& originalGridColumn == Grid.GetColumn(view);
+			if (!baselineRestoreReady)
+				return;
+
+			designer.DesignSurface.ApplyTemplate();
+			designer.DesignSurface.UpdateLayout();
+			pointerPosition = view.TranslatePoint(
+				new Point(view.ActualWidth / 2, view.ActualHeight / 2),
+				designer.DesignSurface.DesignPanel);
+			gesture = pointerTool.TryStartGesture(
+				designer.DesignSurface.DesignPanel,
+				pointerPosition,
+				1,
+				ICSharpCode.WpfDesign.SelectionTypes.Primary);
+			if (gesture == null || !ReferenceEquals(gesture.HitItem, item))
+				return;
+
 			result.PointerMoveReady = gesture.Move(pointerPosition + new Vector(16, 12))
 				&& gesture.HasMoved;
 			if (!result.PointerMoveReady) {
@@ -534,11 +589,11 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			result.PointerMoveReady = result.PointerMoveReady
 				&& !gesture.IsActive
 				&& undoService.UndoActions.Count() == originalUndoCount + 1;
-			result.PointerXamlReady = !string.Equals(movedXaml, originalXaml, StringComparison.Ordinal);
+			result.PointerXamlReady = !string.Equals(movedXaml, stableXaml, StringComparison.Ordinal);
 
 			designer.DesignSurface.Undo();
 			result.PointerUndoReady = undoService.UndoActions.Count() == originalUndoCount
-				&& string.Equals(SaveDesignerToString(designer), originalXaml, StringComparison.Ordinal)
+				&& string.Equals(SaveDesignerToString(designer), stableXaml, StringComparison.Ordinal)
 				&& designer.DesignSurface.CanRedo();
 
 			designer.DesignSurface.Redo();
@@ -550,7 +605,7 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			designer.DesignSurface.Undo();
 			for (int attempt = 0; attempt < 50; attempt++) {
 				bool sourceRestored = undoService.UndoActions.Count() == originalUndoCount
-					&& string.Equals(SaveDesignerToString(designer), originalXaml, StringComparison.Ordinal);
+					&& string.Equals(SaveDesignerToString(designer), stableXaml, StringComparison.Ordinal);
 				bool selectionRestored = ReferenceEquals(selection.PrimarySelection, item)
 					&& selection.SelectionCount == 1
 					&& selection.SelectedItems.Contains(item);

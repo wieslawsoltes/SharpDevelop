@@ -127,6 +127,8 @@ for typed_pointer_evidence in \
   ResizeThumbExtension \
   SelectionAdornerProvider \
   PointerMissFailClosed \
+  'bool baselineRestoreReady' \
+  'string stableXaml = SaveDesignerToString(designer)' \
   PointerRestoreReady; do
   if ! grep -Fq "$typed_pointer_evidence" "$wpf_designer_smoke_source"; then
     echo "The WPF designer smoke must exercise typed $typed_pointer_evidence evidence." >&2
