@@ -36,7 +36,7 @@ using CSharpBinding.Refactoring;
 
 namespace CSharpBinding.FormsDesigner
 {
-	public class CSharpEventBindingService : System.ComponentModel.Design.EventBindingService
+	public class CSharpEventBindingService : System.ComponentModel.Design.EventBindingService, ICSharpCode.FormsDesigner.IFormsDesignerEventBindingService
 	{
 		readonly CSharpDesignerLoader loader;
 		readonly ICSharpDesignerLoaderContext context;

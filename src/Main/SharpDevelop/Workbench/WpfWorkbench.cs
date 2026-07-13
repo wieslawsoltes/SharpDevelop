@@ -1447,11 +1447,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 
 					var eventBindings = host.GetService(typeof(System.ComponentModel.Design.IEventBindingService))
 						as System.ComponentModel.Design.IEventBindingService;
-					localService = eventBindings != null
-						&& string.Equals(
-							eventBindings.GetType().FullName,
-							"CSharpBinding.FormsDesigner.CSharpEventBindingService",
-							StringComparison.Ordinal);
+					localService = eventBindings is IFormsDesignerEventBindingService;
 					System.ComponentModel.EventDescriptor clickEvent = TypeDescriptor.GetEvents(eventButton)["Click"];
 					if (eventBindings == null || clickEvent == null)
 						throw new InvalidOperationException("The typed C# EventBindingService or Button.Click descriptor is unavailable.");
