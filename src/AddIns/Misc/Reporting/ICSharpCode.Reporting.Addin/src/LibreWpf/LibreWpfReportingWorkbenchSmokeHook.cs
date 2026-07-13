@@ -117,6 +117,13 @@ namespace ICSharpCode.Reporting.Addin.LibreWpf
 					throw new InvalidOperationException("A clean Reporting save did not preserve the original bytes and clean state.");
 				}
 
+				stage = "PreviewInitialReport";
+				bool initialPreview = await ExercisePreviewAsync(originalWindow, view);
+				WindowsFormsHost hostAfterInitialPreview = await WaitForHostAsync(panel);
+				if (!initialPreview || !ReferenceEquals(hostAfterInitialPreview, host)) {
+					throw new InvalidOperationException("The initial Reporting preview did not return to the same hosted designer view.");
+				}
+
 				stage = "ReloadEditedReport";
 				originalWindow.ActiveViewContent = view;
 				file.ForceInitializeView(view);
@@ -142,6 +149,13 @@ namespace ICSharpCode.Reporting.Addin.LibreWpf
 					&& PresentationSource.FromVisual(host) != null;
 				if (!reloadSameView || !reloadSamePanel || ReferenceEquals(initial.Settings, reloaded.Settings) || file.IsDirty) {
 					throw new InvalidOperationException("Reporting reload did not retain the clean workbench view and window.");
+				}
+
+				stage = "PreviewReloadedReport";
+				bool reloadedPreview = await ExercisePreviewAsync(originalWindow, view);
+				WindowsFormsHost hostAfterReloadPreview = await WaitForHostAsync(panel);
+				if (!reloadedPreview || !ReferenceEquals(hostAfterReloadPreview, host)) {
+					throw new InvalidOperationException("The reloaded Reporting preview did not return to the same hosted designer view.");
 				}
 
 				stage = "SaveReloadedReport";
@@ -176,10 +190,12 @@ namespace ICSharpCode.Reporting.Addin.LibreWpf
 					+ " sections=" + initial.SectionCount
 					+ " items=" + initial.ItemCount
 					+ " cleanSaveExact=" + cleanSaveExact
+					+ " initialPreview=" + initialPreview
 					+ " reloadSameView=" + reloadSameView
 					+ " reloadName=" + reloaded.ReportName
 					+ " reloadSections=" + reloaded.SectionCount
 					+ " reloadItems=" + reloaded.ItemCount
+					+ " reloadedPreview=" + reloadedPreview
 					+ " reloadCleanSaveExact=" + reloadCleanSaveExact
 					+ " dirtyCleared=" + dirtyCleared
 					+ " closed=" + closed
@@ -309,6 +325,31 @@ namespace ICSharpCode.Reporting.Addin.LibreWpf
 				await Task.Delay(50);
 			}
 			return null;
+		}
+
+		static async Task<bool> ExercisePreviewAsync(IWorkbenchWindow window, DesignerView view)
+		{
+			WpfPreview preview = view.SecondaryViewContents.OfType<WpfPreview>().SingleOrDefault();
+			if (preview == null) {
+				return false;
+			}
+
+			window.ActiveViewContent = preview;
+			Visual previewVisual = preview.Control as Visual;
+			bool presented = false;
+			for (int attempt = 0; attempt < 100; attempt++) {
+				presented = ReferenceEquals(window.ActiveViewContent, preview)
+					&& previewVisual != null
+					&& PresentationSource.FromVisual(previewVisual) != null;
+				if (presented) {
+					break;
+				}
+				await Task.Delay(50);
+			}
+
+			window.ActiveViewContent = view;
+			view.PrimaryFile.ForceInitializeView(view);
+			return presented && ReferenceEquals(view.PrimaryFile.CurrentView, view);
 		}
 
 		static WindowsFormsHost FindHost(DependencyObject current, FormsPanel panel)

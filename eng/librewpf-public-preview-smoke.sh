@@ -185,8 +185,8 @@ run_reporting_smoke() {
   if [[ "$exit_code" -eq 0 ]] \
     && grep -Fq 'LibreWPF Reporting workbench smoke result=Success' "$log_file" \
     && grep -Fq 'binding=SharpDevelopReportsBinding view=DesignerView hosted=True presentation=True' "$log_file" \
-    && grep -Fq 'initialName=DependencyReport sections=5 items=12 cleanSaveExact=True' "$log_file" \
-    && grep -Fq 'reloadSameView=True reloadName=DependencyReport-LibreWPF-Reloaded reloadSections=5 reloadItems=12' "$log_file" \
+    && grep -Fq 'initialName=DependencyReport sections=5 items=12 cleanSaveExact=True initialPreview=True' "$log_file" \
+    && grep -Fq 'reloadSameView=True reloadName=DependencyReport-LibreWPF-Reloaded reloadSections=5 reloadItems=12 reloadedPreview=True' "$log_file" \
     && grep -Fq 'reloadCleanSaveExact=True dirtyCleared=True closed=True cleanup=True' "$log_file" \
     && grep -Fq 'LibreWPF WorkbenchStartup application exit code=0' "$log_file"; then
     grep -E 'Reporting workbench smoke result=|application exit code=' "$log_file"
