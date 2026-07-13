@@ -85,8 +85,8 @@
     <ProjectReference Include="..\..\..\..\Main\ICSharpCode.Core.Presentation\ICSharpCode.Core.Presentation.LibreWpf.csproj" />
     <ProjectReference Include="..\..\..\..\Main\ICSharpCode.Core.WinForms\ICSharpCode.Core.WinForms.LibreWpf.csproj" />
     <ProjectReference Include="..\..\..\..\Main\ICSharpCode.SharpDevelop.Widgets\Project\ICSharpCode.SharpDevelop.Widgets.LibreWpf.csproj" />
-    <ProjectReference Include="..\..\DisplayBindings\AvalonEdit.AddIn\AvalonEdit.AddIn.LibreWpf.csproj" />
-    <ProjectReference Include="..\..\DisplayBindings\FormsDesigner\Project\FormsDesigner.LibreWpf.csproj" />
-    <ProjectReference Include="..\..\BackendBindings\CSharpBinding\Project\CSharpBinding.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\DisplayBindings\AvalonEdit.AddIn\AvalonEdit.AddIn.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\DisplayBindings\FormsDesigner\Project\FormsDesigner.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\BackendBindings\CSharpBinding\Project\CSharpBinding.LibreWpf.csproj" />
   </ItemGroup>
 </Project>
