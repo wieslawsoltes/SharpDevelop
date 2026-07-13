@@ -61,16 +61,24 @@ namespace Tools.Diagrams.Drawables
 		protected override void OnAbsolutePositionChanged()
 		{
 			base.OnAbsolutePositionChanged();
-			path = null;
+			InvalidatePath();
 		}
 		
 		protected override void OnActualSizeChanged()
 		{
-			path = null;
+			InvalidatePath();
 		}
 		
 		protected override void OnSizeChanged()
 		{
+			InvalidatePath();
+		}
+
+		private void InvalidatePath()
+		{
+			if (path == null)
+				return;
+			path.Dispose();
 			path = null;
 		}
 		
@@ -110,6 +118,15 @@ namespace Tools.Diagrams.Drawables
 			
 			if (strokePen != null)
 				graphics.DrawPath(strokePen, path);
+		}
+
+		protected override void Dispose(bool disposing)
+		{
+			if (IsDisposed)
+				return;
+			if (disposing)
+				InvalidatePath();
+			base.Dispose(disposing);
 		}
 	}
 }

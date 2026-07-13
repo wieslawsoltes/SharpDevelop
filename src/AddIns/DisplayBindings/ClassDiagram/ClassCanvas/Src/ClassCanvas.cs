@@ -40,6 +40,8 @@ namespace ClassDiagram
 			                       EventHandler<SizeGripEventArgs> SizeGripMouseLeft)
 			{
 				this.item = item;
+				sizeGripMouseEntered = SizeGripMouseEntered;
+				sizeGripMouseLeft = SizeGripMouseLeft;
 				
 				focusDecorator = new FocusDecorator(item);
 				sizeGripDecorator = new SizeGripDecorator(item);
@@ -77,9 +79,17 @@ namespace ClassDiagram
 			
 			FocusDecorator focusDecorator;
 			SizeGripDecorator sizeGripDecorator;
+			EventHandler<SizeGripEventArgs> sizeGripMouseEntered;
+			EventHandler<SizeGripEventArgs> sizeGripMouseLeft;
+			bool disposed;
 			
 			public void Dispose()
 			{
+				if (disposed)
+					return;
+				disposed = true;
+				sizeGripDecorator.SizeGripMouseEnter -= sizeGripMouseEntered;
+				sizeGripDecorator.SizeGripMouseLeave -= sizeGripMouseLeft;
 				item.RemoveDecorator(focusDecorator);
 				item.RemoveDecorator(sizeGripDecorator);
 			}
@@ -279,13 +289,21 @@ namespace ClassDiagram
 						{
 							//TODO - refactor this damn thing... why couldn't they make the "Scale" scale the font as well?
 							ec.Scale(new SizeF(zoom, zoom));
-							Font ecf = ec.Font;
-							ec.Font = new Font(ecf.FontFamily,
-							                   ecf.Size * zoom,
-							                   ecf.Style, ec.Font.Unit,
-							                   ecf.GdiCharSet, ec.Font.GdiVerticalFont);
+							Font originalFont = ec.Font;
+							Font scaledFont = new Font(originalFont.FontFamily,
+							                   originalFont.Size * zoom,
+							                   originalFont.Style, originalFont.Unit,
+							                   originalFont.GdiCharSet, originalFont.GdiVerticalFont);
+							ec.Font = scaledFont;
 							ec.Hide();
-							ec.VisibleChanged += delegate { if (!ec.Visible) ec.Font = ecf; };
+							EventHandler visibleChanged = null;
+							visibleChanged = delegate {
+								if (ec.Visible) return;
+								ec.VisibleChanged -= visibleChanged;
+								ec.Font = originalFont;
+								scaledFont.Dispose();
+							};
+							ec.VisibleChanged += visibleChanged;
 							panel1.Controls.Add(ec);
 							ec.Top -= panel1.VerticalScroll.Value;
 							ec.Left -= panel1.HorizontalScroll.Value;
@@ -478,7 +496,21 @@ namespace ClassDiagram
 		
 		public void RemoveCanvasItem (CanvasItem item)
 		{
-			itemsList.Remove(itemsData[item]);
+			CanvasItemData itemData;
+			if (item == null || !itemsData.TryGetValue(item, out itemData))
+				return;
+
+			if (dragItemNode != null && Object.ReferenceEquals(dragItemNode.Value, itemData))
+				dragItemNode = null;
+			if (hoverItemNode != null && Object.ReferenceEquals(hoverItemNode.Value, itemData))
+				hoverItemNode = null;
+
+			itemsList.Remove(itemData);
+			itemsData.Remove(item);
+			item.RedrawNeeded -= HandleRedraw;
+			item.LayoutChanged -= HandleItemLayoutChange;
+			item.PositionChanging -= HandleItemPositionChange;
+			item.SizeChanging -= HandleItemSizeChange;
 			Stack<Route> routesToRemove = new Stack<Route>();
 			foreach (Route r in diagramRouter.Routes)
 			{
@@ -496,13 +528,25 @@ namespace ClassDiagram
 			{
 				classesToData.Remove(classItem.RepresentedClassType.FullName);
 			}
+			itemData.Dispose();
+			item.Dispose();
 			
 			LayoutChanged(this, EventArgs.Empty);
 		}
 		
 		public void ClearCanvas()
 		{
-			itemsList.Clear();
+			foreach (CanvasItemData itemData in itemsList)
+			{
+				CanvasItem item = itemData.Item;
+				item.RedrawNeeded -= HandleRedraw;
+				item.LayoutChanged -= HandleItemLayoutChange;
+				item.PositionChanging -= HandleItemPositionChange;
+				item.SizeChanging -= HandleItemSizeChange;
+				itemData.Dispose();
+				item.Dispose();
+			}
+			itemsData.Clear();
 			classesToData.Clear();
 			itemsList.Clear();
 			dragItemNode = null;
@@ -649,16 +693,27 @@ namespace ClassDiagram
 		{
 			Size bbox = GetDiagramPixelSize();
 			Bitmap bitmap = new Bitmap(bbox.Width, bbox.Height);
-			Graphics g = Graphics.FromImage(bitmap);
-			g.PageScale = zoom;
-			SetRecommendedGraphicsAttributes(g);
-			DrawToGraphics(g);
-			return bitmap;
+			try
+			{
+				using (Graphics g = Graphics.FromImage(bitmap))
+				{
+					g.PageScale = zoom;
+					SetRecommendedGraphicsAttributes(g);
+					DrawToGraphics(g);
+				}
+				return bitmap;
+			}
+			catch
+			{
+				bitmap.Dispose();
+				throw;
+			}
 		}
 		
 		public void SaveToImage (string filename)
 		{
-			GetAsBitmap().Save(filename);
+			using (Bitmap bitmap = GetAsBitmap())
+				bitmap.Save(filename);
 		}
 		
 		public PointF LastMouseClickPosition

@@ -22,7 +22,7 @@ using System.Drawing.Drawing2D;
 
 namespace Tools.Diagrams.Drawables
 {
-	public class TextSegment : BaseRectangle, IDrawableRectangle, IDisposable
+	public class TextSegment : BaseRectangle, IDrawableRectangle
 	{
 		float tw;
 		Font font;
@@ -30,18 +30,25 @@ namespace Tools.Diagrams.Drawables
 		Graphics g;
 		string text;
 		StringFormat sf = new StringFormat();
+		bool ownsFont;
 		
 		public TextSegment (Graphics graphics, string text)
-			: this (graphics, text, new Font(System.Drawing.FontFamily.GenericSansSerif, 10.0f), false)
+			: this (graphics, text, new Font(System.Drawing.FontFamily.GenericSansSerif, 10.0f), false, true)
 		{
 		}
 		
 		public TextSegment (Graphics graphics, string text, Font font, bool resizable)
+			: this(graphics, text, font, resizable, false)
+		{
+		}
+
+		TextSegment(Graphics graphics, string text, Font font, bool resizable, bool ownsFont)
 		{
 			if (graphics == null) throw new ArgumentNullException("graphics");
 			this.g = graphics;
 			this.text = text;
 			this.font = font;
+			this.ownsFont = ownsFont;
 			sf.Trimming = StringTrimming.EllipsisCharacter;
 			MeasureString();
 			if (resizable)
@@ -100,7 +107,12 @@ namespace Tools.Diagrams.Drawables
 			get { return font; }
 			set
 			{
+				if (Object.ReferenceEquals(font, value))
+					return;
+				if (ownsFont && font != null)
+					font.Dispose();
 				font = value;
+				ownsFont = false;
 				MeasureString();
 			}
 		}
@@ -118,10 +130,25 @@ namespace Tools.Diagrams.Drawables
 			graphics.DrawString(Text, Font, Brush, rect, sf);
 		}
 		
-		public void Dispose()
+		protected override void Dispose(bool disposing)
 		{
-			brush.Dispose();
-			sf.Dispose();
+			if (IsDisposed)
+				return;
+			if (disposing)
+			{
+				if (sf != null)
+				{
+					sf.Dispose();
+					sf = null;
+				}
+				if (ownsFont && font != null)
+				{
+					font.Dispose();
+					font = null;
+				}
+				g = null;
+			}
+			base.Dispose(disposing);
 		}
 		
 		public override float GetAbsoluteContentWidth()

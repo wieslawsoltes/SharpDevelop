@@ -118,5 +118,23 @@ namespace ClassDiagram
 						pos.Y >= HeaderExpanded.AbsoluteY && pos.Y <= HeaderExpanded.AbsoluteY + HeaderExpanded.ActualHeight);		
 			}
 		}
+
+		protected override void Dispose(bool disposing)
+		{
+			if (IsDisposed)
+				return;
+			if (disposing)
+			{
+				HeaderClicked = delegate {};
+				ContentClicked = delegate {};
+				HeaderMouseDown = delegate {};
+				ContentMouseDown = delegate {};
+				HeaderMouseMove = delegate {};
+				ContentMouseMove = delegate {};
+				HeaderMouseUp = delegate {};
+				ContentMouseUp = delegate {};
+			}
+			base.Dispose(disposing);
+		}
 	}
 }

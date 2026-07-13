@@ -62,6 +62,8 @@ namespace Tools.Diagrams
 		public void Clear()
 		{
 //			System.Diagnostics.Debug.WriteLine("ItemStack.Clear");
+			foreach (T item in items)
+				item.Container = null;
 			items.Clear();
 			modified = true;
 		}
@@ -427,6 +429,24 @@ namespace Tools.Diagrams
 				return "ItemStack - first item: " + items[0].ToString();
 			else
 				return base.ToString();
+		}
+
+		protected override void Dispose(bool disposing)
+		{
+			if (IsDisposed)
+				return;
+			if (disposing)
+			{
+				foreach (T item in items)
+				{
+					item.Container = null;
+					IDisposable disposable = item as IDisposable;
+					if (disposable != null)
+						disposable.Dispose();
+				}
+				items.Clear();
+			}
+			base.Dispose(disposing);
 		}
 	}
 }

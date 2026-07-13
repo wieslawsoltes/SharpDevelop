@@ -77,8 +77,8 @@ namespace ClassDiagram
 		
 		protected CanvasItem ()
 		{
-			Bitmap bitmap = new Bitmap(1, 1);
-			this.g = Graphics.FromImage(bitmap);
+			measurementBitmap = new Bitmap(1, 1);
+			this.g = Graphics.FromImage(measurementBitmap);
 		}
 		
 		#endregion
@@ -251,6 +251,7 @@ namespace ClassDiagram
 		#region Graphics
 		
 		Graphics g;
+		Bitmap measurementBitmap;
 		
 		[System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Security", "CA2104:DoNotDeclareReadOnlyMutableReferenceTypes")]
 		public static readonly Brush ShadowBrush = new SolidBrush(Color.FromArgb(64,0,0,0));
@@ -460,5 +461,37 @@ namespace ClassDiagram
 		}
 
 		#endregion
+
+		protected override void Dispose(bool disposing)
+		{
+			if (IsDisposed)
+				return;
+			if (disposing)
+			{
+				StopEditing();
+				foreach (RectangleDecorator decorator in decorators)
+					decorator.RedrawNeeded -= HandleDecoratorRedrawRequest;
+				decorators.Clear();
+
+				if (g != null)
+				{
+					g.Dispose();
+					g = null;
+				}
+				if (measurementBitmap != null)
+				{
+					measurementBitmap.Dispose();
+					measurementBitmap = null;
+				}
+
+				LayoutChanged = delegate {};
+				RedrawNeeded = delegate {};
+				PositionChanging = delegate {};
+				PositionChanged = delegate {};
+				SizeChanging = delegate {};
+				SizeChanged = delegate {};
+			}
+			base.Dispose(disposing);
+		}
 	}
 }

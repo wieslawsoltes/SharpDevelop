@@ -32,6 +32,7 @@ namespace ClassDiagram
 		protected override void Dispose(bool disposing)
 		{
 			if (disposing) {
+				ClearCanvas();
 				if (components != null) {
 					components.Dispose();
 				}

@@ -21,8 +21,14 @@ using System.Collections.Generic;
 
 namespace Tools.Diagrams
 {
-	public abstract class BaseRectangle : IRectangle
+	public abstract class BaseRectangle : IRectangle, IDisposable
 	{
+		bool disposed;
+
+		protected bool IsDisposed
+		{
+			get { return disposed; }
+		}
 		private float x, y;
 		private float w = float.NaN, h = float.NaN;
 		private float b, p;
@@ -238,6 +244,29 @@ namespace Tools.Diagrams
 		public override string ToString()
 		{
 			return Name + " (" + this.GetType().ToString() + ")";
+		}
+
+		public void Dispose()
+		{
+			Dispose(true);
+			GC.SuppressFinalize(this);
+		}
+
+		protected virtual void Dispose(bool disposing)
+		{
+			if (disposed)
+				return;
+			disposed = true;
+
+			if (disposing)
+			{
+				Container = null;
+				AbsolutePositionChanged = delegate {};
+				WidthChanged = delegate {};
+				HeightChanged = delegate {};
+				ActualWidthChanged = delegate {};
+				ActualHeightChanged = delegate {};
+			}
 		}
 		
 	}

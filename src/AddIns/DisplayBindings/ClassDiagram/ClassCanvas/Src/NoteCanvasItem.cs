@@ -91,6 +91,7 @@ namespace ClassDiagram
 		public override void StopEditing()
 		{
 			note = editBox.Text;
+			editBox.Hide();
 			if (editBox.Parent != null)
 				editBox.Parent.Controls.Remove(editBox);
 		}
@@ -138,5 +139,17 @@ namespace ClassDiagram
 			set { base.Height = Math.Max (value, 40.0f); }
 		}
 		#endregion
+
+		protected override void Dispose(bool disposing)
+		{
+			if (IsDisposed)
+				return;
+			base.Dispose(disposing);
+			if (disposing && editBox != null)
+			{
+				editBox.Dispose();
+				editBox = null;
+			}
+		}
 	}
 }

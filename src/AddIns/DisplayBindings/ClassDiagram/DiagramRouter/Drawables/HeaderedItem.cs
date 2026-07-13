@@ -54,7 +54,12 @@ namespace Tools.Diagrams.Drawables
 			content.X = 0;
 			content.Y = headerExpanded.GetAbsoluteContentHeight();
 			
-			headerExpanded.HeightChanged += delegate { content.Y = headerExpanded.GetAbsoluteContentHeight(); };
+			headerExpanded.HeightChanged += HandleHeaderExpandedHeightChanged;
+		}
+
+		void HandleHeaderExpandedHeightChanged(object sender, EventArgs e)
+		{
+			content.Y = headerExpanded.GetAbsoluteContentHeight();
 		}
 
 		public IDrawableRectangle HeaderCollapsed
@@ -173,6 +178,29 @@ namespace Tools.Diagrams.Drawables
 				height = headerCollapsed.GetAbsoluteContentHeight();
 			}
 			return height;
+		}
+
+		protected override void Dispose(bool disposing)
+		{
+			if (IsDisposed)
+				return;
+			if (disposing)
+			{
+				headerExpanded.HeightChanged -= HandleHeaderExpandedHeightChanged;
+				DisposeItem(headerCollapsed);
+				DisposeItem(headerExpanded);
+				DisposeItem(content);
+				RedrawNeeded = delegate {};
+			}
+			base.Dispose(disposing);
+		}
+
+		static void DisposeItem(IDrawableRectangle item)
+		{
+			item.Container = null;
+			IDisposable disposable = item as IDisposable;
+			if (disposable != null)
+				disposable.Dispose();
 		}
 	}
 }

@@ -34,6 +34,7 @@ namespace ClassDiagram
 	{
 		ClassDiagramTypeSnapshot classtype;
 		string typeclass;
+		bool initialized;
 		InteractiveHeaderedItem classItemHeaderedContent;
 		DrawableItemsStack classItemContainer = new DrawableItemsStack();
 
@@ -47,6 +48,7 @@ namespace ClassDiagram
 		public static readonly Font GroupTitleFont = new Font (FontFamily.GenericSansSerif, 11, FontStyle.Regular, GraphicsUnit.Pixel);
 
 		LinearGradientBrush grad;
+		Pen outlinePen;
 		GraphicsPath shadowpath;
 		DrawableRectangle containingShape;
 		
@@ -113,7 +115,7 @@ namespace ClassDiagram
 
 			classItemContainer.Container = this;
 			classItemContainer.Add(classItemHeaderedContent);
-			Pen outlinePen = GetClassOutlinePen();
+			outlinePen = GetClassOutlinePen();
 			if (RoundedCorners)
 			{
 				int radius = CornerRadius;
@@ -215,6 +217,9 @@ namespace ClassDiagram
 		
 		public void Initialize ()
 		{
+			if (initialized)
+				return;
+			initialized = true;
 			PrepareMembersContent();
 			PrepareTitles();
 			Width = GetAbsoluteContentWidth();
@@ -478,6 +483,8 @@ namespace ClassDiagram
 			
 			if (Container != null) return;
 			
+			if (shadowpath != null)
+				shadowpath.Dispose();
 			shadowpath = new GraphicsPath();
 			if (RoundedCorners)
 			{
@@ -627,11 +634,31 @@ namespace ClassDiagram
 		
 		#endregion
 		
-		public void Dispose()
+		protected override void Dispose(bool disposing)
 		{
-			grad.Dispose();
-			if (shadowpath != null)
-				shadowpath.Dispose();
+			if (IsDisposed)
+				return;
+			if (disposing)
+			{
+				classItemContainer.Dispose();
+				interfaces.Dispose();
+				if (grad != null)
+				{
+					grad.Dispose();
+					grad = null;
+				}
+				if (outlinePen != null)
+				{
+					outlinePen.Dispose();
+					outlinePen = null;
+				}
+				if (shadowpath != null)
+				{
+					shadowpath.Dispose();
+					shadowpath = null;
+				}
+			}
+			base.Dispose(disposing);
 		}
 		
 		public override string ToString()
