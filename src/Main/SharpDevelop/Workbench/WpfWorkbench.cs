@@ -659,6 +659,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					await RunLibreWpfOwnerDrawSmoke();
 					await RunLibreWpfFormsDesignerMutationSmoke(designerContent as FormsDesignerViewContent, designerProperties, rootComponent);
 					await RunLibreWpfFormsDesignerEventBindingSmoke(designerContent as FormsDesignerViewContent, designerProperties, rootComponent);
+					await RunLibreWpfFormsDesignerKeyboardAndUnloadSmoke(designerContent as FormsDesignerViewContent, designerProperties, rootComponent);
 				} catch (Exception ex) {
 					Console.WriteLine("LibreWPF FormsDesigner smoke failed: " + ex);
 					SD.StatusBar.SetMessage("LibreWPF FormsDesigner smoke failed: " + ex.Message);
@@ -1650,6 +1651,129 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					+ " cleanup=" + cleanupSucceeded
 					+ " handler=" + handlerName
 					+ " methodOccurrences=" + methodOccurrences;
+				Console.WriteLine(message);
+				SD.StatusBar.SetMessage(message);
+			}
+
+			async Task RunLibreWpfFormsDesignerKeyboardAndUnloadSmoke(
+				FormsDesignerViewContent designerContent,
+				PropertyContainer designerProperties,
+				object rootComponent)
+			{
+				System.ComponentModel.Design.IDesignerHost host = designerProperties != null
+					? designerProperties.Host
+					: null;
+				System.Windows.Forms.Control rootControl = rootComponent as System.Windows.Forms.Control;
+				System.Windows.Forms.ToolStrip toolStrip = null;
+				System.Windows.Forms.ToolStripButton firstToolStripButton = null;
+				System.Windows.Forms.ToolStripButton secondToolStripButton = null;
+				bool cleanupService = false;
+				bool keyboardService = false;
+				bool templateStateRead = false;
+				bool navigationInvoked = false;
+				bool componentsRemoved = false;
+				bool closeRequested = false;
+				bool designerDisposed = false;
+				bool cleanupSucceeded = true;
+				int componentCountBefore = host != null && host.Container != null
+					? host.Container.Components.Count
+					: -1;
+				bool originalDesignerDirty = designerContent != null
+					&& designerContent.DesignerCodeFile != null
+					&& designerContent.DesignerCodeFile.IsDirty;
+				bool originalPrimaryDirty = designerContent != null
+					&& designerContent.PrimaryFile != null
+					&& designerContent.PrimaryFile.IsDirty;
+
+				try {
+					if (host == null || rootControl == null)
+						throw new InvalidOperationException("The FormsDesigner host is unavailable for typed keyboard validation.");
+
+					cleanupService = host.GetService(typeof(System.ComponentModel.Design.IPortableDesignSurfaceServiceCleanup))
+						is System.ComponentModel.Design.IPortableDesignSurfaceServiceCleanup;
+
+					toolStrip = host.CreateComponent(typeof(System.Windows.Forms.ToolStrip), "libreWpfKeyboardToolStrip")
+						as System.Windows.Forms.ToolStrip;
+					firstToolStripButton = host.CreateComponent(typeof(System.Windows.Forms.ToolStripButton), "libreWpfKeyboardFirstToolStripButton")
+						as System.Windows.Forms.ToolStripButton;
+					secondToolStripButton = host.CreateComponent(typeof(System.Windows.Forms.ToolStripButton), "libreWpfKeyboardSecondToolStripButton")
+						as System.Windows.Forms.ToolStripButton;
+					if (toolStrip == null || firstToolStripButton == null || secondToolStripButton == null)
+						throw new InvalidOperationException("The FormsDesigner could not create the ToolStrip keyboard fixture.");
+
+					rootControl.Controls.Add(toolStrip);
+					toolStrip.Items.Add(firstToolStripButton);
+					toolStrip.Items.Add(secondToolStripButton);
+					var selectionService = host.GetService(typeof(System.ComponentModel.Design.ISelectionService))
+						as System.ComponentModel.Design.ISelectionService;
+					selectionService?.SetSelectedComponents(
+						new object[] { firstToolStripButton },
+						System.ComponentModel.Design.SelectionTypes.Replace);
+
+					var toolStripKeyboard = host.GetService(typeof(System.Windows.Forms.Design.IPortableToolStripKeyboardHandlingService))
+						as System.Windows.Forms.Design.IPortableToolStripKeyboardHandlingService;
+					keyboardService = toolStripKeyboard != null;
+					if (toolStripKeyboard != null) {
+						_ = toolStripKeyboard.TemplateNodeActive;
+						templateStateRead = true;
+						toolStripKeyboard.ProcessUpDown(true);
+						bool movedDown = selectionService != null
+							&& ReferenceEquals(selectionService.PrimarySelection, secondToolStripButton);
+						toolStripKeyboard.ProcessUpDown(false);
+						bool movedUp = selectionService != null
+							&& ReferenceEquals(selectionService.PrimarySelection, firstToolStripButton);
+						navigationInvoked = movedDown && movedUp;
+					}
+				} catch (Exception ex) {
+					cleanupSucceeded = false;
+					Console.WriteLine("LibreWPF FormsDesigner keyboard smoke failed: " + ex);
+				} finally {
+					Action<string, Action> tryCleanup = (operation, action) => {
+						try {
+							action();
+						} catch (Exception ex) {
+							cleanupSucceeded = false;
+							Console.WriteLine("LibreWPF FormsDesigner keyboard/unload " + operation + " failed: " + ex);
+						}
+					};
+
+					if (host != null && secondToolStripButton != null && secondToolStripButton.Site != null)
+						tryCleanup("second ToolStripButton destruction", () => host.DestroyComponent(secondToolStripButton));
+					if (host != null && firstToolStripButton != null && firstToolStripButton.Site != null)
+						tryCleanup("first ToolStripButton destruction", () => host.DestroyComponent(firstToolStripButton));
+					if (host != null && toolStrip != null && toolStrip.Site != null)
+						tryCleanup("ToolStrip destruction", () => host.DestroyComponent(toolStrip));
+					componentsRemoved = host != null
+						&& host.Container.Components.Count == componentCountBefore
+						&& (firstToolStripButton == null || firstToolStripButton.Site == null)
+						&& (secondToolStripButton == null || secondToolStripButton.Site == null)
+						&& (toolStrip == null || toolStrip.Site == null);
+
+					if (designerContent != null && designerContent.DesignerCodeFile != null)
+						designerContent.DesignerCodeFile.IsDirty = originalDesignerDirty;
+					if (designerContent != null && designerContent.PrimaryFile != null)
+						designerContent.PrimaryFile.IsDirty = originalPrimaryDirty;
+
+					IWorkbenchWindow window = designerContent != null ? designerContent.WorkbenchWindow : null;
+					if (window != null)
+						tryCleanup("workbench close", () => closeRequested = window.CloseWindow(true));
+					await Task.Delay(200);
+					designerDisposed = designerContent != null
+						&& designerContent.IsDisposed
+						&& designerContent.Host == null;
+				}
+
+				bool success = cleanupService && keyboardService && templateStateRead && navigationInvoked
+					&& componentsRemoved && closeRequested && designerDisposed && cleanupSucceeded;
+				string message = "LibreWPF FormsDesigner keyboard/unload smoke result=" + (success ? "Success" : "Partial")
+					+ " cleanupService=" + cleanupService
+					+ " keyboardService=" + keyboardService
+					+ " templateStateRead=" + templateStateRead
+					+ " navigationInvoked=" + navigationInvoked
+					+ " componentsRemoved=" + componentsRemoved
+					+ " closeRequested=" + closeRequested
+					+ " designerDisposed=" + designerDisposed
+					+ " cleanup=" + cleanupSucceeded;
 				Console.WriteLine(message);
 				SD.StatusBar.SetMessage(message);
 			}
