@@ -17,6 +17,8 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
+using System.CodeDom;
+using System.CodeDom.Compiler;
 using System.Collections;
 using System.Resources;
 using System.Resources.Tools;
@@ -71,26 +73,40 @@ namespace ResourceEditor
 			}
 			
 			Hashtable resources = new Hashtable();
-			foreach (DictionaryEntry de in reader) {
-				resources.Add(de.Key, de.Value);
+			using (reader) {
+				foreach (DictionaryEntry de in reader) {
+					resources.Add(de.Key, de.Value);
+				}
 			}
 			
 			string[] unmatchable = null;
 			
 			string generatedCodeNamespace = context.OutputNamespace;
+			CodeDomProvider codeProvider = context.Project.LanguageBinding.CodeDomProvider;
+			CodeCompileUnit compileUnit;
+#if LIBREWPF
+			compileUnit = PortableStronglyTypedResourceBuilder.Create(
+				resources,
+				Path.GetFileNameWithoutExtension(inputFilePath),
+				generatedCodeNamespace,
+				codeProvider,
+				createInternalClass,
+				out unmatchable);
+#else
+			compileUnit = StronglyTypedResourceBuilder.Create(
+				resources,
+				Path.GetFileNameWithoutExtension(inputFilePath),
+				generatedCodeNamespace,
+				context.OutputNamespace,
+				codeProvider,
+				createInternalClass,
+				out unmatchable);
+#endif
 			
 			context.WriteCodeDomToFile(
 				item,
 				context.GetOutputFileName(item, ".Designer"),
-				StronglyTypedResourceBuilder.Create(
-					resources,        // resourceList
-					Path.GetFileNameWithoutExtension(inputFilePath), // baseName
-					generatedCodeNamespace, // generatedCodeNamespace
-					context.OutputNamespace, // resourcesNamespace
-					context.Project.LanguageBinding.CodeDomProvider, // codeProvider
-					createInternalClass,             // internal class
-					out unmatchable
-				));
+				compileUnit);
 			
 			foreach (string s in unmatchable) {
 				context.MessageView.AppendLine(String.Format(System.Globalization.CultureInfo.CurrentCulture, ResourceService.GetString("ResourceEditor.ResourceCodeGeneratorTool.CouldNotGenerateResourceProperty"), s));

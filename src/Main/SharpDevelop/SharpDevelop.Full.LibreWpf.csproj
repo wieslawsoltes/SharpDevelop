@@ -51,6 +51,7 @@
     <None Include="..\..\AddIns\BackendBindings\CSharpBinding\Project\CSharpBinding.LibreWpf.addin" TargetPath="CSharpBinding.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\DisplayBindings\FormsDesigner\Project\FormsDesigner.addin" TargetPath="FormsDesigner.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\DisplayBindings\HexEditor\Project\HexEditor.addin" TargetPath="HexEditor.addin" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\AddIns\DisplayBindings\ResourceEditor\Project\ResourceEditor.addin" TargetPath="ResourceEditor.addin" CopyToOutputDirectory="PreserveNewest" Condition="'$(LibreWpfSharpDevelopIncludeResourceEditor)' == 'true'" />
     <None Include="..\..\AddIns\DisplayBindings\XmlEditor\Project\XmlEditor.addin" TargetPath="XmlEditor.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\Misc\Reporting\ICSharpCode.Reporting.Addin\ICSharpCode.Reporting.addin" TargetPath="ICSharpCode.Reporting.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\Misc\ResourceToolkit\Project\Hornung.ResourceToolkit.addin" TargetPath="Hornung.ResourceToolkit.addin" CopyToOutputDirectory="PreserveNewest" Condition="'$(LibreWpfSharpDevelopIncludeResourceToolkit)' == 'true'" />
@@ -86,6 +87,7 @@
     <ProjectReference Include="..\..\AddIns\DisplayBindings\AvalonEdit.AddIn\AvalonEdit.AddIn.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\FormsDesigner\Project\FormsDesigner.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\HexEditor\Project\HexEditor.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\AddIns\DisplayBindings\ResourceEditor\Project\ResourceEditor.LibreWpf.csproj" Condition="'$(LibreWpfSharpDevelopIncludeResourceEditor)' == 'true'" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\XmlEditor\Project\XmlEditor.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\BackendBindings\CSharpBinding\Project\CSharpBinding.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\Misc\Reporting\ICSharpCode.Reporting\ICSharpCode.Reporting.LibreWpf.csproj" />
