@@ -1397,6 +1397,15 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				string originalPrimaryCode = designerContent != null && designerContent.PrimaryFileDocument != null
 					? designerContent.PrimaryFileDocument.Text
 					: null;
+				ITextEditor originalPrimaryEditor = designerContent != null && designerContent.PrimaryViewContent != null
+					? designerContent.PrimaryViewContent.GetService<ITextEditor>()
+					: null;
+				ICSharpCode.NRefactory.Editor.IDocument originalPrimaryEditorDocument = originalPrimaryEditor != null
+					? originalPrimaryEditor.Document
+					: null;
+				string originalPrimaryEditorCode = originalPrimaryEditorDocument != null
+					? originalPrimaryEditorDocument.Text
+					: null;
 				bool originalDesignerDirty = designerContent != null
 					&& designerContent.DesignerCodeFile != null
 					&& designerContent.DesignerCodeFile.IsDirty;
@@ -1404,34 +1413,45 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					&& designerContent.PrimaryFile != null
 					&& designerContent.PrimaryFile.IsDirty;
 				bool localService = false;
+				bool portableService = false;
+				bool serviceStable = false;
 				bool componentCreated = false;
 				bool uniqueName = false;
 				bool reusedName = false;
 				bool valueSet = false;
 				bool undoCleared = false;
 				bool redoRestored = false;
+				bool serializedHandler = false;
+				bool serializedEvent = false;
 				bool serializedHookup = false;
+				bool bindingAfterMerge = false;
 				bool showCode = false;
 				bool methodCreated = false;
 				bool showCodeReused = false;
 				bool sourceActive = false;
 				bool caretAtHandler = false;
+				bool componentUnsited = false;
+				bool componentParentRemoved = false;
+				bool componentCountRestored = false;
 				bool componentRemoved = false;
+				bool cleanupSucceeded = true;
+				string eventComponentName = string.Empty;
 				string handlerName = string.Empty;
 				int methodOccurrences = 0;
+				int componentCountAfterCleanup = -1;
 
 				try {
 					if (designerContent == null || host == null || rootControl == null)
 						throw new InvalidOperationException("The FormsDesigner event-binding smoke requires a loaded control designer.");
 
-					string componentName = "libreWpfEventButton";
-					for (int suffix = 1; host.Container.Components[componentName] != null; suffix++) {
-						componentName = "libreWpfEventButton" + suffix.ToString(CultureInfo.InvariantCulture);
+					eventComponentName = "libreWpfEventButton";
+					for (int suffix = 1; host.Container.Components[eventComponentName] != null; suffix++) {
+						eventComponentName = "libreWpfEventButton" + suffix.ToString(CultureInfo.InvariantCulture);
 					}
 
 					using (System.ComponentModel.Design.DesignerTransaction transaction =
 					       host.CreateTransaction("Create event-binding smoke component")) {
-						eventButton = host.CreateComponent(typeof(System.Windows.Forms.Button), componentName)
+						eventButton = host.CreateComponent(typeof(System.Windows.Forms.Button), eventComponentName)
 							as System.Windows.Forms.Button;
 						if (eventButton == null)
 							throw new InvalidOperationException("The FormsDesigner host did not create the event-binding button.");
@@ -1448,6 +1468,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					var eventBindings = host.GetService(typeof(System.ComponentModel.Design.IEventBindingService))
 						as System.ComponentModel.Design.IEventBindingService;
 					localService = eventBindings is IFormsDesignerEventBindingService;
+					portableService = eventBindings is System.ComponentModel.Design.EventBindingService;
 					System.ComponentModel.EventDescriptor clickEvent = TypeDescriptor.GetEvents(eventButton)["Click"];
 					if (eventBindings == null || clickEvent == null)
 						throw new InvalidOperationException("The typed C# EventBindingService or Button.Click descriptor is unavailable.");
@@ -1472,24 +1493,25 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					redoRestored = redoAvailable
 						&& string.Equals(eventProperty.GetValue(eventButton) as string, handlerName, StringComparison.Ordinal);
 
-					designerContent.MergeFormChanges();
-					string generatedDesignerCode = designerContent.DesignerCodeFileContent ?? string.Empty;
-					serializedHookup = generatedDesignerCode.IndexOf(handlerName, StringComparison.Ordinal) >= 0
-						&& generatedDesignerCode.IndexOf(".Click +=", StringComparison.Ordinal) >= 0;
-
+					ITextEditor editor = designerContent.PrimaryViewContent.GetService<ITextEditor>();
+					ICSharpCode.NRefactory.Editor.IDocument livePrimaryDocument = editor != null
+						? editor.Document
+						: designerContent.PrimaryFileDocument;
 					int methodCountBefore = CountLibreWpfTextOccurrences(
-						designerContent.PrimaryFileDocument.Text,
+						livePrimaryDocument.Text,
 						handlerName + "(");
 					showCode = eventBindings.ShowCode(eventButton, clickEvent);
 					int handlerOffset = -1;
-					ITextEditor editor = null;
 					for (int attempt = 0; attempt < 60; attempt++) {
 						System.Windows.Forms.Application.RaiseIdle(EventArgs.Empty);
 						await Task.Delay(100);
-						string primaryCode = designerContent.PrimaryFileDocument.Text;
+						editor = designerContent.PrimaryViewContent.GetService<ITextEditor>();
+						livePrimaryDocument = editor != null
+							? editor.Document
+							: designerContent.PrimaryFileDocument;
+						string primaryCode = livePrimaryDocument.Text;
 						methodOccurrences = CountLibreWpfTextOccurrences(primaryCode, handlerName + "(");
 						handlerOffset = primaryCode.IndexOf(handlerName + "(", StringComparison.Ordinal);
-						editor = designerContent.PrimaryViewContent.GetService<ITextEditor>();
 						sourceActive = designerContent.PrimaryViewContent.WorkbenchWindow != null
 							&& ReferenceEquals(
 								designerContent.PrimaryViewContent.WorkbenchWindow.ActiveViewContent,
@@ -1507,10 +1529,13 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					for (int attempt = 0; attempt < 30; attempt++) {
 						System.Windows.Forms.Application.RaiseIdle(EventArgs.Empty);
 						await Task.Delay(100);
-						methodOccurrences = CountLibreWpfTextOccurrences(
-							designerContent.PrimaryFileDocument.Text,
-							handlerName + "(");
 						editor = designerContent.PrimaryViewContent.GetService<ITextEditor>();
+						livePrimaryDocument = editor != null
+							? editor.Document
+							: designerContent.PrimaryFileDocument;
+						methodOccurrences = CountLibreWpfTextOccurrences(
+							livePrimaryDocument.Text,
+							handlerName + "(");
 						sourceActive = designerContent.PrimaryViewContent.WorkbenchWindow != null
 							&& ReferenceEquals(
 								designerContent.PrimaryViewContent.WorkbenchWindow.ActiveViewContent,
@@ -1527,52 +1552,102 @@ namespace ICSharpCode.SharpDevelop.Workbench
 							&& caretOffset >= handlerOffset
 							&& caretOffset <= Math.Min(editor.Document.TextLength, handlerOffset + 800);
 					}
+
+					designerContent.MergeFormChanges();
+					serviceStable = ReferenceEquals(
+						eventBindings,
+						host.GetService(typeof(System.ComponentModel.Design.IEventBindingService)));
+					bindingAfterMerge = string.Equals(
+						eventProperty.GetValue(eventButton) as string,
+						handlerName,
+						StringComparison.Ordinal);
+					string generatedDesignerCode = designerContent.DesignerCodeFileContent ?? string.Empty;
+					string serializedBindingLine = generatedDesignerCode
+						.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+						.FirstOrDefault(line =>
+							line.IndexOf(eventComponentName + ".Click +=", StringComparison.Ordinal) >= 0);
+					serializedEvent = serializedBindingLine != null;
+					serializedHandler = serializedEvent
+						&& serializedBindingLine.IndexOf(handlerName, StringComparison.Ordinal) >= 0;
+					serializedHookup = serializedHandler && serializedEvent;
 				} catch (Exception ex) {
 					Console.WriteLine("LibreWPF FormsDesigner event-binding smoke failed: " + ex);
 					SD.StatusBar.SetMessage("LibreWPF FormsDesigner event-binding smoke failed: " + ex.Message);
 				} finally {
+					Action<string, Action> tryCleanup = (operation, cleanup) => {
+						try {
+							cleanup();
+						} catch (Exception ex) {
+							cleanupSucceeded = false;
+							Console.WriteLine("LibreWPF FormsDesigner event-binding " + operation + " failed: " + ex);
+						}
+					};
+
 					if (eventButton != null && eventButton.Site != null && host != null) {
-						host.DestroyComponent(eventButton);
+						tryCleanup("component destruction", () => host.DestroyComponent(eventButton));
 					}
-					componentRemoved = eventButton != null
-						&& eventButton.Site == null
-						&& eventButton.Parent == null
-						&& host != null
-						&& host.Container.Components.Count == componentCountBefore;
+					if (eventButton != null && eventButton.Parent != null) {
+						tryCleanup("parent removal", () => eventButton.Parent.Controls.Remove(eventButton));
+					}
+					componentUnsited = eventButton != null && eventButton.Site == null;
+					componentParentRemoved = eventButton != null && eventButton.Parent == null;
+					componentCountAfterCleanup = host != null ? host.Container.Components.Count : -1;
+					componentCountRestored = componentCountAfterCleanup == componentCountBefore;
+					componentRemoved = componentUnsited && componentParentRemoved && componentCountRestored;
 
 					if (designerContent != null) {
 						if (originalDesignerCode != null) {
-							designerContent.DesignerCodeFileContent = originalDesignerCode;
-							if (designerContent.DesignerCodeFile != null)
-								designerContent.DesignerCodeFile.IsDirty = originalDesignerDirty;
+							tryCleanup("designer source restoration", () => designerContent.DesignerCodeFileContent = originalDesignerCode);
 						}
 						if (originalPrimaryCode != null && designerContent.PrimaryFileDocument != null) {
-							designerContent.PrimaryFileDocument.Text = originalPrimaryCode;
-							if (designerContent.PrimaryFile != null)
-								designerContent.PrimaryFile.IsDirty = originalPrimaryDirty;
+							tryCleanup("designer primary source restoration", () => designerContent.PrimaryFileDocument.Text = originalPrimaryCode);
+						}
+						if (originalPrimaryEditorCode != null
+						    && originalPrimaryEditorDocument != null
+						    && !ReferenceEquals(originalPrimaryEditorDocument, designerContent.PrimaryFileDocument)) {
+							tryCleanup("live primary source restoration", () => originalPrimaryEditorDocument.Text = originalPrimaryEditorCode);
+						}
+						if (designerContent.DesignerCodeFile != null) {
+							tryCleanup("designer dirty-state restoration", () => designerContent.DesignerCodeFile.IsDirty = originalDesignerDirty);
+						}
+						if (designerContent.PrimaryFile != null) {
+							tryCleanup("primary dirty-state restoration", () => designerContent.PrimaryFile.IsDirty = originalPrimaryDirty);
 						}
 					}
 				}
 
-				bool success = localService && componentCreated && uniqueName && reusedName
+				bool success = localService && portableService && serviceStable
+					&& componentCreated && uniqueName && reusedName
 					&& valueSet && undoCleared && redoRestored && serializedHookup
+					&& bindingAfterMerge
 					&& showCode && methodCreated && showCodeReused && sourceActive
-					&& caretAtHandler && componentRemoved;
+					&& caretAtHandler && componentRemoved && cleanupSucceeded;
 				string message = "LibreWPF FormsDesigner event-binding smoke result=" + (success ? "Success" : "Partial")
 					+ " service=" + localService
+					+ " portableService=" + portableService
+					+ " serviceStable=" + serviceStable
 					+ " componentCreated=" + componentCreated
 					+ " uniqueName=" + uniqueName
 					+ " reusedName=" + reusedName
 					+ " valueSet=" + valueSet
 					+ " undoCleared=" + undoCleared
 					+ " redoRestored=" + redoRestored
+					+ " serializedHandler=" + serializedHandler
+					+ " serializedEvent=" + serializedEvent
 					+ " serialized=" + serializedHookup
+					+ " bindingAfterMerge=" + bindingAfterMerge
 					+ " showCode=" + showCode
 					+ " methodCreated=" + methodCreated
 					+ " showCodeReused=" + showCodeReused
 					+ " sourceActive=" + sourceActive
 					+ " caretAtHandler=" + caretAtHandler
+					+ " componentUnsited=" + componentUnsited
+					+ " componentParentRemoved=" + componentParentRemoved
+					+ " componentCountRestored=" + componentCountRestored
+					+ " componentCountBefore=" + componentCountBefore
+					+ " componentCountAfter=" + componentCountAfterCleanup
 					+ " componentRemoved=" + componentRemoved
+					+ " cleanup=" + cleanupSucceeded
 					+ " handler=" + handlerName
 					+ " methodOccurrences=" + methodOccurrences;
 				Console.WriteLine(message);
