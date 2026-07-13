@@ -41,6 +41,9 @@ namespace HexEditor
 	/// Hexadecimal editor control.
 	/// </summary>
 	public partial class Editor : UserControl
+#if LIBREWPF
+		, IPortableWinFormsHostLifecycle
+#endif
 	{
 		// TODO : Make big files compatible (data structures are bad)
 
@@ -261,6 +264,7 @@ namespace HexEditor
 				}
 				underscorewidth3 = underscorewidth * 3;
 				fontheight = GetFontHeight(value);
+				UpdateViews();
 				this.Invalidate();
 			}
 		}
@@ -277,6 +281,7 @@ namespace HexEditor
 				}
 				underscorewidth3 = underscorewidth * 3;
 				fontheight = GetFontHeight(value);
+				UpdateViews();
 				this.Invalidate();
 			}
 		}
@@ -394,7 +399,6 @@ namespace HexEditor
 		/// </summary>
 		void VScrollBarScroll(object sender, ScrollEventArgs e)
 		{
-			UpdateViews();
 			this.topline = VScrollBar.Value;
 			Point pos = GetPositionForOffset(caret.Offset, charwidth);
 			caret.SetToPosition(pos);
@@ -496,8 +500,8 @@ namespace HexEditor
 			// Refresh selection.
 			CalculateSelectionRegions();
 			
-			// Calculate views and reset scrollbar.
-			UpdateViews();
+			// Reset the scrollbar without changing layout or replacing the active
+			// drawing surfaces from inside the paint callback.
 			AdjustScrollBar();
 			
 			// Paint using double buffering for better painting!
@@ -1151,6 +1155,19 @@ namespace HexEditor
 			UpdateViews();
 			
 		}
+
+#if LIBREWPF
+		void IPortableWinFormsHostLifecycle.OnPortableHostAttached()
+		{
+			UpdateViews();
+			Invalidate();
+		}
+
+		void IPortableWinFormsHostLifecycle.OnPortableHostDetached()
+		{
+			DisposePainters();
+		}
+#endif
 		
 		void UpdatePainters()
 		{
@@ -1202,21 +1219,17 @@ namespace HexEditor
 		/// </summary>
 		void UpdateViews()
 		{
-			this.UpdatePainters();
-			
 			int sidetext = this.GetMaxLines() * this.BytesPerLine;
 			int textwidth;
 			using (var graphics = this.textView.CreateGraphics()) {
 				textwidth = MeasureStringWidth(graphics, new string('_', this.BytesPerLine + 1), Settings.DataFont);
 			}
 			int hexwidth = underscorewidth3 * this.BytesPerLine;
-			int top = hexView.Top;
 			this.hexView.Top = fontheight - 1;
 			this.textView.Top = fontheight - 1;
 			this.header.Top = 0;
-			this.header.Left = hexView.Left - 10;
-			this.hexView.Height = this.Height - fontheight + top - 18;
-			this.textView.Height = this.Height - fontheight + top - 18;
+			this.hexView.Height = Math.Max(1, this.Height - fontheight);
+			this.textView.Height = Math.Max(1, this.Height - fontheight);
 
 			string st = String.Empty;
 
@@ -1255,6 +1268,7 @@ namespace HexEditor
 			}
 			this.side.Left = 0;
 			this.hexView.Left = this.side.Width + 10;
+			this.header.Left = this.hexView.Left - 10;
 
 			if ((textwidth + hexwidth + 25) > this.Width - this.side.Width) {
 				this.hexView.Width = this.Width - this.side.Width - textwidth - 30;
@@ -1270,6 +1284,7 @@ namespace HexEditor
 			this.header.Width = this.hexView.Width + 10;
 			this.header.Height = this.fontheight;
 			AdjustScrollBar();
+			UpdatePainters();
 		}
 		
 		/// <summary>
@@ -1735,6 +1750,7 @@ namespace HexEditor
 			this.side.Cursor = this.Cursor = this.header.Cursor = Cursors.Default;
 			
 			GC.Collect();
+			UpdateViews();
 			this.Invalidate();
 		}
 		
