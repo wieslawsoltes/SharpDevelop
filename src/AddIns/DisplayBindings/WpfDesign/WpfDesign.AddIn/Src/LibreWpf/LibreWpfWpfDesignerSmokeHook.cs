@@ -22,9 +22,11 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
+using System.Xml;
 
 using ICSharpCode.Core;
 using ICSharpCode.SharpDevelop;
@@ -78,40 +80,115 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				var surface = designer.DesignSurface;
 				surface.ApplyTemplate();
 				surface.UpdateLayout();
-				designer.DesignContext.Services.Selection.SetSelectedComponents(
-					new[] { designer.DesignContext.RootItem });
-				await Task.Delay(100);
-
-				bool rootSelected = ReferenceEquals(
-					designer.DesignContext.Services.Selection.PrimarySelection,
-					designer.DesignContext.RootItem);
+				await Task.Delay(250);
+				var selection = await SelectStableDesignItemAsync(designer);
+				var primarySelection = selection.PrimarySelection;
+				bool selectionReady = primarySelection != null
+					&& selection.SelectedItems.Contains(primarySelection);
 				bool propertyGridReady = designer.PropertyContainer.PropertyGridReplacementContent is PropertyGridView;
 				bool rootViewReady = designer.DesignContext.RootItem.View is FrameworkElement;
 				bool presented = PresentationSource.FromVisual(surface) != null;
-				if (!rootSelected || !propertyGridReady || !rootViewReady || !presented)
+				bool editReady;
+				bool undoReady;
+				bool redoReady;
+				bool saveReady;
+				VerifyEditUndoRedoAndSave(designer, out editReady, out undoReady, out redoReady, out saveReady);
+				if (!selectionReady || !propertyGridReady || !rootViewReady || !presented
+					|| !editReady || !undoReady || !redoReady || !saveReady)
 					throw new InvalidOperationException(
-						"The WPF designer did not reach its selected, property, and presented state."
-						+ " selected=" + rootSelected
+						"The WPF designer did not reach its selected, editable, and presented state."
+						+ " selected=" + selectionReady
+						+ " selectionCount=" + selection.SelectionCount
+						+ " primary=" + (primarySelection == null ? "<null>" : primarySelection.ComponentType.FullName)
 						+ " propertyGrid=" + propertyGridReady
 						+ " rootView=" + rootViewReady
-						+ " presented=" + presented);
+						+ " presented=" + presented
+						+ " edit=" + editReady
+						+ " undo=" + undoReady
+						+ " redo=" + redoReady
+						+ " save=" + saveReady);
 
 				WriteResult(
 					"Success",
 					"file=" + Path.GetFileName(filePath)
 					+ " root=" + designer.DesignContext.RootItem.ComponentType.FullName
-					+ " selected=True propertyGrid=True presented=True");
+					+ " selected=" + primarySelection.ComponentType.FullName
+					+ " propertyGrid=True presented=True edit=True undo=True redo=True save=True");
 			} finally {
 				if (primary != null && primary.WorkbenchWindow != null)
 					primary.WorkbenchWindow.CloseWindow(true);
 			}
 		}
 
+		static void VerifyEditUndoRedoAndSave(
+			WpfViewContent designer,
+			out bool editReady,
+			out bool undoReady,
+			out bool redoReady,
+			out bool saveReady)
+		{
+			const string editedTitle = "LibreWPF designer smoke edit";
+			var titleProperty = designer.DesignContext.RootItem.Properties.GetProperty("Title");
+			object originalTitle = titleProperty.ValueOnInstance;
+			titleProperty.SetValue(editedTitle);
+			editReady = Equals(titleProperty.ValueOnInstance, editedTitle) && designer.DesignSurface.CanUndo();
+
+			designer.DesignSurface.Undo();
+			undoReady = Equals(titleProperty.ValueOnInstance, originalTitle) && designer.DesignSurface.CanRedo();
+			designer.DesignSurface.Redo();
+			redoReady = Equals(titleProperty.ValueOnInstance, editedTitle);
+
+			var output = new StringBuilder();
+			using (var writer = XmlWriter.Create(output, new XmlWriterSettings { OmitXmlDeclaration = true })) {
+				designer.DesignSurface.SaveDesigner(writer);
+			}
+			saveReady = output.ToString().Contains("Title=\"" + editedTitle + "\"");
+
+			designer.DesignSurface.Undo();
+			undoReady = undoReady && Equals(titleProperty.ValueOnInstance, originalTitle);
+		}
+
+		static async Task<ICSharpCode.WpfDesign.ISelectionService> SelectStableDesignItemAsync(WpfViewContent designer)
+		{
+			for (int attempt = 0; attempt < 20; attempt++) {
+				var context = designer.DesignContext;
+				if (context == null || context.RootItem == null) {
+					await Task.Delay(100);
+					continue;
+				}
+
+				var rootItem = context.RootItem;
+				var selectionTarget = rootItem.ContentProperty == null
+					? rootItem
+					: rootItem.ContentProperty.Value
+					  ?? rootItem.ContentProperty.CollectionElements.FirstOrDefault()
+					  ?? rootItem;
+				var selection = context.Services.Selection;
+				selection.SetSelectedComponents(
+					new[] { selectionTarget },
+					ICSharpCode.WpfDesign.SelectionTypes.Primary);
+				await Task.Delay(100);
+
+				if (ReferenceEquals(context, designer.DesignContext)
+					&& selection.PrimarySelection != null
+					&& selection.SelectedItems.Contains(selection.PrimarySelection))
+					return selection;
+			}
+
+			return designer.DesignContext.Services.Selection;
+		}
+
 		static async Task WaitForProjectAsync()
 		{
 			for (int attempt = 0; attempt < 100; attempt++) {
-				if (SD.ProjectService.CurrentProject != null
-				    && !SD.ParserService.LoadSolutionProjectsThread.IsRunning)
+				IProject project = SD.ProjectService.CurrentProject;
+				ISolution solution = SD.ProjectService.CurrentSolution;
+				if (project == null && solution != null) {
+					project = solution.StartupProject ?? solution.Projects.FirstOrDefault();
+					if (project != null)
+						SD.ProjectService.CurrentProject = project;
+				}
+				if (project != null && !SD.ParserService.LoadSolutionProjectsThread.IsRunning)
 					return;
 				await Task.Delay(100);
 			}
