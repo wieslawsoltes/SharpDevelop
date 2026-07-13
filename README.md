@@ -15,6 +15,20 @@ Looking for the tech notes (Fine Art of Commenting, Coding Style Guide, and more
 ## How To Compile
  #Develop can be compiled using the supplied .bat files, or in #Develop itself.
 
+### LibreWPF / LibreWinForms portable build
+
+The portable ProGPU/Silk.NET build consumes the public LibreWPF and LibreWinForms
+`0.1.0-preview.10` packages from NuGet.org:
+
+```sh
+dotnet build src/Main/SharpDevelop/SharpDevelop.Full.LibreWpf.csproj -c Release
+```
+
+Run `./eng/librewpf-public-preview-smoke.sh` on macOS or Linux to restore into a
+clean package cache, verify the complete LibreWPF/LibreWinForms/ProGPU version
+set, build the ResourceToolkit-enabled workbench, and exercise the LineCounter
+FormsDesigner in an isolated configuration directory.
+
 ## System Requirements (running #Develop)
 
  - Windows Vista or higher.
