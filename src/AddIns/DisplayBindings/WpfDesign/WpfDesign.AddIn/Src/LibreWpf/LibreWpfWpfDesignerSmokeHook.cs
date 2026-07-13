@@ -118,7 +118,11 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					|| !toolboxResult.PointerAdornerPanelReady
 					|| !toolboxResult.PointerMoveReady || !toolboxResult.PointerXamlReady
 					|| !toolboxResult.PointerUndoReady || !toolboxResult.PointerRedoReady
-					|| !toolboxResult.PointerRestoreReady)
+					|| !toolboxResult.PointerRestoreReady
+					|| !toolboxResult.ResizeFailClosedReady
+					|| !toolboxResult.ResizeAppliedReady || !toolboxResult.ResizeXamlReady
+					|| !toolboxResult.ResizeUndoReady || !toolboxResult.ResizeRedoReady
+					|| !toolboxResult.ResizeCancelReady || !toolboxResult.ResizeRestoreReady)
 					throw new InvalidOperationException(
 						"The WPF designer did not reach its selected, editable, and presented state."
 						+ " selected=" + selectionReady
@@ -160,7 +164,14 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 						+ " pointerXaml=" + toolboxResult.PointerXamlReady
 						+ " pointerUndo=" + toolboxResult.PointerUndoReady
 						+ " pointerRedo=" + toolboxResult.PointerRedoReady
-						+ " pointerRestore=" + toolboxResult.PointerRestoreReady);
+						+ " pointerRestore=" + toolboxResult.PointerRestoreReady
+						+ " resizeFailClosed=" + toolboxResult.ResizeFailClosedReady
+						+ " resizeApplied=" + toolboxResult.ResizeAppliedReady
+						+ " resizeXaml=" + toolboxResult.ResizeXamlReady
+						+ " resizeUndo=" + toolboxResult.ResizeUndoReady
+						+ " resizeRedo=" + toolboxResult.ResizeRedoReady
+						+ " resizeCancel=" + toolboxResult.ResizeCancelReady
+						+ " resizeRestore=" + toolboxResult.ResizeRestoreReady);
 
 				WriteResult(
 					"Success",
@@ -179,7 +190,9 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					+ " pointerSelection=True pointerPropertyGrid=True"
 					+ " pointerAdornerExtension=True pointerAdornerPanel=True"
 					+ " pointerMove=True pointerXaml=True pointerUndo=True pointerRedo=True"
-					+ " pointerRestore=True");
+					+ " pointerRestore=True"
+					+ " resizeFailClosed=True resizeApplied=True resizeXaml=True"
+					+ " resizeUndo=True resizeRedo=True resizeCancel=True resizeRestore=True");
 			} finally {
 				if (primary != null && primary.WorkbenchWindow != null)
 					primary.WorkbenchWindow.CloseWindow(true);
@@ -618,6 +631,195 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					break;
 				await Task.Delay(50);
 			}
+
+			if (result.PointerRestoreReady)
+				await VerifyResizeManipulationAsync(designer, item, result);
+		}
+
+		static async Task VerifyResizeManipulationAsync(
+			WpfViewContent designer,
+			ICSharpCode.WpfDesign.DesignItem item,
+			ToolboxSmokeResult result)
+		{
+			var context = designer.DesignContext;
+			var undoService = context.Services.GetService<UndoService>();
+			if (undoService == null)
+				return;
+
+			string originalXaml = SaveDesignerToString(designer);
+			int originalUndoCount = undoService.UndoActions.Count();
+			ResizeThumbExtension resizeExtension = null;
+			for (int attempt = 0; attempt < 50; attempt++) {
+				resizeExtension = item.Extensions.OfType<ResizeThumbExtension>().SingleOrDefault();
+				if (resizeExtension != null && resizeExtension.Adorners.Count > 0)
+					break;
+				await Task.Delay(50);
+			}
+			if (resizeExtension == null)
+				return;
+
+			IResizeThumbGesture noOpGesture = null;
+			try {
+				bool invalidAlignmentFailedClosed = resizeExtension.TryStartGesture(
+					ICSharpCode.WpfDesign.PlacementAlignment.Center) == null;
+				noOpGesture = resizeExtension.TryStartGesture(
+					ICSharpCode.WpfDesign.PlacementAlignment.BottomRight);
+				if (noOpGesture == null)
+					return;
+
+				bool reentrantGestureFailedClosed = resizeExtension.TryStartGesture(
+					ICSharpCode.WpfDesign.PlacementAlignment.Right) == null;
+				bool nonFiniteDeltaFailedClosed = !noOpGesture.Update(
+					new Vector(double.NaN, 1),
+					false)
+					&& !noOpGesture.HasResized;
+				noOpGesture.Complete();
+				result.ResizeFailClosedReady = invalidAlignmentFailedClosed
+					&& reentrantGestureFailedClosed
+					&& nonFiniteDeltaFailedClosed
+					&& !noOpGesture.IsActive
+					&& !resizeExtension.IsResizing
+					&& undoService.UndoActions.Count() == originalUndoCount
+					&& string.Equals(
+						SaveDesignerToString(designer),
+						originalXaml,
+						StringComparison.Ordinal);
+			} finally {
+				if (noOpGesture != null && noOpGesture.IsActive)
+					noOpGesture.Cancel();
+			}
+			if (!result.ResizeFailClosedReady)
+				return;
+
+			resizeExtension = item.Extensions.OfType<ResizeThumbExtension>().SingleOrDefault();
+			if (resizeExtension == null)
+				return;
+
+			// Seed XamlDom's stable resize-attribute order before checking exact source.
+			// This mirrors the pointer-move baseline above and leaves no undo unit.
+			IResizeThumbGesture baselineGesture = null;
+			bool baselineCommitted = false;
+			try {
+				baselineGesture = resizeExtension.TryStartGesture(
+					ICSharpCode.WpfDesign.PlacementAlignment.BottomRight);
+				if (baselineGesture == null
+					|| !baselineGesture.Update(new Vector(1, 1), false)
+					|| !baselineGesture.HasResized)
+					return;
+
+				baselineGesture.Complete();
+				baselineCommitted = !baselineGesture.IsActive
+					&& undoService.UndoActions.Count() == originalUndoCount + 1;
+				if (!baselineCommitted)
+					return;
+
+				designer.DesignSurface.Undo();
+				baselineCommitted = false;
+				if (undoService.UndoActions.Count() != originalUndoCount
+					|| !designer.DesignSurface.CanRedo())
+					return;
+				originalXaml = SaveDesignerToString(designer);
+			} finally {
+				if (baselineGesture != null && baselineGesture.IsActive)
+					baselineGesture.Cancel();
+				if (baselineCommitted
+					&& undoService.UndoActions.Count() > originalUndoCount)
+					designer.DesignSurface.Undo();
+			}
+
+			IResizeThumbGesture resizeGesture = null;
+			bool resizeCommitted = false;
+			try {
+				resizeGesture = resizeExtension.TryStartGesture(
+					ICSharpCode.WpfDesign.PlacementAlignment.BottomRight);
+				if (resizeGesture == null)
+					return;
+
+				result.ResizeAppliedReady = resizeGesture.Update(new Vector(24, 18), false)
+					&& resizeGesture.IsActive
+					&& resizeGesture.HasResized;
+				string resizedXaml = SaveDesignerToString(designer);
+				result.ResizeXamlReady = result.ResizeAppliedReady
+					&& !string.Equals(resizedXaml, originalXaml, StringComparison.Ordinal);
+				if (!result.ResizeXamlReady)
+					return;
+
+				resizeGesture.Complete();
+				resizeCommitted = !resizeGesture.IsActive
+					&& !resizeExtension.IsResizing
+					&& undoService.UndoActions.Count() == originalUndoCount + 1;
+				if (!resizeCommitted)
+					return;
+
+				string committedXaml = SaveDesignerToString(designer);
+				result.ResizeXamlReady = string.Equals(
+					committedXaml,
+					resizedXaml,
+					StringComparison.Ordinal);
+				designer.DesignSurface.Undo();
+				result.ResizeUndoReady = undoService.UndoActions.Count() == originalUndoCount
+					&& designer.DesignSurface.CanRedo()
+					&& string.Equals(
+						SaveDesignerToString(designer),
+						originalXaml,
+						StringComparison.Ordinal);
+
+				designer.DesignSurface.Redo();
+				result.ResizeRedoReady = undoService.UndoActions.Count() == originalUndoCount + 1
+					&& string.Equals(
+						SaveDesignerToString(designer),
+						committedXaml,
+						StringComparison.Ordinal);
+
+				designer.DesignSurface.Undo();
+				resizeCommitted = false;
+			} finally {
+				if (resizeGesture != null && resizeGesture.IsActive)
+					resizeGesture.Cancel();
+				if (resizeCommitted
+					&& undoService.UndoActions.Count() > originalUndoCount)
+					designer.DesignSurface.Undo();
+			}
+			if (!result.ResizeUndoReady || !result.ResizeRedoReady)
+				return;
+
+			resizeExtension = item.Extensions.OfType<ResizeThumbExtension>().SingleOrDefault();
+			if (resizeExtension == null)
+				return;
+
+			IResizeThumbGesture canceledGesture = null;
+			try {
+				canceledGesture = resizeExtension.TryStartGesture(
+					ICSharpCode.WpfDesign.PlacementAlignment.Left);
+				if (canceledGesture == null)
+					return;
+
+				bool cancelMutationReady = canceledGesture.Update(new Vector(12, 0), false)
+					&& canceledGesture.HasResized
+					&& !string.Equals(
+						SaveDesignerToString(designer),
+						originalXaml,
+						StringComparison.Ordinal);
+				canceledGesture.Cancel();
+				result.ResizeCancelReady = cancelMutationReady
+					&& !canceledGesture.IsActive
+					&& !resizeExtension.IsResizing
+					&& undoService.UndoActions.Count() == originalUndoCount
+					&& string.Equals(
+						SaveDesignerToString(designer),
+						originalXaml,
+						StringComparison.Ordinal);
+			} finally {
+				if (canceledGesture != null && canceledGesture.IsActive)
+					canceledGesture.Cancel();
+			}
+
+			result.ResizeRestoreReady = result.ResizeCancelReady
+				&& undoService.UndoActions.Count() == originalUndoCount
+				&& string.Equals(
+					SaveDesignerToString(designer),
+					originalXaml,
+					StringComparison.Ordinal);
 		}
 
 		static string SaveDesignerToString(WpfViewContent designer)
@@ -672,6 +874,13 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			public bool PointerUndoReady;
 			public bool PointerRedoReady;
 			public bool PointerRestoreReady;
+			public bool ResizeFailClosedReady;
+			public bool ResizeAppliedReady;
+			public bool ResizeXamlReady;
+			public bool ResizeUndoReady;
+			public bool ResizeRedoReady;
+			public bool ResizeCancelReady;
+			public bool ResizeRestoreReady;
 		}
 
 		static async Task WaitForProjectAsync()
