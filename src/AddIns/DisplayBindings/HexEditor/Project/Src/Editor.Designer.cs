@@ -32,6 +32,8 @@ namespace HexEditor
 		protected override void Dispose(bool disposing)
 		{
 			if (disposing) {
+				DetachContextMenuStripClosedHandler();
+				DisposePainters();
 				if (components != null) {
 					components.Dispose();
 				}

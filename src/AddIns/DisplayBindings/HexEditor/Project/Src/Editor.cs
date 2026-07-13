@@ -83,6 +83,7 @@ namespace HexEditor
 		private Bitmap bHeader, bSide, bHex, bText;
 		private Graphics gbHeader, gbSide, gbHex, gbText,
 		gHeader, gSide, gHex, gText;
+		private ContextMenuStrip subscribedContextMenuStrip;
 		
 		/// <summary>
 		/// Event fired every time something is changed in the editor.
@@ -255,7 +256,9 @@ namespace HexEditor
 			get { return Settings.DataFont; }
 			set {
 				Settings.DataFont = value;
-				underscorewidth = MeasureStringWidth(this.CreateGraphics(), "_", value);
+				using (var graphics = this.CreateGraphics()) {
+					underscorewidth = MeasureStringWidth(graphics, "_", value);
+				}
 				underscorewidth3 = underscorewidth * 3;
 				fontheight = GetFontHeight(value);
 				this.Invalidate();
@@ -269,7 +272,9 @@ namespace HexEditor
 			get { return Settings.OffsetFont; }
 			set {
 				Settings.OffsetFont = value;
-				underscorewidth = MeasureStringWidth(this.CreateGraphics(), "_", value);
+				using (var graphics = this.CreateGraphics()) {
+					underscorewidth = MeasureStringWidth(graphics, "_", value);
+				}
 				underscorewidth3 = underscorewidth * 3;
 				fontheight = GetFontHeight(value);
 				this.Invalidate();
@@ -1149,21 +1154,47 @@ namespace HexEditor
 		
 		void UpdatePainters()
 		{
+			DisposePainters();
+
 			gHeader = this.header.CreateGraphics();
 			gSide = this.side.CreateGraphics();
 			gHex = this.hexView.CreateGraphics();
 			gText = this.textView.CreateGraphics();
 			
 			// Bitmaps for painting
-			bHeader = new Bitmap(this.header.Width, this.header.Height, this.gHeader);
-			bSide = new Bitmap(this.side.Width, this.side.Height, this.gSide);
-			bHex = new Bitmap(this.hexView.Width, this.hexView.Height, this.gHex);
-			bText = new Bitmap(this.textView.Width, this.textView.Height, this.gText);
+			bHeader = new Bitmap(Math.Max(1, this.header.Width), Math.Max(1, this.header.Height), this.gHeader);
+			bSide = new Bitmap(Math.Max(1, this.side.Width), Math.Max(1, this.side.Height), this.gSide);
+			bHex = new Bitmap(Math.Max(1, this.hexView.Width), Math.Max(1, this.hexView.Height), this.gHex);
+			bText = new Bitmap(Math.Max(1, this.textView.Width), Math.Max(1, this.textView.Height), this.gText);
 			
 			gbHeader = Graphics.FromImage(bHeader);
 			gbSide = Graphics.FromImage(bSide);
 			gbHex = Graphics.FromImage(bHex);
 			gbText = Graphics.FromImage(bText);
+
+			if (caret != null) {
+				caret.Graphics = activeView == textView ? gbText : gbHex;
+			}
+		}
+
+		void DisposePainters()
+		{
+			if (gbHeader != null) gbHeader.Dispose();
+			if (gbSide != null) gbSide.Dispose();
+			if (gbHex != null) gbHex.Dispose();
+			if (gbText != null) gbText.Dispose();
+			if (bHeader != null) bHeader.Dispose();
+			if (bSide != null) bSide.Dispose();
+			if (bHex != null) bHex.Dispose();
+			if (bText != null) bText.Dispose();
+			if (gHeader != null) gHeader.Dispose();
+			if (gSide != null) gSide.Dispose();
+			if (gHex != null) gHex.Dispose();
+			if (gText != null) gText.Dispose();
+
+			gbHeader = gbSide = gbHex = gbText = null;
+			bHeader = bSide = bHex = bText = null;
+			gHeader = gSide = gHex = gText = null;
 		}
 		
 		/// <summary>
@@ -1174,7 +1205,10 @@ namespace HexEditor
 			this.UpdatePainters();
 			
 			int sidetext = this.GetMaxLines() * this.BytesPerLine;
-			int textwidth = MeasureStringWidth(this.textView.CreateGraphics(), new string('_', this.BytesPerLine + 1), Settings.DataFont);
+			int textwidth;
+			using (var graphics = this.textView.CreateGraphics()) {
+				textwidth = MeasureStringWidth(graphics, new string('_', this.BytesPerLine + 1), Settings.DataFont);
+			}
 			int hexwidth = underscorewidth3 * this.BytesPerLine;
 			int top = hexView.Top;
 			this.hexView.Top = fontheight - 1;
@@ -1216,7 +1250,9 @@ namespace HexEditor
 					break;
 			}
 
-			this.side.Width = MeasureStringWidth(this.side.CreateGraphics(), st, Settings.OffsetFont);
+			using (var graphics = this.side.CreateGraphics()) {
+				this.side.Width = MeasureStringWidth(graphics, st, Settings.OffsetFont);
+			}
 			this.side.Left = 0;
 			this.hexView.Left = this.side.Width + 10;
 
@@ -2001,13 +2037,25 @@ namespace HexEditor
 		/// </summary>
 		void HexEditControlContextMenuStripChanged(object sender, EventArgs e)
 		{
-			this.ContextMenuStrip.Closed += new ToolStripDropDownClosedEventHandler(ContextMenuStripClosed);
+			DetachContextMenuStripClosedHandler();
+			subscribedContextMenuStrip = this.ContextMenuStrip;
+			if (subscribedContextMenuStrip != null) {
+				subscribedContextMenuStrip.Closed += new ToolStripDropDownClosedEventHandler(ContextMenuStripClosed);
+			}
+		}
+
+		void DetachContextMenuStripClosedHandler()
+		{
+			if (subscribedContextMenuStrip != null) {
+				subscribedContextMenuStrip.Closed -= new ToolStripDropDownClosedEventHandler(ContextMenuStripClosed);
+				subscribedContextMenuStrip = null;
+			}
 		}
 		
 		/// <summary>
 		/// Invalidates the control after the context menu is closed.
 		/// </summary>
-		void ContextMenuStripClosed(object sender, EventArgs e)
+		void ContextMenuStripClosed(object sender, ToolStripDropDownClosedEventArgs e)
 		{
 			this.Invalidate();
 		}
