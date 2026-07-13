@@ -18,7 +18,6 @@
 
 using System;
 using System.IO;
-using System.Runtime.Serialization.Formatters.Binary;
 
 using ICSharpCode.Core;
 using ICSharpCode.SharpDevelop;
@@ -99,28 +98,10 @@ namespace ResourceEditor.Commands
 					} catch {
 					}
 					
-					// Try to read a serialized object
+					// Unknown files are binary resources. Do not deserialize arbitrary
+					// payloads while importing them into a project resource file.
 					try {
-						Stream r = File.Open(name, FileMode.Open);
-						try {
-							BinaryFormatter c = new BinaryFormatter();
-							object o = c.Deserialize(r);
-							r.Close();
-							return o;
-						} catch {
-							r.Close();
-						}
-					} catch {
-					}
-					
-					// Try to read a byte array
-					try {
-						FileStream s = new FileStream(name, FileMode.Open);
-						BinaryReader r = new BinaryReader(s);
-						Byte[] d = new Byte[(int)s.Length];
-						d = r.ReadBytes((int)s.Length);
-						s.Close();
-						return d;
+						return File.ReadAllBytes(name);
 					} catch (Exception ex) {
 						SD.MessageService.ShowWarningFormatted("${res:ResourceEditor.Messages.CantLoadResourceFromFile}", ex.Message);
 					}
