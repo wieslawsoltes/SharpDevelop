@@ -87,7 +87,7 @@ namespace ICSharpCode.Reporting.Pdf
 		
 		
 		public static XSolidBrush CreateBrush(Color color) {
-			return new XSolidBrush(color);
+			return new XSolidBrush(ToXColor(color));
 		}
 		
 		

@@ -18,6 +18,8 @@
 
 using System;
 using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
 using ICSharpCode.Reporting.Exporter.Visitors;
 using ICSharpCode.Reporting.Interfaces.Export;
 using ICSharpCode.Reporting.PageBuilder.ExportColumns;
@@ -116,14 +118,19 @@ namespace ICSharpCode.Reporting.Pdf
 		
 		public override void Visit(ExportImage exportImage)
 		{
-			XImage image = XImage.FromGdiPlusImage(exportImage.Image);
-			var location = PdfHelper.LocationRelToParent(exportImage);
-			if (exportImage.ScaleImageToSize) {
-				xGraphics.DrawImage(image, location.X.ToPoint(), location.Y.ToPoint(), 
-				                    exportImage.Size.Width.ToPoint(),exportImage.Size.Height.ToPoint());
-			} else {
-				xGraphics.DrawImage(image, location.X.ToPoint(), location.Y.ToPoint(), 
-				                    exportImage.Image.Size.Width.ToPoint(),exportImage.Image.Size.Height.ToPoint());
+			using (var stream = new MemoryStream()) {
+				exportImage.Image.Save(stream, ImageFormat.Png);
+				stream.Position = 0;
+				using (XImage image = XImage.FromStream(stream)) {
+					var location = PdfHelper.LocationRelToParent(exportImage);
+					if (exportImage.ScaleImageToSize) {
+						xGraphics.DrawImage(image, location.X.ToPoint(), location.Y.ToPoint(),
+						                    exportImage.Size.Width.ToPoint(),exportImage.Size.Height.ToPoint());
+					} else {
+						xGraphics.DrawImage(image, location.X.ToPoint(), location.Y.ToPoint(),
+						                    exportImage.Image.Size.Width.ToPoint(),exportImage.Image.Size.Height.ToPoint());
+					}
+				}
 			}
 		}
 		
