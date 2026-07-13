@@ -1,0 +1,48 @@
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.11">
+  <PropertyGroup>
+    <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>ICSharpCode.WpfDesign.AddIn</AssemblyName>
+    <RootNamespace>ICSharpCode.WpfDesign.AddIn</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <EnableDefaultResourceItems>false</EnableDefaultResourceItems>
+    <Deterministic>false</Deterministic>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\..\..\Main\ICSharpCode.SharpDevelop.snk</AssemblyOriginatorKeyFile>
+    <DefineConstants>$(DefineConstants);LIBREWPF</DefineConstants>
+    <NoWarn>$(NoWarn);1591;CS1591;CS0618;SYSLIB0050;SYSLIB0051;NU1603</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Configuration\AssemblyInfo.cs" />
+    <Compile Include="Src\**\*.cs" />
+    <Compile Include="..\..\..\..\Main\GlobalAssemblyInfo.cs" Link="Configuration\GlobalAssemblyInfo.cs" />
+    <Page Include="Src\**\*.xaml" />
+    <Resource Include="Images\**\*" />
+    <None Include="WpfDesign.addin" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuWpfSdkVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Drawing.Common"
+               HintPath="$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll"
+               Private="true"
+               Condition="Exists('$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll')" />
+    <ProjectReference Include="..\..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory\ICSharpCode.NRefactory.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Libraries\WpfDesigner\WpfDesign\Project\WpfDesign.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Libraries\WpfDesigner\WpfDesign.XamlDom\Project\WpfDesign.XamlDom.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Libraries\WpfDesigner\WpfDesign.Designer\Project\WpfDesign.Designer.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Main\Base\Project\ICSharpCode.SharpDevelop.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Main\Core\Project\ICSharpCode.Core.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Main\ICSharpCode.Core.Presentation\ICSharpCode.Core.Presentation.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Main\ICSharpCode.Core.WinForms\ICSharpCode.Core.WinForms.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\Main\ICSharpCode.SharpDevelop.Widgets\Project\ICSharpCode.SharpDevelop.Widgets.LibreWpf.csproj" />
+  </ItemGroup>
+</Project>
