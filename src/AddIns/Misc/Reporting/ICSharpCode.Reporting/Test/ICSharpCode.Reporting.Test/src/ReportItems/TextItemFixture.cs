@@ -58,6 +58,30 @@ namespace ICSharpCode.Reporting.Test.ReportItems
 			Assert.That(exportText.Size,Is.EqualTo(ti.Size));
 			Assert.That(exportText.Font , Is.EqualTo(GlobalValues.DefaultFont));
 		}
+
+
+		[Test]
+		public void ExportTextNeverContainsNullText() {
+			var ti = new BaseTextItem();
+			var exportText = (ExportText)ti.CreateExportColumn();
+			Assert.That(exportText.Text, Is.EqualTo(String.Empty));
+		}
+
+
+		[Test]
+		public void UnboundDataItemPreservesDesignText() {
+			var item = new BaseDataItem { Text = "ReferenceCount" };
+			var exportText = (ExportText)item.CreateExportColumn();
+			Assert.That(exportText.Text, Is.EqualTo("ReferenceCount"));
+		}
+
+
+		[Test]
+		public void BoundEmptyDataItemExportsEmptyText() {
+			var item = new BaseDataItem { Text = "ReferenceCount", DBValue = String.Empty };
+			var exportText = (ExportText)item.CreateExportColumn();
+			Assert.That(exportText.Text, Is.EqualTo(String.Empty));
+		}
 		
 
 		[Test]

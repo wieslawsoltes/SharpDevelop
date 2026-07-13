@@ -83,7 +83,7 @@ namespace ICSharpCode.Reporting.Items
 			var export = new ExportText();
 			export.ToExportItem(this);
 			export.Font = Font;
-			export.Text = Text;
+			export.Text = Text ?? String.Empty;
 			export.FormatString = FormatString;
 			export.ContentAlignment = ContentAlignment;
 			export.TextAlignment = TextAlignment;
