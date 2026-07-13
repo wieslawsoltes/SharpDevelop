@@ -73,6 +73,8 @@ done
 app_dll="$repo_root/src/Main/SharpDevelop/bin/Release/net10.0-windows/SharpDevelop.dll"
 solution="$repo_root/samples/LineCounter/LineCounter.sln"
 sample_source="$repo_root/samples/LineCounter/Src/LineCounterBrowser.cs"
+wpf_designer_solution="$repo_root/samples/SharpSnippetCompiler/SharpSnippetCompiler.sln"
+wpf_designer_xaml="$repo_root/samples/SharpSnippetCompiler/SharpSnippetCompiler/MainWindow.xaml"
 report_fixture="$repo_root/src/AddIns/Analysis/CodeQuality/Reporting/DependencyReport.srd"
 
 if [[ ! -f "$app_dll" ]]; then
@@ -81,6 +83,7 @@ if [[ ! -f "$app_dll" ]]; then
 fi
 
 sample_checksum_before="$(cksum "$sample_source")"
+wpf_designer_checksum_before="$(cksum "$wpf_designer_xaml")"
 report_checksum_before="$(cksum "$report_fixture")"
 
 run_start_page_smoke() {
@@ -316,6 +319,64 @@ if ! run_designer_smoke 1; then
   run_designer_smoke 2
 fi
 
+run_wpf_designer_smoke() {
+  local attempt="$1"
+  local config_dir="$work_root/wpf-designer-config-$attempt"
+  local home_dir="$work_root/wpf-designer-home-$attempt"
+  local log_file="$work_root/wpf-designer-$attempt.log"
+  local timeout_seconds="${LIBREWPF_SHARPDEVELOP_SMOKE_TIMEOUT_SECONDS:-90}"
+  local pid watchdog_pid exit_code
+
+  mkdir -p "$config_dir" "$home_dir"
+
+  env \
+    HOME="$home_dir" \
+    DOTNET_ROLL_FORWARD=Major \
+    DOTNET_ROLL_FORWARD_TO_PRERELEASE=1 \
+    DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 \
+    LIBREWPF_SHARPDEVELOP_CONFIG_DIR="$config_dir" \
+    LIBREWPF_SHARPDEVELOP_TRACE_OPEN=1 \
+    LIBREWPF_SHARPDEVELOP_WPF_DESIGNER_SMOKE="$wpf_designer_xaml" \
+    LIBREWPF_SHARPDEVELOP_EXIT_AFTER_MS=30000 \
+    "$dotnet_cmd" "$app_dll" "$wpf_designer_solution" >"$log_file" 2>&1 &
+  pid=$!
+
+  (
+    sleep "$timeout_seconds"
+    if kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      sleep 5
+      kill -9 "$pid" 2>/dev/null || true
+    fi
+  ) &
+  watchdog_pid=$!
+
+  set +e
+  wait "$pid"
+  exit_code=$?
+  set -e
+  kill "$watchdog_pid" 2>/dev/null || true
+  wait "$watchdog_pid" 2>/dev/null || true
+
+  if [[ "$exit_code" -eq 0 ]] \
+    && grep -Fq 'LibreWPF WPF designer smoke result=Success' "$log_file" \
+    && grep -Fq 'selected=System.Windows.Controls.Grid' "$log_file" \
+    && grep -Fq 'propertyGrid=True presented=True edit=True undo=True redo=True save=True' "$log_file" \
+    && grep -Fq 'LibreWPF WorkbenchStartup application exit code=0' "$log_file"; then
+    grep -E 'WPF designer smoke result=|application exit code=' "$log_file"
+    return 0
+  fi
+
+  echo "WPF designer smoke attempt $attempt did not reach the complete success state." >&2
+  tail -n 160 "$log_file" >&2
+  return 1
+}
+
+if ! run_wpf_designer_smoke 1; then
+  echo "Retrying WPF designer once with a fresh HOME and SharpDevelop configuration directory..." >&2
+  run_wpf_designer_smoke 2
+fi
+
 run_resource_toolkit_smoke() {
   local attempt="$1"
   local config_dir="$work_root/resource-toolkit-config-$attempt"
@@ -514,6 +575,12 @@ if [[ "$sample_checksum_before" != "$sample_checksum_after" ]]; then
   exit 1
 fi
 
+wpf_designer_checksum_after="$(cksum "$wpf_designer_xaml")"
+if [[ "$wpf_designer_checksum_before" != "$wpf_designer_checksum_after" ]]; then
+  echo "The WPF designer smoke changed $wpf_designer_xaml." >&2
+  exit 1
+fi
+
 report_checksum_after="$(cksum "$report_fixture")"
 if [[ "$report_checksum_before" != "$report_checksum_after" ]]; then
   echo "The Reporting smoke changed $report_fixture." >&2
@@ -521,7 +588,7 @@ if [[ "$report_checksum_before" != "$report_checksum_after" ]]; then
 fi
 
 if [[ "$reporting_smoke_passed" == "1" ]]; then
-  echo "SharpDevelop public LibreWPF $expected_version build, StartPage smoke, SearchAndReplace smoke, ClassDiagram smoke, FormsDesigner smoke, ResourceToolkit smoke, HexEditor smoke, and Reporting workbench smoke passed."
+  echo "SharpDevelop public LibreWPF $expected_version build, StartPage smoke, SearchAndReplace smoke, ClassDiagram smoke, FormsDesigner smoke, WPF designer smoke, ResourceToolkit smoke, HexEditor smoke, and Reporting workbench smoke passed."
 else
-  echo "SharpDevelop public LibreWPF $expected_version build, StartPage smoke, SearchAndReplace smoke, ClassDiagram smoke, FormsDesigner smoke, ResourceToolkit smoke, and HexEditor smoke passed; Reporting reload awaits typed LibreWinForms idle dispatch."
+  echo "SharpDevelop public LibreWPF $expected_version build, StartPage smoke, SearchAndReplace smoke, ClassDiagram smoke, FormsDesigner smoke, WPF designer smoke, ResourceToolkit smoke, and HexEditor smoke passed; Reporting reload awaits typed LibreWinForms idle dispatch."
 fi
