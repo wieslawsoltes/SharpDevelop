@@ -58,6 +58,7 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 		
 		public ReportModel LoadOrCreateReport()
 		{
+			bool previousUseWaitCursor = Application.UseWaitCursor;
 			Application.UseWaitCursor = true;
 			try {
 				var rootComponent = host.CreateComponent(typeof(RootReportModel),"RootReportModel");
@@ -67,7 +68,7 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 				rootControl.Size = reportModel.ReportSettings.PageSize;
 				return reportModel;
 			} finally {
-				Application.UseWaitCursor = false;
+				Application.UseWaitCursor = previousUseWaitCursor;
 			}
 		}
 		

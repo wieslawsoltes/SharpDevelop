@@ -7,6 +7,7 @@
  * To change this template use Tools | Options | Coding | Edit Standard Headers.
  */
 using System;
+using System.Collections;
 using System.ComponentModel.Design.Serialization;
 using System.IO;
 using System.Text;
@@ -26,6 +27,15 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 		IDesignerLoaderHost host;
 		readonly IDesignerGenerator generator;
 		byte[] reportContent;
+		byte[] pendingReloadContent;
+		bool loadingPendingReload;
+		bool recoveringFailedReload;
+
+		public event EventHandler ReloadFailed;
+
+		public bool RecoveringFailedReload {
+			get { return recoveringFailedReload; }
+		}
 		
 		#region Constructors
 
@@ -55,9 +65,38 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 		
 		protected override void PerformLoad(IDesignerSerializationManager serializationManager){
 			LoggingService.Info("ReportDesignerLoader:PerformLoad"); 
-			using (var stream = new MemoryStream(reportContent, false)) {
+			loadingPendingReload = pendingReloadContent != null;
+			byte[] content = pendingReloadContent ?? reportContent;
+			using (var stream = new MemoryStream(content, false)) {
 				var internalLoader = new InternalReportLoader(host,generator, stream);
 				internalLoader.LoadOrCreateReport();
+			}
+		}
+
+
+		protected override void OnEndLoad(bool successful, ICollection errors)
+		{
+			bool completedPendingReload = loadingPendingReload;
+			bool pendingReloadSucceeded = successful && (errors == null || errors.Count == 0);
+
+			if (completedPendingReload) {
+				if (pendingReloadSucceeded) {
+					reportContent = pendingReloadContent;
+					recoveringFailedReload = false;
+				} else {
+					recoveringFailedReload = true;
+				}
+				pendingReloadContent = null;
+			} else if (successful && recoveringFailedReload) {
+				recoveringFailedReload = false;
+			}
+			loadingPendingReload = false;
+
+			base.OnEndLoad(successful, errors);
+
+			if (completedPendingReload && !pendingReloadSucceeded) {
+				ReloadFailed?.Invoke(this, EventArgs.Empty);
+				Reload(ReloadOptions.Force | ReloadOptions.NoFlush);
 			}
 		}
  
@@ -75,17 +114,16 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 			if (Loading || ReloadPending)
 				return false;
 
-			byte[] previousContent = reportContent;
-			reportContent = ReadReportContent(stream);
+			pendingReloadContent = ReadReportContent(stream);
 			try {
 				Reload(ReloadOptions.Force | ReloadOptions.NoFlush);
 			} catch {
-				reportContent = previousContent;
+				pendingReloadContent = null;
 				throw;
 			}
 
 			if (!ReloadPending) {
-				reportContent = previousContent;
+				pendingReloadContent = null;
 				return false;
 			}
 

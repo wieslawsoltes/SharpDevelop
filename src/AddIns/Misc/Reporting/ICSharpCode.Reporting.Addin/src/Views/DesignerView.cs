@@ -89,6 +89,7 @@ namespace ICSharpCode.Reporting.Addin.Views
 			LoggingService.Info("Create ReportDesignerLoader"); 
 			
 			loader = new ReportDesignerLoader(generator, stream);
+			loader.ReloadFailed += ReportReloadFailed;
 			designSurface.BeginLoad(this.loader);
 			if (!designSurface.IsLoaded) {
 				//				throw new FormsDesignerLoadException(FormatLoadErrors(designSurface));
@@ -315,6 +316,13 @@ namespace ICSharpCode.Reporting.Addin.Views
 			LoggingService.Debug("ReportDesigner: Event > DesignerFlushed");
 			reportFileContent = generator.ReportFileContent;
 			hasUnmergedChanges = false;
+		}
+
+		void ReportReloadFailed(object sender, EventArgs e)
+		{
+			LoggingService.Error("The Reporting designer could not load the changed report and restored the last valid document.");
+			hasUnmergedChanges = false;
+			PrimaryFile.MakeDirty();
 		}
 
 		

@@ -69,10 +69,16 @@ namespace ICSharpCode.Reporting.Test.LibreWpf
 				using (var reloadStream = new MemoryStream(reloadedContent)) {
 					Assert.That(loader.ReloadFrom(reloadStream), Is.True);
 				}
+
+				generator.ReportFileContent = CreateReportXml("OldSurfaceFlush", "utf-8");
+				host.CreateComponent(typeof(Component), "PendingDirtyMarker");
+				surface.Flush();
+				Assert.That(generator.MergeCount, Is.EqualTo(2));
+
 				Application.RaiseIdle(EventArgs.Empty);
 
 				AssertLoaded(surface);
-				Assert.That(generator.MergeCount, Is.EqualTo(1), "NoFlush reload serialized the old document.");
+				Assert.That(generator.MergeCount, Is.EqualTo(2), "The pending disk document was replaced by the old surface flush.");
 				Assert.That(surface.GetService(typeof(ComponentSerializationService)), Is.SameAs(serializationService));
 
 				var reloadedSettings = (ReportSettings)host.Container.Components["ReportSettings"];
@@ -92,13 +98,55 @@ namespace ICSharpCode.Reporting.Test.LibreWpf
 		public void FailedReportLoadRestoresTheApplicationWaitCursor()
 		{
 			var generator = new TestDesignerGenerator();
-			using (var stream = new MemoryStream(Encoding.UTF8.GetBytes("<invalid")))
+			bool previousUseWaitCursor = Application.UseWaitCursor;
+			Application.UseWaitCursor = true;
+			try {
+				using (var stream = new MemoryStream(Encoding.UTF8.GetBytes("<invalid")))
+				using (var surface = new DesignSurface()) {
+					var loader = new ReportDesignerLoader(generator, stream);
+					surface.BeginLoad(loader);
+					Assert.That(surface.IsLoaded, Is.False);
+					Assert.That(surface.LoadErrors.Count, Is.GreaterThan(0));
+					Assert.That(Application.UseWaitCursor, Is.True);
+				}
+			} finally {
+				Application.UseWaitCursor = previousUseWaitCursor;
+			}
+		}
+
+		[Test]
+		public void FailedAsynchronousReloadRestoresTheLastCommittedDocument()
+		{
+			var generator = new TestDesignerGenerator();
+			byte[] initialContent = EncodeReport("Before", new UTF8Encoding(false));
+			using (var initialStream = new MemoryStream(initialContent))
 			using (var surface = new DesignSurface()) {
-				var loader = new ReportDesignerLoader(generator, stream);
+				var loader = new ReportDesignerLoader(generator, initialStream);
+				int reloadFailures = 0;
+				loader.ReloadFailed += delegate { reloadFailures++; };
 				surface.BeginLoad(loader);
+				AssertLoaded(surface);
+
+				using (var invalidStream = new MemoryStream(Encoding.UTF8.GetBytes("<invalid"))) {
+					Assert.That(loader.ReloadFrom(invalidStream), Is.True);
+				}
+				Application.RaiseIdle(EventArgs.Empty);
+
 				Assert.That(surface.IsLoaded, Is.False);
-				Assert.That(surface.LoadErrors.Count, Is.GreaterThan(0));
-				Assert.That(Application.UseWaitCursor, Is.False);
+				Assert.That(loader.RecoveringFailedReload, Is.True);
+				Assert.That(reloadFailures, Is.EqualTo(1));
+				using (var savedStream = new MemoryStream()) {
+					loader.WriteReportContent(savedStream);
+					CollectionAssert.AreEqual(initialContent, savedStream.ToArray());
+				}
+
+				Application.RaiseIdle(EventArgs.Empty);
+
+				AssertLoaded(surface);
+				Assert.That(loader.RecoveringFailedReload, Is.False);
+				var host = (IDesignerHost)surface.GetService(typeof(IDesignerHost));
+				var settings = (ReportSettings)host.Container.Components["ReportSettings"];
+				Assert.That(settings.ReportName, Is.EqualTo("Before"));
 			}
 		}
 
