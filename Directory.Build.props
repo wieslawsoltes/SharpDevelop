@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <ProGpuWpfSdkVersion>0.1.0-preview.10</ProGpuWpfSdkVersion>
+    <ProGpuWpfSdkVersion>0.1.0-preview.11</ProGpuWpfSdkVersion>
     <ProGpuWpfPackageVersion>$(ProGpuWpfSdkVersion)</ProGpuWpfPackageVersion>
     <ProGpuWpfManagedPackageVersion>$(ProGpuWpfPackageVersion)</ProGpuWpfManagedPackageVersion>
     <ProGpuPackageVersion>$(ProGpuWpfSdkVersion)</ProGpuPackageVersion>

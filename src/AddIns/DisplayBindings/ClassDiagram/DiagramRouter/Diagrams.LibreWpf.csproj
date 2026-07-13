@@ -3,7 +3,7 @@
     <BaseIntermediateOutputPath>obj\LibreWpf\</BaseIntermediateOutputPath>
     <MSBuildProjectExtensionsPath>obj\LibreWpf\</MSBuildProjectExtensionsPath>
   </PropertyGroup>
-  <Import Project="Sdk.props" Sdk="LibreWPF.Sdk" Version="0.1.0-preview.10" />
+  <Import Project="Sdk.props" Sdk="LibreWPF.Sdk" Version="0.1.0-preview.11" />
   <PropertyGroup>
     <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
     <UseWPF>true</UseWPF>
@@ -37,5 +37,5 @@
                Private="true"
                Condition="Exists('$(ProGpuSystemDrawingCommonAssembly)')" />
   </ItemGroup>
-  <Import Project="Sdk.targets" Sdk="LibreWPF.Sdk" Version="0.1.0-preview.10" />
+  <Import Project="Sdk.targets" Sdk="LibreWPF.Sdk" Version="0.1.0-preview.11" />
 </Project>
