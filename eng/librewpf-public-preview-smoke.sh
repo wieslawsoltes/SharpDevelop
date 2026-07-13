@@ -84,9 +84,16 @@ if [[ ! -f "$app_dll" ]]; then
 fi
 
 if grep -Eq 'System\.Reflection|BindingFlags|Get(Field|Method|Event)\(' "$wpf_designer_smoke_source"; then
-  echo "The WPF designer smoke must keep outline integration on typed APIs." >&2
+  echo "The WPF designer smoke must keep outline and toolbox integration on typed APIs." >&2
   exit 1
 fi
+
+for typed_toolbox_contract in TrySelectComponentTool TryInsertSelectedComponent; do
+  if ! grep -Fq "$typed_toolbox_contract" "$wpf_designer_smoke_source"; then
+    echo "The WPF designer smoke must exercise typed $typed_toolbox_contract integration." >&2
+    exit 1
+  fi
+done
 
 sample_checksum_before="$(cksum "$sample_source")"
 wpf_designer_checksum_before="$(cksum "$wpf_designer_xaml")"
@@ -370,6 +377,9 @@ run_wpf_designer_smoke() {
     && grep -Fq 'propertyGrid=True presented=True edit=True undo=True redo=True save=True' "$log_file" \
     && grep -Fq 'outlineSelection=True outlinePrimary=System.Windows.Controls.Grid' "$log_file" \
     && grep -Fq 'outlinePropertyGrid=True outlineEdit=True outlineUndo=True outlineRedo=True outlineSave=True outlineRestore=True' "$log_file" \
+    && grep -Fq 'toolboxToolSelected=True toolboxInserted=True toolboxPrimary=System.Windows.Controls.Button' "$log_file" \
+    && grep -Fq 'toolboxSelection=True toolboxPropertyGrid=True toolboxXaml=True' "$log_file" \
+    && grep -Fq 'toolboxUndo=True toolboxRedo=True toolboxRestore=True toolboxToolReset=True' "$log_file" \
     && grep -Fq 'LibreWPF WorkbenchStartup application exit code=0' "$log_file"; then
     grep -E 'WPF designer smoke result=|application exit code=' "$log_file"
     return 0
