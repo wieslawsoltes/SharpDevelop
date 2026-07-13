@@ -16,23 +16,22 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-using System;
-using System.Reflection;
+using System.IO;
 
 using ICSharpCode.Core;
-using ICSharpCode.SharpDevelop.Gui;
 using ICSharpCode.SharpDevelop;
+using ICSharpCode.SharpDevelop.Workbench;
 
 namespace ClassDiagramAddin
 {
-	public class ClassDiagramDisplayBinding : IDisplayBinding
+	public sealed class ClassDiagramDisplayBinding : IDisplayBinding
 	{
 		public ClassDiagramDisplayBinding ()
 		{
 		//	ResourceService.RegisterImages("ClassDiagram", Assembly.GetExecutingAssembly());
 		}
 		
-		public bool CanCreateContentForFile(string fileName)
+		public bool CanCreateContentForFile(FileName fileName)
 		{
 			return true; // .addin file filters for *.cd
 		}
@@ -42,12 +41,12 @@ namespace ClassDiagramAddin
 			return new ClassDiagramViewContent(file);
 		}
 		
-		public bool IsPreferredBindingForFile(string fileName)
+		public bool IsPreferredBindingForFile(FileName fileName)
 		{
 			return true;
 		}
 		
-		public double AutoDetectFileContent(string fileName, System.IO.Stream fileContent, string detectedMimeType)
+		public double AutoDetectFileContent(FileName fileName, Stream fileContent, string detectedMimeType)
 		{
 			return 1;
 		}

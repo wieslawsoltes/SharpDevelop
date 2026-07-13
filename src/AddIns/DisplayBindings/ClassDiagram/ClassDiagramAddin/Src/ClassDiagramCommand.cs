@@ -17,6 +17,8 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Windows.Forms;
 using ClassDiagram;
 using ICSharpCode.Core;
@@ -88,62 +90,50 @@ namespace ClassDiagramAddin
 		}
 	}
 	
-	public class SetDiagramZoomCommand : AbstractComboBoxCommand
+	public sealed class SetDiagramZoomBuilder : IMenuItemBuilder
 	{
-		bool dontModifyCanvas;
+		public IEnumerable<object> BuildItems(Codon codon, object owner)
+		{
+			var view = owner as ClassDiagramViewContent;
+			if (view == null)
+				return new object[0];
 
-		private void CanvasZoomChanged (object sender, EventArgs e)
-		{
-			dontModifyCanvas = true;
-			comboBox.Text = Canvas.Zoom.ToString() + "%"; 
-			dontModifyCanvas = false;
-		}
-		
-		protected ClassCanvas Canvas
-		{
-			get
-			{
-				ToolStrip ts = ((ToolBarComboBox)this.ComboBox).Owner;
-				if (ts != null)
-					return (ClassCanvas)ts.Parent;
-				return null;
-			}
-		}
-		
-		public override void Run()
-		{
-			Canvas.Zoom = zoom;
-		}
-		
-		private void ComboBoxTextChanged(object sender, EventArgs e)
-		{
-			if (dontModifyCanvas) return;
-			float zoomPercent = 100.0f;
-			string s = comboBox.Text.Trim().Trim('%');
-			if (float.TryParse (s, out zoomPercent))
-			{
-				zoom = zoomPercent / 100.0f;
-				this.Run();
-			}
-		}
-
-		protected override void OnOwnerChanged(EventArgs e)
-		{
-			base.OnOwnerChanged(e);
-			ToolBarComboBox box1 = (ToolBarComboBox) this.ComboBox;
-			comboBox = box1.ComboBox;
+			ClassCanvas canvas = view.Canvas;
+			var toolbarItem = new ToolStripComboBox();
+			ComboBox comboBox = toolbarItem.ComboBox;
 			comboBox.DropDownStyle = ComboBoxStyle.DropDown;
 			comboBox.Items.AddRange(new object[] {"10%", "25%", "50%", "75%",
 			                        	"100%", "125%", "150%", "175%", "200%",
 			                        	"250%", "300%", "350%", "400%"});
-			
-			ClassCanvas canvas = Canvas;
-			if (canvas != null)
-				canvas.ZoomChanged += CanvasZoomChanged;
-			comboBox.TextChanged += ComboBoxTextChanged;
-		}
 
-		ComboBox comboBox;
-		float zoom = 1.0f;
+			bool synchronizing = false;
+			EventHandler zoomChanged = null;
+			EventHandler textChanged = null;
+			zoomChanged = delegate {
+				synchronizing = true;
+				try {
+					comboBox.Text = (canvas.Zoom * 100.0f).ToString("0.##", CultureInfo.CurrentCulture) + "%";
+				} finally {
+					synchronizing = false;
+				}
+			};
+			textChanged = delegate {
+				if (synchronizing)
+					return;
+				float percent;
+				string text = comboBox.Text.Trim().Trim('%');
+				if (Single.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out percent) && percent > 0)
+					canvas.Zoom = percent / 100.0f;
+			};
+
+			canvas.ZoomChanged += zoomChanged;
+			comboBox.TextChanged += textChanged;
+			comboBox.Disposed += delegate {
+				canvas.ZoomChanged -= zoomChanged;
+				comboBox.TextChanged -= textChanged;
+			};
+			zoomChanged(canvas, EventArgs.Empty);
+			return new object[] { toolbarItem };
+		}
 	}
 }

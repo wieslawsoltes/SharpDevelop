@@ -1,14 +1,14 @@
-﻿// Copyright (c) 2014 AlphaSierraPapa for the SharpDevelop Team
-// 
+// Copyright (c) 2014 AlphaSierraPapa for the SharpDevelop Team
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -25,137 +25,103 @@ using System.Xml;
 using ClassDiagram;
 using ICSharpCode.Core.WinForms;
 using ICSharpCode.SharpDevelop;
-using ICSharpCode.SharpDevelop.Dom;
-using ICSharpCode.SharpDevelop.Gui;
+using ICSharpCode.SharpDevelop.Parser;
 using ICSharpCode.SharpDevelop.Project;
+using ICSharpCode.SharpDevelop.Workbench;
 
 namespace ClassDiagramAddin
 {
 	/// <summary>
-	/// Description of the view content
+	/// Hosts the portable WinForms ClassCanvas and feeds it immutable parser snapshots.
 	/// </summary>
-	public class ClassDiagramViewContent : AbstractViewContent
+	public sealed class ClassDiagramViewContent : AbstractViewContent
 	{
-		private IProjectContent projectContent;
-		private ClassCanvas canvas = new ClassCanvas();
-		private ToolStrip toolstrip;
-		
-		public ClassDiagramViewContent (OpenedFile file) : base(file)
+		readonly ClassCanvas canvas = new ClassCanvas();
+		readonly ToolStrip toolstrip;
+		IProject project;
+		bool refreshingTypes;
+
+		public ClassDiagramViewContent(OpenedFile file)
+			: base(file)
 		{
-			this.TabPageText = "Class Diagram";
-			
+			TabPageText = "Class Diagram";
 			canvas.LayoutChanged += HandleLayoutChange;
-			ParserService.ParseInformationUpdated += OnParseInformationUpdated;
+			SD.ParserService.ParseInformationUpdated += OnParseInformationUpdated;
 			toolstrip = ToolbarService.CreateToolStrip(this, "/SharpDevelop/ViewContent/ClassDiagram/Toolbar");
 			toolstrip.GripStyle = ToolStripGripStyle.Hidden;
 			toolstrip.Stretch = true;
 			canvas.Controls.Add(toolstrip);
 			canvas.ContextMenuStrip = MenuService.CreateContextMenu(this, "/SharpDevelop/ViewContent/ClassDiagram/ContextMenu");
 		}
-		
+
 		public override object Control {
+			get { return canvas; }
+		}
+
+		internal ClassCanvas Canvas {
 			get { return canvas; }
 		}
 
 		public override void Load(OpenedFile file, Stream stream)
 		{
-			XmlDocument doc = new XmlDocument();
-			doc.Load(stream);
-			projectContent = ParserService.GetProjectContent(ProjectService.CurrentProject);
-			canvas.LoadFromXml(doc, projectContent);
+			if (stream == null)
+				throw new ArgumentNullException("stream");
+
+			var document = new XmlDocument();
+			document.Load(stream);
+			project = SD.ProjectService.CurrentProject;
+			canvas.LoadFromXml(document, CreateCatalog(project));
 		}
-		
+
 		public override void Save(OpenedFile file, Stream stream)
 		{
-			XmlWriterSettings settings = new XmlWriterSettings();
-			settings.Indent = true;
-			settings.Encoding = System.Text.Encoding.UTF8;
-			
-			XmlWriter xw = XmlWriter.Create(stream, settings);
-			canvas.WriteToXml().WriteTo(xw);
-			xw.Close();
+			if (stream == null)
+				throw new ArgumentNullException("stream");
+
+			var settings = new XmlWriterSettings {
+				Indent = true,
+				Encoding = System.Text.Encoding.UTF8
+			};
+			using (XmlWriter writer = XmlWriter.Create(stream, settings)) {
+				canvas.WriteToXml().WriteTo(writer);
+			}
 		}
 
 		void OnParseInformationUpdated(object sender, ParseInformationEventArgs e)
 		{
-			System.Diagnostics.Debug.WriteLine("ClassDiagramViewContent.OnParseInformationUpdated");
+			if (e == null || project == null || !Object.ReferenceEquals(e.ParentProject, project))
+				return;
 
-			if (e == null) return;
-			if (e.NewCompilationUnit == null) return;
-			if (e.NewCompilationUnit.ProjectContent == null) return;
-			if (e.NewCompilationUnit.ProjectContent.Classes == null) return;
-			if (e.NewCompilationUnit.ProjectContent != projectContent) return;
-			//TODO - this is a wrong way to handle changed parse informtation.
-			//       the correct way is to mark removed classes as missing, and to
-			//       update changed classes that exist in the diagram.
-			/*
-			List<CanvasItem> addedItems = new List<CanvasItem>();
-			foreach (IClass ct in e.CompilationUnit.ProjectContent.Classes)
-			{
-				if (!canvas.Contains(ct))
-				{
-					ClassCanvasItem item = ClassCanvas.CreateItemFromType(ct);
-					canvas.AddCanvasItem(item);
-					addedItems.Add(item);
-				}
+			// Preserve the persisted positions/collapse state while replacing every live
+			// type/member payload with a fresh immutable compilation snapshot.
+			XmlDocument layout = canvas.WriteToXml();
+			refreshingTypes = true;
+			try {
+				canvas.LoadFromXml(layout, CreateCatalog(project));
+			} finally {
+				refreshingTypes = false;
 			}
-			
-			WorkbenchSingleton.SafeThreadAsyncCall<ICollection<CanvasItem>>(PlaceNewItems, addedItems);
-			
-			foreach (CanvasItem ci in canvas.GetCanvasItems())
-			{
-				ClassCanvasItem cci = ci as ClassCanvasItem;
-				if (cci != null)
-				{
-					if (!e.CompilationUnit.ProjectContent.Classes.Contains(cci.RepresentedClassType))
-						canvas.RemoveCanvasItem(cci);
-				}
-			}
-			*/
 		}
 
-		private void PlaceNewItems (ICollection<CanvasItem> items)
+		static IClassDiagramTypeResolver CreateCatalog(IProject project)
 		{
-			float minX = float.MaxValue, minY = float.MaxValue;
-			float maxX = float.MinValue, maxY = float.MinValue;
-			foreach (CanvasItem ci in canvas.GetCanvasItems())
-			{
-				minX = Math.Min(ci.X, minX);
-				minY = Math.Min(ci.Y, minY);
-				maxX = Math.Max(ci.X + ci.ActualWidth, maxX);
-				maxY = Math.Max(ci.Y + ci.ActualHeight, maxY);
-			}
-			
-			float x = 20;
-			float y = maxY + 20;
-			float max_h = 0;
-			
-			foreach (CanvasItem ci in items)
-			{
-				ci.X = x;
-				ci.Y = y;
-				x += ci.Width + 20;
-				if (ci.Height > max_h)
-					max_h = ci.Height;
-				if (x > 1000)
-				{
-					x = 20;
-					y += max_h + 20;
-					max_h = 0;
-				}
-			}
+			if (project == null)
+				return new ClassDiagramTypeCatalog(new ClassDiagramTypeSnapshot[0]);
+			return ClassDiagramTypeSnapshotFactory.CreateCatalog(SD.ParserService.GetCompilation(project));
 		}
-		
+
 		public override void Dispose()
 		{
-			ParserService.ParseInformationUpdated -= OnParseInformationUpdated;
+			SD.ParserService.ParseInformationUpdated -= OnParseInformationUpdated;
+			canvas.LayoutChanged -= HandleLayoutChange;
 			canvas.Dispose();
 			base.Dispose();
 		}
-		
-		protected void HandleLayoutChange (object sender, EventArgs args)
+
+		void HandleLayoutChange(object sender, EventArgs args)
 		{
-			this.PrimaryFile.MakeDirty();
+			if (!refreshingTypes && PrimaryFile != null)
+				PrimaryFile.MakeDirty();
 		}
 	}
 }

@@ -1,14 +1,14 @@
-﻿// Copyright (c) 2014 AlphaSierraPapa for the SharpDevelop Team
-// 
+// Copyright (c) 2014 AlphaSierraPapa for the SharpDevelop Team
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -16,68 +16,55 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-using System;
 using System.IO;
-using System.Windows.Forms;
+using System.Xml;
 
 using ClassDiagram;
 using ICSharpCode.Core;
 using ICSharpCode.SharpDevelop;
 using ICSharpCode.SharpDevelop.Commands;
-using ICSharpCode.SharpDevelop.Dom;
 using ICSharpCode.SharpDevelop.Project;
-using System.Xml;
 
 namespace ClassDiagramAddin
 {
-	public class ShowClassDiagramCommand : AbstractMenuCommand
+	public sealed class ShowClassDiagramCommand : AbstractMenuCommand
 	{
 		public override void Run()
 		{
-			IProject p = ProjectService.CurrentProject;
-			string filename = Path.Combine(p.Directory, p.Name+".cd");
-			if (p == null) return;
-			/*if (p.IsFileInProject(filename))
-			{
-				ProjectItem pi = p.Items.Find(
-					delegate(ProjectItem pItem)
-					{ return pItem.FileName == filename; }
-				);
-			}
-			else*/
-			{
-				//MessageBox.Show("Creating a new class diagram file named "+"\"+p.Directory+filename);
-				ClassCanvas classcanvas = new ClassCanvas();
-				
-				IProjectContent pc = ParserService.GetProjectContent(p);
-				//float x = 20, y = 20;
-				//float max_h = 0;
-				
-				foreach (IClass ct in pc.Classes)
-				{
-					ClassCanvasItem classitem = ClassCanvas.CreateItemFromType(ct);
-					classcanvas.AddCanvasItem(classitem);
+			IProject project = SD.ProjectService.CurrentProject;
+			if (project == null)
+				return;
+
+			FileName fileName = FileName.Create(Path.Combine(project.Directory, project.Name + ".cd"));
+			XmlDocument document;
+			using (var canvas = new ClassCanvas()) {
+				foreach (ClassDiagramTypeSnapshot type in
+				         ClassDiagramTypeSnapshotFactory.CreateTopLevelSnapshots(SD.ParserService.GetCompilation(project))) {
+					ClassCanvasItem item = ClassCanvas.CreateItemFromType(type);
+					if (item != null)
+						canvas.AddCanvasItem(item);
 				}
-				
-				classcanvas.AutoArrange();
-				XmlDocument xmlDocument = classcanvas.WriteToXml();
-				FileUtility.ObservedSave(
-					newFileName => SaveAndOpenNewClassDiagram(p, newFileName, xmlDocument),
-					filename, FileErrorPolicy.ProvideAlternative
-				);
+
+				canvas.AutoArrange();
+				document = canvas.WriteToXml();
 			}
+
+			FileUtility.ObservedSave(
+				newFileName => SaveAndOpenNewClassDiagram(project, newFileName, document),
+				fileName,
+				FileErrorPolicy.ProvideAlternative);
 		}
 
-		void SaveAndOpenNewClassDiagram(IProject p, string filename, XmlDocument xmlDocument)
+		static void SaveAndOpenNewClassDiagram(IProject project, FileName fileName, XmlDocument document)
 		{
-			xmlDocument.Save(filename);
-			FileProjectItem fpi = new FileProjectItem(p, ItemType.Content);
-			fpi.FileName = filename;
-			ProjectService.AddProjectItem(p, fpi);
+			document.Save(fileName);
+			var item = new FileProjectItem(project, ItemType.Content) {
+				FileName = fileName
+			};
+			ProjectService.AddProjectItem(project, item);
 			ProjectBrowserPad.RefreshViewAsync();
-			p.Save();
-			FileService.OpenFile(filename);
+			project.Save();
+			SD.FileService.OpenFile(fileName);
 		}
 	}
-
 }

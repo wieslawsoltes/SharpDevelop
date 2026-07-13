@@ -47,9 +47,9 @@
 		             icon    = "ClassDiagram.ShrinkWidth" />
 	
 		<ToolbarItem id      = "Zoom"
-		             type    = "ComboBox"
+		             type    = "Builder"
 		             tooltip = "Zoom" 
-		             class   = "ClassDiagramAddin.SetDiagramZoomCommand"/>
+		             class   = "ClassDiagramAddin.SetDiagramZoomBuilder"/>
 	
 	</Path>
 	
@@ -143,6 +143,6 @@
 		                fileNamePattern = "\.(cd)$"
 		                title = "Class Diagram"/>
 	</Path>
-	
+
 	<BitmapResources file="Resources\Bitmaps.resources" />
 </AddIn>

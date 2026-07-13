@@ -16,16 +16,9 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-using System;
 using System.Windows.Forms;
 
 using ClassDiagram;
-
-using ICSharpCode.Core;
-using ICSharpCode.SharpDevelop;
-using ICSharpCode.SharpDevelop.Project;
-using ICSharpCode.SharpDevelop.Commands;
-using ICSharpCode.SharpDevelop.Dom;
 
 namespace ClassDiagramAddin
 {
