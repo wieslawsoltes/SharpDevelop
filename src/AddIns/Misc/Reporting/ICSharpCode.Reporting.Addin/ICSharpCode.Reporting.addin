@@ -22,6 +22,10 @@
 		                languagePattern="^SharpDevelopReports$"
 		                class="ICSharpCode.Reporting.Addin.DesignerBinding.ReportDesignerBinding" />
 	</Path>
+
+	<Path name="/SharpDevelop/LibreWpf/SmokeHooks">
+		<Class id="ReportingWorkbenchSmoke" class="ICSharpCode.Reporting.Addin.LibreWpf.LibreWpfReportingWorkbenchSmokeHook" />
+	</Path>
 	
 	<Path name = "/SharpDevelopReports/TemplateCommands">
 		<Class id="ShowReportWizard"

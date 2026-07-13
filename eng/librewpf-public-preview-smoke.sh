@@ -72,6 +72,7 @@ done
 app_dll="$repo_root/src/Main/SharpDevelop/bin/Release/net10.0-windows/SharpDevelop.dll"
 solution="$repo_root/samples/LineCounter/LineCounter.sln"
 sample_source="$repo_root/samples/LineCounter/Src/LineCounterBrowser.cs"
+report_fixture="$repo_root/src/AddIns/Analysis/CodeQuality/Reporting/DependencyReport.srd"
 
 if [[ ! -f "$app_dll" ]]; then
   echo "Missing SharpDevelop runtime: $app_dll" >&2
@@ -79,6 +80,7 @@ if [[ ! -f "$app_dll" ]]; then
 fi
 
 sample_checksum_before="$(cksum "$sample_source")"
+report_checksum_before="$(cksum "$report_fixture")"
 
 run_designer_smoke() {
   local attempt="$1"
@@ -141,10 +143,76 @@ if ! run_designer_smoke 1; then
   run_designer_smoke 2
 fi
 
+run_reporting_smoke() {
+  local attempt="$1"
+  local config_dir="$work_root/reporting-config-$attempt"
+  local home_dir="$work_root/reporting-home-$attempt"
+  local log_file="$work_root/reporting-$attempt.log"
+  local timeout_seconds="${LIBREWPF_SHARPDEVELOP_SMOKE_TIMEOUT_SECONDS:-90}"
+  local pid watchdog_pid exit_code
+
+  mkdir -p "$config_dir" "$home_dir"
+
+  env \
+    HOME="$home_dir" \
+    DOTNET_ROLL_FORWARD=Major \
+    DOTNET_ROLL_FORWARD_TO_PRERELEASE=1 \
+    DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 \
+    LIBREWPF_SHARPDEVELOP_CONFIG_DIR="$config_dir" \
+    LIBREWPF_SHARPDEVELOP_TRACE_OPEN=1 \
+    LIBREWPF_SHARPDEVELOP_REPORTING_SMOKE="$report_fixture" \
+    LIBREWPF_SHARPDEVELOP_EXIT_AFTER_MS=30000 \
+    "$dotnet_cmd" "$app_dll" >"$log_file" 2>&1 &
+  pid=$!
+
+  (
+    sleep "$timeout_seconds"
+    if kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      sleep 5
+      kill -9 "$pid" 2>/dev/null || true
+    fi
+  ) &
+  watchdog_pid=$!
+
+  set +e
+  wait "$pid"
+  exit_code=$?
+  set -e
+  kill "$watchdog_pid" 2>/dev/null || true
+  wait "$watchdog_pid" 2>/dev/null || true
+
+  if [[ "$exit_code" -eq 0 ]] \
+    && grep -Fq 'LibreWPF Reporting workbench smoke result=Success' "$log_file" \
+    && grep -Fq 'binding=SharpDevelopReportsBinding view=DesignerView hosted=True presentation=True' "$log_file" \
+    && grep -Fq 'initialName=DependencyReport sections=5 items=12 cleanSaveExact=True' "$log_file" \
+    && grep -Fq 'reloadSameView=True reloadName=DependencyReport-LibreWPF-Reloaded reloadSections=5 reloadItems=12' "$log_file" \
+    && grep -Fq 'reloadCleanSaveExact=True dirtyCleared=True closed=True cleanup=True' "$log_file" \
+    && grep -Fq 'LibreWPF WorkbenchStartup application exit code=0' "$log_file"; then
+    grep -E 'Reporting workbench smoke result=|application exit code=' "$log_file"
+    return 0
+  fi
+
+  echo "Reporting workbench smoke attempt $attempt did not reach the complete success state." >&2
+  tail -n 160 "$log_file" >&2
+  return 1
+}
+
+if ! run_reporting_smoke 1; then
+  echo "Retrying Reporting once with a fresh HOME and SharpDevelop configuration directory..." >&2
+  run_reporting_smoke 2
+fi
+
 sample_checksum_after="$(cksum "$sample_source")"
 if [[ "$sample_checksum_before" != "$sample_checksum_after" ]]; then
   echo "The FormsDesigner smoke changed $sample_source." >&2
   exit 1
 fi
 
-echo "SharpDevelop public LibreWPF $expected_version build and FormsDesigner smoke passed."
+report_checksum_after="$(cksum "$report_fixture")"
+if [[ "$report_checksum_before" != "$report_checksum_after" ]]; then
+  echo "The Reporting smoke changed $report_fixture." >&2
+  exit 1
+fi
+
+echo "SharpDevelop public LibreWPF $expected_version build, FormsDesigner smoke, and Reporting workbench smoke passed."
