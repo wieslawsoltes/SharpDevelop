@@ -16,7 +16,7 @@
     <Nullable>disable</Nullable>
     <DefineConstants>$(DefineConstants);LIBREWPF</DefineConstants>
     <NoWarn>$(NoWarn);0809;1591;CS1591;CS0618;SYSLIB0003;SYSLIB0050;SYSLIB0051;NU1603</NoWarn>
-    <ProGpuSystemDrawingCommonAssembly Condition="'$(ProGpuSystemDrawingCommonAssembly)' == ''">$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll</ProGpuSystemDrawingCommonAssembly>
+    <ProGpuSystemDrawingCommonAssembly Condition="'$(ProGpuSystemDrawingCommonAssembly)' == ''">$(NuGetPackageRoot)/progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll</ProGpuSystemDrawingCommonAssembly>
   </PropertyGroup>
 
   <ItemGroup>
