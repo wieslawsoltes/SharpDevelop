@@ -37,6 +37,12 @@ the selected child with undo/redo serialization, and restores the prior
 selection before closing the document. That outline lane is source-guarded
 against reflection-based field, method, or event discovery.
 
+The same workbench gate selects the real WPF `Button` toolbox item through the
+designer's typed tool service, inserts it into the live `Grid` with an undoable
+placement transaction, and verifies the PropertyGrid plus exact in-memory XAML
+across undo and redo. It then removes the temporary component and restores the
+original selection, so the checked-in XAML fixture remains byte-for-byte unchanged.
+
 ## System Requirements (running #Develop)
 
  - Windows Vista or higher.
