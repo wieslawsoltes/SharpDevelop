@@ -79,4 +79,8 @@
 		             label = "${res:ICSharpCode.WpfDesign.AddIn.Options.Title}"
 		             class = "ICSharpCode.WpfDesign.AddIn.Options.WpfEditorOptionPanel" />
 	</Path>
+
+	<Path name="/SharpDevelop/LibreWpf/SmokeHooks">
+		<Class id="WpfDesignerSmoke" class="ICSharpCode.WpfDesign.AddIn.LibreWpf.LibreWpfWpfDesignerSmokeHook" />
+	</Path>
 </AddIn>

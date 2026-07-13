@@ -50,6 +50,7 @@
     <None Include="..\Base\Project\ICSharpCode.SharpDevelop.addin" TargetPath="ICSharpCode.SharpDevelop.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\BackendBindings\CSharpBinding\Project\CSharpBinding.LibreWpf.addin" TargetPath="CSharpBinding.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\DisplayBindings\FormsDesigner\Project\FormsDesigner.addin" TargetPath="FormsDesigner.addin" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\AddIns\DisplayBindings\WpfDesign\WpfDesign.AddIn\WpfDesign.addin" TargetPath="WpfDesign.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\DisplayBindings\ClassDiagram\ClassDiagramAddin\ClassDiagramAddin.addin" TargetPath="ClassDiagramAddin.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\DisplayBindings\ClassDiagram\ClassDiagramAddin\Resources\Bitmaps.resources" TargetPath="Resources\Bitmaps.resources" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\DisplayBindings\HexEditor\Project\HexEditor.addin" TargetPath="HexEditor.addin" CopyToOutputDirectory="PreserveNewest" />
@@ -90,6 +91,7 @@
     <ProjectReference Include="..\..\Libraries\AvalonEdit\ICSharpCode.AvalonEdit\ICSharpCode.AvalonEdit.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\AvalonEdit.AddIn\AvalonEdit.AddIn.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\FormsDesigner\Project\FormsDesigner.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\AddIns\DisplayBindings\WpfDesign\WpfDesign.AddIn\WpfDesign.AddIn.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\ClassDiagram\ClassDiagramAddin\ClassDiagramAddin.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\HexEditor\Project\HexEditor.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\ResourceEditor\Project\ResourceEditor.LibreWpf.csproj" Condition="'$(LibreWpfSharpDevelopIncludeResourceEditor)' == 'true'" />
