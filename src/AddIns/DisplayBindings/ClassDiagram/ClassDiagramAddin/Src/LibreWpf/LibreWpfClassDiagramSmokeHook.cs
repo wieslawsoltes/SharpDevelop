@@ -114,6 +114,7 @@ namespace ClassDiagramAddin.LibreWpf
 					throw new InvalidOperationException("ClassDiagram save did not clear the dirty state.");
 				var reloadedDocument = new XmlDocument();
 				reloadedDocument.Load(diagramPath);
+				canvas.Zoom = 2.0f;
 				canvas.LoadFromXml(reloadedDocument, ClassDiagramTypeSnapshotFactory.CreateCatalog(compilation));
 				if (canvas.GetCanvasItems().Length != types.Length || Math.Abs(canvas.Zoom - 1.25f) > 0.001f)
 					throw new InvalidOperationException("ClassDiagram save/reload did not preserve types and zoom.");

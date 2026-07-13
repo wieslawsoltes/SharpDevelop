@@ -662,6 +662,23 @@ namespace ClassDiagram
 			ClearCanvas();
 			
 			XPathNavigator nav = doc.CreateNavigator();
+			XPathNavigator root = nav.SelectSingleNode(@"/ClassDiagram");
+			float loadedZoom;
+			if (root != null
+			    && float.TryParse(
+				root.GetAttribute("Zoom", ""),
+				System.Globalization.NumberStyles.Float,
+				System.Globalization.CultureInfo.InvariantCulture,
+				out loadedZoom)
+			    && loadedZoom > 0.0f
+			    && !float.IsNaN(loadedZoom)
+			    && !float.IsInfinity(loadedZoom)
+			    && zoom != loadedZoom)
+			{
+				zoom = loadedZoom;
+				pictureBox1.Invalidate();
+				ZoomChanged(this, EventArgs.Empty);
+			}
 			XPathNodeIterator ni = nav.Select(@"/ClassDiagram/Class | /ClassDiagram/Struct | /ClassDiagram/Enum | /ClassDiagram/Interface | /ClassDiagram/Delegate");
 			while (ni.MoveNext())
 			{

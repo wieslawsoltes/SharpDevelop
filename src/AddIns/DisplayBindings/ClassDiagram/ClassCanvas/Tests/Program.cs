@@ -70,7 +70,9 @@ internal static class Program
 
             using (ClassCanvas reloaded = new ClassCanvas())
             {
+                reloaded.Zoom = 2.0f;
                 reloaded.LoadFromXml(canvas.WriteToXml(), new ClassDiagramTypeCatalog(types));
+                Require(Math.Abs(reloaded.Zoom - 1.25f) < 0.001f, "XML load did not restore the canvas zoom.");
                 Require(reloaded.Contains("Demo.Base"), "Base type did not resolve during XML load.");
                 Require(reloaded.Contains("Demo.Widget"), "Derived type did not resolve during XML load.");
                 Require(reloaded.GetCanvasItems().Length == 5, "XML load did not restore all canvas items.");
