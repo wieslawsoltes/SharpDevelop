@@ -199,6 +199,63 @@ if ! run_resource_toolkit_smoke 1; then
   run_resource_toolkit_smoke 2
 fi
 
+run_hex_editor_smoke() {
+  local attempt="$1"
+  local config_dir="$work_root/hex-editor-config-$attempt"
+  local home_dir="$work_root/hex-editor-home-$attempt"
+  local log_file="$work_root/hex-editor-$attempt.log"
+  local timeout_seconds="${LIBREWPF_SHARPDEVELOP_SMOKE_TIMEOUT_SECONDS:-90}"
+  local pid watchdog_pid exit_code
+
+  mkdir -p "$config_dir" "$home_dir"
+
+  env \
+    HOME="$home_dir" \
+    DOTNET_ROLL_FORWARD=Major \
+    DOTNET_ROLL_FORWARD_TO_PRERELEASE=1 \
+    DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 \
+    LIBREWPF_SHARPDEVELOP_CONFIG_DIR="$config_dir" \
+    LIBREWPF_SHARPDEVELOP_TRACE_OPEN=1 \
+    LIBREWPF_SHARPDEVELOP_HEXEDITOR_SMOKE=1 \
+    LIBREWPF_SHARPDEVELOP_EXIT_AFTER_MS=30000 \
+    "$dotnet_cmd" "$app_dll" >"$log_file" 2>&1 &
+  pid=$!
+
+  (
+    sleep "$timeout_seconds"
+    if kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      sleep 5
+      kill -9 "$pid" 2>/dev/null || true
+    fi
+  ) &
+  watchdog_pid=$!
+
+  set +e
+  wait "$pid"
+  exit_code=$?
+  set -e
+  kill "$watchdog_pid" 2>/dev/null || true
+  wait "$watchdog_pid" 2>/dev/null || true
+
+  if [[ "$exit_code" -eq 0 ]] \
+    && grep -Fq 'LibreWPF HexEditor smoke result=Success' "$log_file" \
+    && grep -Fq 'repaintStable=True' "$log_file" \
+    && grep -Fq 'LibreWPF WorkbenchStartup application exit code=0' "$log_file"; then
+    grep -E 'HexEditor smoke result=|application exit code=' "$log_file"
+    return 0
+  fi
+
+  echo "HexEditor smoke attempt $attempt did not reach the complete success state." >&2
+  tail -n 160 "$log_file" >&2
+  return 1
+}
+
+if ! run_hex_editor_smoke 1; then
+  echo "Retrying HexEditor once with a fresh HOME and SharpDevelop configuration directory..." >&2
+  run_hex_editor_smoke 2
+fi
+
 run_reporting_smoke() {
   local attempt="$1"
   local config_dir="$work_root/reporting-config-$attempt"
@@ -291,7 +348,7 @@ if [[ "$report_checksum_before" != "$report_checksum_after" ]]; then
 fi
 
 if [[ "$reporting_smoke_passed" == "1" ]]; then
-  echo "SharpDevelop public LibreWPF $expected_version build, FormsDesigner smoke, ResourceToolkit smoke, and Reporting workbench smoke passed."
+  echo "SharpDevelop public LibreWPF $expected_version build, FormsDesigner smoke, ResourceToolkit smoke, HexEditor smoke, and Reporting workbench smoke passed."
 else
-  echo "SharpDevelop public LibreWPF $expected_version build, FormsDesigner smoke, and ResourceToolkit smoke passed; Reporting reload awaits typed LibreWinForms idle dispatch."
+  echo "SharpDevelop public LibreWPF $expected_version build, FormsDesigner smoke, ResourceToolkit smoke, and HexEditor smoke passed; Reporting reload awaits typed LibreWinForms idle dispatch."
 fi
