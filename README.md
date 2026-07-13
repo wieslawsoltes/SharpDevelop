@@ -48,13 +48,16 @@ through WpfDesigner's public `IPointerTool.TryStartGesture` input feed. The gate
 verifies the typed `ResizeThumbExtension` and `SelectionAdornerProvider` state,
 the design-panel adorner collection, PropertyGrid synchronization, one placement
 move transaction, the serialized XAML delta, undo/redo, and exact in-memory source
-restoration. This feed is the deterministic boundary for hosts that cannot produce
-a trustworthy pressed-button `MouseButtonEventArgs`; the physical routed
-`MouseDown` adapter and the feed share the same pointer-gesture and `MoveLogic`
-core. The automated smoke therefore proves the real panel hit-test/manipulation
-path without OS-level mouse injection. Backend-native physical click/drag delivery
-remains a manual input check, while source guards keep both paths reflection-free
-and require the shared typed core.
+restoration. Before the measured move, a reversible typed move/undo seeds XamlDom's
+stable placement-attribute order and verifies that `Margin`, alignment, row, and
+column values are unchanged; the measured move must then add exactly one undo unit
+and restore that stable source byte-for-byte. This feed is the deterministic boundary
+for hosts that cannot produce a trustworthy pressed-button `MouseButtonEventArgs`;
+the physical routed `MouseDown` adapter and the feed share the same pointer-gesture
+and `MoveLogic` core. The automated smoke therefore proves the real panel
+hit-test/manipulation path without OS-level mouse injection. Backend-native physical
+click/drag delivery remains a manual input check, while source guards keep both
+paths reflection-free and require the shared typed core.
 
 ## System Requirements (running #Develop)
 
