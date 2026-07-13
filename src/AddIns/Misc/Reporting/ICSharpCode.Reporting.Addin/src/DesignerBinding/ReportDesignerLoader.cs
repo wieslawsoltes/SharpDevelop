@@ -9,6 +9,7 @@
 using System;
 using System.ComponentModel.Design.Serialization;
 using System.IO;
+using System.Text;
 using System.Xml;
 using ICSharpCode.Core;
 using ICSharpCode.Reporting.Factories;
@@ -24,7 +25,7 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 	{
 		IDesignerLoaderHost host;
 		readonly IDesignerGenerator generator;
-		Stream stream;
+		byte[] reportContent;
 		
 		#region Constructors
 
@@ -35,7 +36,7 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 				throw new ArgumentNullException("generator");
 			}
 			this.generator = generator;
-			this.stream = stream;
+			reportContent = ReadReportContent(stream);
 		}
 		
 		#endregion
@@ -43,28 +44,60 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 		
 		#region Overriden methods of BasicDesignerLoader
 		
-		public override void BeginLoad(IDesignerLoaderHost host){
-			LoggingService.Info("ReportDesignerLoader:BeginLoad"); 
-			if (host == null) {
-				throw new ArgumentNullException("host");
-			}
-			this.host = host;
+		protected override void Initialize(){
+			LoggingService.Info("ReportDesignerLoader:Initialize");
+			base.Initialize();
+			host = LoaderHost;
 			host.AddService(typeof(ComponentSerializationService), new CodeDomComponentSerializationService((IServiceProvider)host));
 			host.AddService(typeof(IDesignerSerializationService), new DesignerSerializationService((IServiceProvider)host));
-			base.BeginLoad(host);
 		}
 		
 		
 		protected override void PerformLoad(IDesignerSerializationManager serializationManager){
 			LoggingService.Info("ReportDesignerLoader:PerformLoad"); 
-			var internalLoader = new InternalReportLoader(host,generator, stream);
-			internalLoader.LoadOrCreateReport();
+			using (var stream = new MemoryStream(reportContent, false)) {
+				var internalLoader = new InternalReportLoader(host,generator, stream);
+				internalLoader.LoadOrCreateReport();
+			}
 		}
  
 		
 		protected override void PerformFlush(IDesignerSerializationManager designerSerializationManager){
 			LoggingService.Info("ReportDesignerLoader:PerformFlush");
 			generator.MergeFormChanges((System.CodeDom.CodeCompileUnit)null);
+			SetReportContent(generator.ReportFileContent);
+		}
+
+		public bool ReloadFrom(Stream stream)
+		{
+			if (stream == null)
+				throw new ArgumentNullException("stream");
+			if (Loading || ReloadPending)
+				return false;
+
+			byte[] previousContent = reportContent;
+			reportContent = ReadReportContent(stream);
+			try {
+				Reload(ReloadOptions.Force | ReloadOptions.NoFlush);
+			} catch {
+				reportContent = previousContent;
+				throw;
+			}
+
+			if (!ReloadPending) {
+				reportContent = previousContent;
+				return false;
+			}
+
+			return true;
+		}
+
+		public void WriteReportContent(Stream stream)
+		{
+			if (stream == null)
+				throw new ArgumentNullException("stream");
+
+			stream.Write(reportContent, 0, reportContent.Length);
 		}
 		
 		#endregion
@@ -74,10 +107,36 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 		
 		public XmlDocument SerializeModel()
 		{
-			generator.MergeFormChanges((System.CodeDom.CodeCompileUnit)null);
+			Flush();
 			var doc = new XmlDocument();
-			doc.LoadXml(generator.ViewContent.ReportFileContent);
+			using (var stream = new MemoryStream(reportContent, false)) {
+				doc.Load(stream);
+			}
 			return doc;
+		}
+
+		static byte[] ReadReportContent(Stream stream)
+		{
+			long position = stream.CanSeek ? stream.Position : 0;
+			try {
+				using (var copy = new MemoryStream()) {
+					stream.CopyTo(copy);
+					return copy.ToArray();
+				}
+			} finally {
+				if (stream.CanSeek) {
+					stream.Position = position;
+				}
+			}
+		}
+
+		void SetReportContent(string content)
+		{
+			if (String.IsNullOrEmpty(content)) {
+				throw new InvalidOperationException("The Reporting generator produced no report content.");
+			}
+
+			reportContent = Encoding.UTF8.GetBytes(content);
 		}
 		
 		#endregion

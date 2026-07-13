@@ -102,8 +102,6 @@ namespace ICSharpCode.Reporting.Addin.Views
 			var selectionService = (ISelectionService)this.designSurface.GetService(typeof(ISelectionService));
 			selectionService.SelectionChanged  += SelectionChangedHandler;
 			
-			undoEngine = new ReportDesignerUndoEngine(Host);
-		
 			var componentChangeService = (IComponentChangeService)this.designSurface.GetService(typeof(IComponentChangeService));
 			
 			
@@ -294,10 +292,16 @@ namespace ICSharpCode.Reporting.Addin.Views
 			this.unloading = false;
 			
 			if (e.HasSucceeded) {
+				if (undoEngine != null) {
+					undoEngine.Dispose();
+				}
+				undoEngine = new ReportDesignerUndoEngine(Host);
 
 				SetupDesignSurface();
 				isFormsDesignerVisible = true;
 				generator.MergeFormChanges(null);
+				reportFileContent = generator.ReportFileContent;
+				hasUnmergedChanges = false;
 //				StartReportExplorer ();
 
 				LoggingService.Debug("FormsDesigner loaded, setting ActiveDesignSurface to " + this.designSurface.ToString());
@@ -309,12 +313,19 @@ namespace ICSharpCode.Reporting.Addin.Views
 		void DesignerFlushed(object sender, EventArgs e)
 		{
 			LoggingService.Debug("ReportDesigner: Event > DesignerFlushed");
+			reportFileContent = generator.ReportFileContent;
+			hasUnmergedChanges = false;
 		}
 
 		
 		void DesingerUnloading(object sender, EventArgs e)
 		{
 			LoggingService.Debug("ReportDesigner: Event > DesignernUnloading...");
+			this.unloading = true;
+			if (undoEngine != null) {
+				undoEngine.Dispose();
+				undoEngine = null;
+			}
 		}
 
 		
@@ -481,7 +492,7 @@ namespace ICSharpCode.Reporting.Addin.Views
 		{
 			LoggingService.Info("MergeFormChanges");
 			this.designSurface.Flush();
-			generator.MergeFormChanges(null);
+			reportFileContent = generator.ReportFileContent;
 			hasUnmergedChanges = false;
 		}
 
@@ -501,7 +512,7 @@ namespace ICSharpCode.Reporting.Addin.Views
 		
 		public string ReportFileContent {
 			get {
-				if (IsDirty) {
+				if (hasUnmergedChanges) {
 					MergeFormChanges();
 				}
 				return reportFileContent; }
@@ -524,21 +535,21 @@ namespace ICSharpCode.Reporting.Addin.Views
 		{
 			LoggingService.Debug("ReportDesigner: Load from: " + file.FileName);
 			base.Load(file, stream);
-			LoadDesigner(stream);
+			if (designSurface == null) {
+				LoadDesigner(stream);
+			} else if (!loader.ReloadFrom(stream)) {
+				throw new InvalidOperationException("The Reporting designer is already loading or has a reload pending.");
+			}
 			SetupSecondaryView();
 		}
 		
 		
 		public override void Save(OpenedFile file, Stream stream)
 		{
-			if (IsDirty) {
-				if (hasUnmergedChanges) {
-					MergeFormChanges();
-				}
-				using(var writer = new StreamWriter(stream)) {
-					writer.Write(ReportFileContent);
-				}
+			if (hasUnmergedChanges) {
+				MergeFormChanges();
 			}
+			loader.WriteReportContent(stream);
 		}
 		
 		#endregion

@@ -59,18 +59,25 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 		public ReportModel LoadOrCreateReport()
 		{
 			Application.UseWaitCursor = true;
-			var rootComponent = host.CreateComponent(typeof(RootReportModel),"RootReportModel");
-			var rootControl = rootComponent as RootReportModel;
-			UpdateStatusbar();
-			var reportModel = CreateNamedSurface();
-			rootControl.Size = reportModel.ReportSettings.PageSize;
-			Application.UseWaitCursor = false;
-			return reportModel;
+			try {
+				var rootComponent = host.CreateComponent(typeof(RootReportModel),"RootReportModel");
+				var rootControl = rootComponent as RootReportModel;
+				UpdateStatusbar();
+				var reportModel = CreateNamedSurface();
+				rootControl.Size = reportModel.ReportSettings.PageSize;
+				return reportModel;
+			} finally {
+				Application.UseWaitCursor = false;
+			}
 		}
 		
 		
 		void UpdateStatusbar ()
 		{
+			if (generator.ViewContent == null) {
+				return;
+			}
+
 			string message;
 			if (generator.ViewContent.PrimaryFile.IsDirty) {
 				message = String.Format(CultureInfo.CurrentCulture,"Create Report <{0}> ...",Path.GetFileName(generator.ViewContent.PrimaryFile.FileName));

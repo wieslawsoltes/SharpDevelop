@@ -26,6 +26,7 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 	class DesignerGenerator:IDesignerGenerator
 	{
 		DesignerView viewContent;
+		string reportFileContent;
 		
 		public DesignerGenerator()
 		{
@@ -56,7 +57,8 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 		public void MergeFormChanges(System.CodeDom.CodeCompileUnit unit)
 		{
 			var writer = InternalMergeFormChanges();
-			viewContent.ReportFileContent = writer.ToString();
+			reportFileContent = writer.ToString();
+			viewContent.ReportFileContent = reportFileContent;
 		}
 		
 		
@@ -96,6 +98,10 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 		public DesignerView ViewContent {
 			get {return viewContent;}
 			
+		}
+
+		public string ReportFileContent {
+			get { return reportFileContent; }
 		}
 		
 		public bool InsertComponentEvent(IComponent component, EventDescriptor edesc, string eventMethodName, string body, out string file, out int position)

@@ -26,6 +26,7 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 		void Attach(DesignerView viewContent);
 		void Detach();
 		DesignerView ViewContent { get; }
+		string ReportFileContent { get; }
 		/// <summary>
 		/// Gets the collection of OpenedFiles that contain code which belongs
 		/// to the designed form, not including resource files.
