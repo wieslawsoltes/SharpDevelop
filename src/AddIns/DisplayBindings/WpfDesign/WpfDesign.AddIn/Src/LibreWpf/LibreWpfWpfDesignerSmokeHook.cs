@@ -34,6 +34,7 @@ using ICSharpCode.SharpDevelop.Project;
 using ICSharpCode.SharpDevelop.Workbench;
 using ICSharpCode.WpfDesign.Designer.OutlineView;
 using ICSharpCode.WpfDesign.Designer.PropertyGrid;
+using ICSharpCode.WpfDesign.Designer.Services;
 
 namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 {
@@ -95,12 +96,18 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				bool saveReady;
 				VerifyEditUndoRedoAndSave(designer, out editReady, out undoReady, out redoReady, out saveReady);
 				var outlineResult = await VerifyOutlineSelectionAsync(designer);
+				var toolboxResult = await VerifyToolboxInsertionAsync(designer, primarySelection);
 				if (!selectionReady || !propertyGridReady || !rootViewReady || !presented
 					|| !editReady || !undoReady || !redoReady || !saveReady
 					|| !outlineResult.SelectionReady || !outlineResult.PropertyGridReady
 					|| !outlineResult.EditReady || !outlineResult.UndoReady
 					|| !outlineResult.RedoReady || !outlineResult.SaveReady
-					|| !outlineResult.RestoreReady)
+					|| !outlineResult.RestoreReady
+					|| !toolboxResult.ToolSelected || !toolboxResult.Inserted
+					|| !toolboxResult.SelectionReady || !toolboxResult.PropertyGridReady
+					|| !toolboxResult.XamlReady || !toolboxResult.UndoReady
+					|| !toolboxResult.RedoReady || !toolboxResult.RestoreReady
+					|| !toolboxResult.ToolResetReady)
 					throw new InvalidOperationException(
 						"The WPF designer did not reach its selected, editable, and presented state."
 						+ " selected=" + selectionReady
@@ -120,7 +127,17 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 						+ " outlineUndo=" + outlineResult.UndoReady
 						+ " outlineRedo=" + outlineResult.RedoReady
 						+ " outlineSave=" + outlineResult.SaveReady
-						+ " outlineRestore=" + outlineResult.RestoreReady);
+						+ " outlineRestore=" + outlineResult.RestoreReady
+						+ " toolboxToolSelected=" + toolboxResult.ToolSelected
+						+ " toolboxInserted=" + toolboxResult.Inserted
+						+ " toolboxPrimary=" + toolboxResult.PrimaryTypeName
+						+ " toolboxSelection=" + toolboxResult.SelectionReady
+						+ " toolboxPropertyGrid=" + toolboxResult.PropertyGridReady
+						+ " toolboxXaml=" + toolboxResult.XamlReady
+						+ " toolboxUndo=" + toolboxResult.UndoReady
+						+ " toolboxRedo=" + toolboxResult.RedoReady
+						+ " toolboxRestore=" + toolboxResult.RestoreReady
+						+ " toolboxToolReset=" + toolboxResult.ToolResetReady);
 
 				WriteResult(
 					"Success",
@@ -130,7 +147,11 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					+ " propertyGrid=True presented=True edit=True undo=True redo=True save=True"
 					+ " outlineSelection=True outlinePrimary=" + outlineResult.PrimaryTypeName
 					+ " outlinePropertyGrid=True outlineEdit=True outlineUndo=True outlineRedo=True"
-					+ " outlineSave=True outlineRestore=True");
+					+ " outlineSave=True outlineRestore=True"
+					+ " toolboxToolSelected=True toolboxInserted=True"
+					+ " toolboxPrimary=" + toolboxResult.PrimaryTypeName
+					+ " toolboxSelection=True toolboxPropertyGrid=True toolboxXaml=True"
+					+ " toolboxUndo=True toolboxRedo=True toolboxRestore=True toolboxToolReset=True");
 			} finally {
 				if (primary != null && primary.WorkbenchWindow != null)
 					primary.WorkbenchWindow.CloseWindow(true);
@@ -283,6 +304,117 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			result.UndoReady = result.UndoReady && Equals(tagProperty.ValueOnInstance, originalTag);
 		}
 
+		static async Task<ToolboxSmokeResult> VerifyToolboxInsertionAsync(
+			WpfViewContent designer,
+			ICSharpCode.WpfDesign.DesignItem container)
+		{
+			if (container == null)
+				throw new InvalidOperationException("The WPF designer toolbox smoke did not receive a container.");
+
+			var context = designer.DesignContext;
+			var selection = context.Services.Selection;
+			var originalItems = selection.SelectedItems.ToArray();
+			var originalPrimary = selection.PrimarySelection;
+			var propertyGridView = designer.PropertyContainer.PropertyGridReplacementContent as PropertyGridView;
+			string originalXaml = SaveDesignerToString(designer);
+			int originalButtonCount = CountElementsByLocalName(originalXaml, "Button");
+			var result = new ToolboxSmokeResult();
+			ICSharpCode.WpfDesign.DesignItem createdItem = null;
+
+			try {
+				CreateComponentTool selectedTool;
+				result.ToolSelected = WpfToolbox.Instance.TrySelectComponentTool(
+					typeof(System.Windows.Controls.Button),
+					out selectedTool)
+					&& selectedTool != null
+					&& selectedTool.ComponentType == typeof(System.Windows.Controls.Button)
+					&& ReferenceEquals(context.Services.Tool.CurrentTool, selectedTool);
+				if (!result.ToolSelected)
+					return result;
+
+				result.Inserted = WpfToolbox.Instance.TryInsertSelectedComponent(
+					container,
+					new Rect(24, 32, 120, 30),
+					out createdItem)
+					&& createdItem != null
+					&& createdItem.ComponentType == typeof(System.Windows.Controls.Button)
+					&& ReferenceEquals(createdItem.Parent, container)
+					&& ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(createdItem);
+				result.PrimaryTypeName = createdItem == null ? "<null>" : createdItem.ComponentType.FullName;
+				result.ToolResetReady = ReferenceEquals(context.Services.Tool.CurrentTool, context.Services.Tool.PointerTool);
+				if (!result.Inserted)
+					return result;
+
+				for (int attempt = 0; attempt < 50; attempt++) {
+					result.SelectionReady = ReferenceEquals(selection.PrimarySelection, createdItem)
+						&& selection.SelectedItems.Count == 1
+						&& selection.SelectedItems.Contains(createdItem);
+					result.PropertyGridReady = propertyGridView != null
+						&& ReferenceEquals(propertyGridView.PropertyGrid.SingleItem, createdItem)
+						&& propertyGridView.PropertyGrid.SelectedItems != null
+						&& propertyGridView.PropertyGrid.SelectedItems.Contains(createdItem);
+					if (result.SelectionReady && result.PropertyGridReady)
+						break;
+					await Task.Delay(50);
+				}
+
+				string insertedXaml = SaveDesignerToString(designer);
+				result.XamlReady = !string.Equals(insertedXaml, originalXaml, StringComparison.Ordinal)
+					&& CountElementsByLocalName(insertedXaml, "Button") == originalButtonCount + 1;
+
+				designer.DesignSurface.Undo();
+				result.UndoReady = !ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(createdItem)
+					&& designer.DesignSurface.CanRedo()
+					&& string.Equals(SaveDesignerToString(designer), originalXaml, StringComparison.Ordinal);
+
+				designer.DesignSurface.Redo();
+				result.RedoReady = ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(createdItem)
+					&& string.Equals(SaveDesignerToString(designer), insertedXaml, StringComparison.Ordinal);
+
+				designer.DesignSurface.Undo();
+				selection.SetSelectedComponents(originalItems, ICSharpCode.WpfDesign.SelectionTypes.Replace);
+				if (originalPrimary != null) {
+					selection.SetSelectedComponents(
+						new[] { originalPrimary },
+						ICSharpCode.WpfDesign.SelectionTypes.Primary);
+				}
+				for (int attempt = 0; attempt < 50; attempt++) {
+					bool selectionRestored = ReferenceEquals(selection.PrimarySelection, originalPrimary)
+						&& selection.SelectedItems.Count == originalItems.Length
+						&& originalItems.All(selection.SelectedItems.Contains);
+					bool propertyGridRestored = propertyGridView != null
+						&& ReferenceEquals(propertyGridView.PropertyGrid.SingleItem, originalPrimary);
+					result.RestoreReady = selectionRestored
+						&& propertyGridRestored
+						&& !ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(createdItem)
+						&& string.Equals(SaveDesignerToString(designer), originalXaml, StringComparison.Ordinal);
+					if (result.RestoreReady)
+						break;
+					await Task.Delay(50);
+				}
+			} finally {
+				context.Services.Tool.CurrentTool = context.Services.Tool.PointerTool;
+			}
+
+			return result;
+		}
+
+		static string SaveDesignerToString(WpfViewContent designer)
+		{
+			var output = new StringBuilder();
+			using (var writer = XmlWriter.Create(output, new XmlWriterSettings { OmitXmlDeclaration = true })) {
+				designer.DesignSurface.SaveDesigner(writer);
+			}
+			return output.ToString();
+		}
+
+		static int CountElementsByLocalName(string xaml, string localName)
+		{
+			var document = new XmlDocument();
+			document.LoadXml(xaml);
+			return document.SelectNodes("//*[local-name()='" + localName + "']").Count;
+		}
+
 		sealed class OutlineSmokeResult
 		{
 			public string PrimaryTypeName;
@@ -293,6 +425,20 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			public bool RedoReady;
 			public bool SaveReady;
 			public bool RestoreReady;
+		}
+
+		sealed class ToolboxSmokeResult
+		{
+			public string PrimaryTypeName;
+			public bool ToolSelected;
+			public bool Inserted;
+			public bool SelectionReady;
+			public bool PropertyGridReady;
+			public bool XamlReady;
+			public bool UndoReady;
+			public bool RedoReady;
+			public bool RestoreReady;
+			public bool ToolResetReady;
 		}
 
 		static async Task WaitForProjectAsync()

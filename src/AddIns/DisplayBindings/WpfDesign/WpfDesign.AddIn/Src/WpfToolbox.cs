@@ -32,6 +32,7 @@ using ICSharpCode.SharpDevelop.Gui;
 using ICSharpCode.SharpDevelop.Project;
 using ICSharpCode.SharpDevelop.Widgets.SideBar;
 using ICSharpCode.SharpDevelop.Workbench;
+using ICSharpCode.WpfDesign.Designer.Services;
 using WPF = System.Windows.Controls;
 
 namespace ICSharpCode.WpfDesign.AddIn
@@ -128,6 +129,97 @@ namespace ICSharpCode.WpfDesign.AddIn
 				}
 				toolService.CurrentTool = newTool ?? toolService.PointerTool;
 			}
+		}
+
+		internal bool TrySelectComponentTool(Type componentType, out CreateComponentTool selectedTool)
+		{
+			if (componentType == null)
+				throw new ArgumentNullException("componentType");
+
+			selectedTool = null;
+			if (toolService == null)
+				return false;
+
+			foreach (SideTab tab in sideBar.Tabs) {
+				foreach (SideTabItem item in tab.Items) {
+					var componentTool = item.Tag as CreateComponentTool;
+					if (componentTool == null || componentTool.ComponentType != componentType)
+						continue;
+
+					sideBar.ActiveTab = tab;
+					tab.ChosenItem = item;
+					selectedTool = componentTool;
+					return ReferenceEquals(toolService.CurrentTool, componentTool);
+				}
+			}
+
+			return false;
+		}
+
+		internal bool TryInsertSelectedComponent(
+			DesignItem container,
+			Rect bounds,
+			out DesignItem createdItem)
+		{
+			if (container == null)
+				throw new ArgumentNullException("container");
+
+			createdItem = null;
+			var componentTool = toolService == null
+				? null
+				: toolService.CurrentTool as CreateComponentTool;
+			if (componentTool == null
+				|| !ReferenceEquals(container.Context.Services.Tool, toolService)
+				|| bounds.IsEmpty
+				|| bounds.Width <= 0
+				|| bounds.Height <= 0
+				|| !IsFinite(bounds.X)
+				|| !IsFinite(bounds.Y)
+				|| !IsFinite(bounds.Width)
+				|| !IsFinite(bounds.Height))
+				return false;
+
+			ChangeGroup changeGroup = null;
+			PlacementOperation placement = null;
+			try {
+				object instance = container.Context.Services.ExtensionManager
+					.CreateInstanceWithCustomInstanceFactory(componentTool.ComponentType, null);
+				createdItem = container.Context.Services.Component.RegisterComponentForDesigner(instance);
+				changeGroup = createdItem.OpenGroup("Add " + componentTool.ComponentType.Name);
+				container.Context.Services.Component.SetDefaultPropertyValues(createdItem);
+				container.Context.Services.ExtensionManager.ApplyDefaultInitializers(createdItem);
+
+				placement = PlacementOperation.TryStartInsertNewComponents(
+					container,
+					new[] { createdItem },
+					new[] { bounds },
+					PlacementType.AddItem);
+				if (placement == null) {
+					createdItem = null;
+					return false;
+				}
+
+				container.Context.Services.Selection.SetSelectedComponents(
+					new[] { createdItem },
+					SelectionTypes.Primary);
+				placement.Commit();
+				placement = null;
+				changeGroup.Commit();
+				changeGroup = null;
+				return true;
+			} finally {
+				if (placement != null)
+					placement.Abort();
+				if (changeGroup != null)
+					changeGroup.Abort();
+				if (toolService != null)
+					toolService.CurrentTool = toolService.PointerTool;
+			}
+		}
+
+		static bool IsFinite(double value)
+		{
+			return !double.IsNaN(value) && !double.IsInfinity(value);
 		}
 		
 		public Control ToolboxControl {
