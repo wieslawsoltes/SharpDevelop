@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <ProGpuWpfSdkVersion>0.1.0-preview.sharpdevelop.1</ProGpuWpfSdkVersion>
+    <ProGpuWpfSdkVersion>0.1.0-preview.10</ProGpuWpfSdkVersion>
     <ProGpuWpfPackageVersion>$(ProGpuWpfSdkVersion)</ProGpuWpfPackageVersion>
     <ProGpuWpfManagedPackageVersion>$(ProGpuWpfPackageVersion)</ProGpuWpfManagedPackageVersion>
     <ProGpuPackageVersion>$(ProGpuWpfSdkVersion)</ProGpuPackageVersion>
