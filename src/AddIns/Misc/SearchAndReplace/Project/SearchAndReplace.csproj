@@ -59,8 +59,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Resources\FindPanel.xfrm" />
-    <EmbeddedResource Include="Resources\ReplacePanel.xfrm" />
     <None Include="SearchAndReplace.addin">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

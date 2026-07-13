@@ -41,6 +41,12 @@ namespace SearchAndReplace
 		const string SearchMenuAddInPath = "/SharpDevelop/Workbench/MainMenu/Search";
 
 		static SearchAndReplaceDialog Instance;
+
+		#if LIBREWPF
+		internal static SearchAndReplaceDialog CurrentInstance {
+			get { return Instance; }
+		}
+		#endif
 		
 		public static void ShowSingleInstance(SearchAndReplaceMode searchAndReplaceMode)
 		{
@@ -160,6 +166,32 @@ namespace SearchAndReplace
 			}
 			ResumeLayout();
 		}
+
+		#if LIBREWPF
+		internal SearchAndReplaceMode CurrentMode {
+			get { return searchAndReplacePanel.SearchAndReplaceMode; }
+		}
+
+		internal bool IsPortableLayoutReady {
+			get { return searchAndReplacePanel.IsPortableLayoutReady; }
+		}
+
+		internal string CurrentFindText {
+			get { return searchAndReplacePanel.FindText; }
+		}
+
+		internal bool HasExpectedKeyboardShortcuts {
+			get {
+				return searchKeyboardShortcut == (Keys.Control | Keys.Shift | Keys.F)
+					&& replaceKeyboardShortcut == (Keys.Control | Keys.H);
+			}
+		}
+
+		internal void SelectReplaceModeForSmoke()
+		{
+			replaceButton.PerformClick();
+		}
+		#endif
 		
 		/// <summary>
 		/// Gets the keyboard shortcut for the menu item with the given addin tree

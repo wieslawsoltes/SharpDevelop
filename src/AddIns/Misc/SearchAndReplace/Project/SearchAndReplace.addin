@@ -49,4 +49,8 @@
 			id="SearchAndReplace"
 			class="SearchAndReplace.SearchAndReplaceTextEditorExtension" />
 	</Path>
+
+	<Path name="/SharpDevelop/LibreWpf/SmokeHooks">
+		<Class id="SearchAndReplaceSmoke" class="SearchAndReplace.LibreWpfSearchAndReplaceSmokeHook"/>
+	</Path>
 </AddIn>

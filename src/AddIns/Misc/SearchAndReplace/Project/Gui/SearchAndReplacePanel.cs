@@ -17,8 +17,7 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
-using System.ComponentModel;
-using System.Linq;
+using System.Drawing;
 using System.Windows.Forms;
 
 using ICSharpCode.AvalonEdit.Document;
@@ -30,15 +29,35 @@ using ICSharpCode.SharpDevelop;
 using ICSharpCode.SharpDevelop.Editor;
 using ICSharpCode.SharpDevelop.Editor.Search;
 using ICSharpCode.SharpDevelop.Gui;
-using ICSharpCode.SharpDevelop.Gui.XmlForms;
 
 namespace SearchAndReplace
 {
-	// TODO: remove XmlForms
-	#pragma warning disable 618
-	class SearchAndReplacePanel : BaseSharpDevelopUserControl
+	class SearchAndReplacePanel : UserControl
 	{
 		SearchAndReplaceMode searchAndReplaceMode;
+		ComboBox findComboBox;
+		ComboBox replaceComboBox;
+		ComboBox lookInComboBox;
+		ComboBox fileTypesComboBox;
+		ComboBox useComboBox;
+		CheckBox matchCaseCheckBox;
+		CheckBox matchWholeWordCheckBox;
+		CheckBox includeSubFolderCheckBox;
+		Label lookAtTypesLabel;
+		Button findNextButton;
+		Button lookInBrowseButton;
+		Button findAllButton;
+		Button bookmarkAllButton;
+		Button replaceButton;
+		Button replaceAllButton;
+
+		static readonly string[] SearchTargetResourceKeys = {
+			"${res:Dialog.NewProject.SearchReplace.LookIn.CurrentDocument}",
+			"${res:Dialog.NewProject.SearchReplace.LookIn.CurrentSelection}",
+			"${res:Dialog.NewProject.SearchReplace.LookIn.AllOpenDocuments}",
+			"${res:Dialog.NewProject.SearchReplace.LookIn.WholeProject}",
+			"${res:Dialog.NewProject.SearchReplace.LookIn.WholeSolution}"
+		};
 		
 		public SearchAndReplaceMode SearchAndReplaceMode {
 			get {
@@ -48,25 +67,21 @@ namespace SearchAndReplace
 				searchAndReplaceMode = value;
 				SuspendLayout();
 				Controls.Clear();
-				switch (searchAndReplaceMode) {
-					case SearchAndReplaceMode.Search:
-						SetupFromXmlStream(this.GetType().Assembly.GetManifestResourceStream("SearchAndReplace.Resources.FindPanel.xfrm"));
-						Get<Button>("bookmarkAll").Click += BookmarkAllButtonClicked;
-						Get<Button>("findAll").Click += FindAllButtonClicked;
-						this.ParentForm.AcceptButton = Get<Button>("findNext");
-						break;
-					case SearchAndReplaceMode.Replace:
-						SetupFromXmlStream(this.GetType().Assembly.GetManifestResourceStream("SearchAndReplace.Resources.ReplacePanel.xfrm"));
-						Get<Button>("replace").Click += ReplaceButtonClicked;
-						Get<Button>("replaceAll").Click += ReplaceAllButtonClicked;
-						this.ParentForm.AcceptButton = Get<Button>("replace");
-						break;
+				CreateTypedLayout(searchAndReplaceMode);
+
+				if (searchAndReplaceMode == SearchAndReplaceMode.Search) {
+					bookmarkAllButton.Click += BookmarkAllButtonClicked;
+					findAllButton.Click += FindAllButtonClicked;
+				} else {
+					replaceButton.Click += ReplaceButtonClicked;
+					replaceAllButton.Click += ReplaceAllButtonClicked;
 				}
-				
-				Get<ComboBox>("find").TextChanged += FindPatternChanged;
-				ControlDictionary["findNextButton"].Click     += FindNextButtonClicked;
-				ControlDictionary["lookInBrowseButton"].Click += LookInBrowseButtonClicked;
-				((Form)Parent).AcceptButton = (Button)ControlDictionary["findNextButton"];
+				findComboBox.TextChanged += FindPatternChanged;
+				findNextButton.Click += FindNextButtonClicked;
+				lookInBrowseButton.Click += LookInBrowseButtonClicked;
+				ParentForm.AcceptButton = searchAndReplaceMode == SearchAndReplaceMode.Search
+					? findNextButton
+					: replaceButton;
 				SetOptions();
 				EnableButtons(HasFindPattern);
 				RightToLeftConverter.ReConvertRecursive(this);
@@ -77,19 +92,135 @@ namespace SearchAndReplace
 		public SearchAndReplacePanel()
 		{
 		}
+
+		#if LIBREWPF
+		internal bool IsPortableLayoutReady {
+			get {
+				int expectedControlCount = searchAndReplaceMode == SearchAndReplaceMode.Search ? 15 : 17;
+				return Controls.Count == expectedControlCount
+					&& findComboBox != null
+					&& lookInComboBox != null
+					&& fileTypesComboBox != null
+					&& useComboBox != null
+					&& findNextButton != null
+					&& (searchAndReplaceMode == SearchAndReplaceMode.Search
+						? findAllButton != null && bookmarkAllButton != null
+						: replaceComboBox != null && replaceButton != null && replaceAllButton != null);
+			}
+		}
+
+		internal string FindText {
+			get { return findComboBox == null ? string.Empty : findComboBox.Text; }
+		}
+		#endif
+
+		void CreateTypedLayout(SearchAndReplaceMode mode)
+		{
+			bool replace = mode == SearchAndReplaceMode.Replace;
+			ClientSize = new Size(432, replace ? 360 : 312);
+
+			AddPortableLabel("findWhatLabel", "${res:Dialog.NewProject.SearchReplace.FindWhat}", 8, 8, 416, 23, 0);
+			findComboBox = AddPortableComboBox("findComboBox", 8, 32, 416, 21, 1, AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right);
+
+			int offset = 0;
+			if (replace) {
+				AddPortableLabel("replaceWithLabel", "${res:Dialog.NewProject.SearchReplace.ReplaceWith}", 8, 56, 416, 23, 2);
+				replaceComboBox = AddPortableComboBox("replaceComboBox", 8, 80, 416, 21, 3, AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right);
+				offset = 48;
+			}
+
+			AddPortableLabel("searchInLabel", "${res:Dialog.NewProject.SearchReplace.SearchIn}", 8, 56 + offset, 416, 23, 2 + (replace ? 2 : 0));
+			lookInComboBox = AddPortableComboBox("lookInComboBox", 8, 80 + offset, replace ? 379 : 384, 21, 3 + (replace ? 2 : 0), AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right);
+			lookInBrowseButton = AddPortableButton("lookInBrowseButton", "...", replace ? 393 : 395, 80 + offset, replace ? 31 : 29, 21, 4 + (replace ? 2 : 0), AnchorStyles.Top | AnchorStyles.Right);
+			includeSubFolderCheckBox = AddPortableCheckBox("includeSubFolderCheckBox", "${res:Dialog.NewProject.SearchReplace.IncludeSubFolders}", 24, 104 + offset, 400, 24, 5 + (replace ? 2 : 0));
+			lookAtTypesLabel = AddPortableLabel("lookAtTypesLabel", "${res:Dialog.NewProject.SearchReplace.LookAtFileTypes}", 8, 128 + offset, 416, 23, 6 + (replace ? 2 : 0));
+			fileTypesComboBox = AddPortableComboBox("fileTypesComboBox", 8, 152 + offset, 416, 21, 7 + (replace ? 2 : 0), AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right);
+			matchCaseCheckBox = AddPortableCheckBox("matchCaseCheckBox", "${res:Dialog.NewProject.SearchReplace.MatchCase}", 8, 176 + offset, 416, 24, 8 + (replace ? 2 : 0));
+			matchWholeWordCheckBox = AddPortableCheckBox("matchWholeWordCheckBox", "${res:Dialog.NewProject.SearchReplace.MatchWholeWord}", 8, 200 + offset, 416, 24, 9 + (replace ? 2 : 0));
+			AddPortableLabel("useMethodLabel", "${res:Dialog.NewProject.SearchReplace.UseMethodLabel}", 8, 224 + offset, 416, 23, 10 + (replace ? 2 : 0));
+			useComboBox = AddPortableComboBox("useComboBox", 8, 248 + offset, 416, 21, 11 + (replace ? 2 : 0), AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right);
+			useComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+
+			int buttonY = replace ? 328 : 280;
+			if (replace) {
+				findNextButton = AddPortableButton("findNextButton", "${res:Dialog.NewProject.SearchReplace.FindNextButton}", 124, buttonY, 96, 23, 14, AnchorStyles.Top | AnchorStyles.Right);
+				replaceButton = AddPortableButton("replaceButton", "${res:Dialog.NewProject.SearchReplace.ReplaceButton}", 226, buttonY, 96, 23, 15, AnchorStyles.Top | AnchorStyles.Right);
+				replaceAllButton = AddPortableButton("replaceAllButton", "${res:Dialog.NewProject.SearchReplace.ReplaceAllButton}", 328, buttonY, 96, 23, 16, AnchorStyles.Top | AnchorStyles.Right);
+			} else {
+				findAllButton = AddPortableButton("findAllButton", "${res:Dialog.NewProject.SearchReplace.FindAll}", 124, buttonY, 96, 23, 14, AnchorStyles.Top | AnchorStyles.Right);
+				findNextButton = AddPortableButton("findNextButton", "${res:Dialog.NewProject.SearchReplace.FindButton}", 226, buttonY, 96, 23, 12, AnchorStyles.Top | AnchorStyles.Right);
+				bookmarkAllButton = AddPortableButton("bookmarkAllButton", "${res:Dialog.NewProject.SearchReplace.MarkAllButton}", 328, buttonY, 96, 23, 13, AnchorStyles.Top | AnchorStyles.Right);
+			}
+		}
+
+		Label AddPortableLabel(string name, string text, int x, int y, int width, int height, int tabIndex)
+		{
+			var control = new Label {
+				Name = name,
+				Text = StringParser.Parse(text),
+				Location = new Point(x, y),
+				Size = new Size(width, height),
+				TabIndex = tabIndex,
+				Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+				TextAlign = ContentAlignment.BottomLeft
+			};
+			Controls.Add(control);
+			return control;
+		}
+
+		ComboBox AddPortableComboBox(string name, int x, int y, int width, int height, int tabIndex, AnchorStyles anchor)
+		{
+			var control = new ComboBox {
+				Name = name,
+				Location = new Point(x, y),
+				Size = new Size(width, height),
+				TabIndex = tabIndex,
+				Anchor = anchor
+			};
+			Controls.Add(control);
+			return control;
+		}
+
+		CheckBox AddPortableCheckBox(string name, string text, int x, int y, int width, int height, int tabIndex)
+		{
+			var control = new CheckBox {
+				Name = name,
+				Text = StringParser.Parse(text),
+				Location = new Point(x, y),
+				Size = new Size(width, height),
+				TabIndex = tabIndex,
+				Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+			};
+			Controls.Add(control);
+			return control;
+		}
+
+		Button AddPortableButton(string name, string text, int x, int y, int width, int height, int tabIndex, AnchorStyles anchor)
+		{
+			var control = new Button {
+				Name = name,
+				Text = StringParser.Parse(text),
+				Location = new Point(x, y),
+				Size = new Size(width, height),
+				TabIndex = tabIndex,
+				Anchor = anchor
+			};
+			Controls.Add(control);
+			return control;
+		}
 		
 		public SearchTarget SearchTarget {
 			get {
-				return (SearchTarget)(Get<ComboBox>("lookIn").SelectedIndex);
+				return (SearchTarget)lookInComboBox.SelectedIndex;
 			}
 			set {
-				Get<ComboBox>("lookIn").SelectedIndex = (int)value;
+				lookInComboBox.SelectedIndex = (int)value;
 			}
 		}
 		
 		void LookInBrowseButtonClicked(object sender, EventArgs e)
 		{
-			ComboBox lookinComboBox = Get<ComboBox>("lookIn");
+			ComboBox lookinComboBox = lookInComboBox;
 			string path = SD.FileService.BrowseForFolder("${res:Dialog.NewProject.SearchReplace.LookIn.SelectDirectory}", lookinComboBox.Text);
 			if (path != null) {
 				lookinComboBox.SelectedIndex = customDirectoryIndex;
@@ -187,25 +318,25 @@ namespace SearchAndReplace
 		
 		void WritebackOptions()
 		{
-			SearchOptions.FindPattern = Get<ComboBox>("find").Text;
+			SearchOptions.FindPattern = findComboBox.Text;
 			
 			if (searchAndReplaceMode == SearchAndReplaceMode.Replace) {
-				SearchOptions.ReplacePattern = Get<ComboBox>("replace").Text;
+				SearchOptions.ReplacePattern = replaceComboBox.Text;
 			}
 			
-			if (Get<ComboBox>("lookIn").DropDownStyle == ComboBoxStyle.DropDown) {
-				SearchOptions.LookIn = Get<ComboBox>("lookIn").Text;
+			if (lookInComboBox.DropDownStyle == ComboBoxStyle.DropDown) {
+				SearchOptions.LookIn = lookInComboBox.Text;
 			}
-			SearchOptions.LookInFiletypes = Get<ComboBox>("fileTypes").Text;
-			SearchOptions.MatchCase = Get<CheckBox>("matchCase").Checked;
-			SearchOptions.MatchWholeWord = Get<CheckBox>("matchWholeWord").Checked;
-			SearchOptions.IncludeSubdirectories = Get<CheckBox>("includeSubFolder").Checked;
+			SearchOptions.LookInFiletypes = fileTypesComboBox.Text;
+			SearchOptions.MatchCase = matchCaseCheckBox.Checked;
+			SearchOptions.MatchWholeWord = matchWholeWordCheckBox.Checked;
+			SearchOptions.IncludeSubdirectories = includeSubFolderCheckBox.Checked;
 			
-			SearchOptions.SearchMode = (SearchMode)Get<ComboBox>("use").SelectedIndex;
-			if (Get<ComboBox>("lookIn").DropDownStyle == ComboBoxStyle.DropDown) {
+			SearchOptions.SearchMode = (SearchMode)useComboBox.SelectedIndex;
+			if (lookInComboBox.DropDownStyle == ComboBoxStyle.DropDown) {
 				SearchOptions.SearchTarget = SearchTarget.Directory;
 			} else {
-				SearchOptions.SearchTarget = (SearchTarget)Get<ComboBox>("lookIn").SelectedIndex;
+				SearchOptions.SearchTarget = (SearchTarget)lookInComboBox.SelectedIndex;
 			}
 		}
 		
@@ -213,29 +344,26 @@ namespace SearchAndReplace
 		
 		void SetOptions()
 		{
-			Get<ComboBox>("find").Text = SearchOptions.FindPattern;
-			Get<ComboBox>("find").Items.Clear();
-			
-			Get<ComboBox>("find").Text = SearchOptions.FindPattern;
-			Get<ComboBox>("find").Items.Clear();
+			findComboBox.Text = SearchOptions.FindPattern;
+			findComboBox.Items.Clear();
 			foreach (string findPattern in SearchOptions.FindPatterns) {
-				Get<ComboBox>("find").Items.Add(findPattern);
+				findComboBox.Items.Add(findPattern);
 			}
 			
 			if (searchAndReplaceMode == SearchAndReplaceMode.Replace) {
-				Get<ComboBox>("replace").Text = SearchOptions.ReplacePattern;
-				Get<ComboBox>("replace").Items.Clear();
+				replaceComboBox.Text = SearchOptions.ReplacePattern;
+				replaceComboBox.Items.Clear();
 				foreach (string replacePattern in SearchOptions.ReplacePatterns) {
-					Get<ComboBox>("replace").Items.Add(replacePattern);
+					replaceComboBox.Items.Add(replacePattern);
 				}
 			}
 			
-			Get<ComboBox>("lookIn").Text = SearchOptions.LookIn;
-			foreach (string lookInText in typeof(SearchTarget).GetFields().SelectMany(f => f.GetCustomAttributes(false).OfType<DescriptionAttribute>()).Select(da => da.Description)) {
-				Get<ComboBox>("lookIn").Items.Add(StringParser.Parse(lookInText));
+			lookInComboBox.Text = SearchOptions.LookIn;
+			for (int index = 0; index < SearchTargetResourceKeys.Length; index++) {
+				lookInComboBox.Items.Add(StringParser.Parse(SearchTargetResourceKeys[index]));
 			}
-			Get<ComboBox>("lookIn").Items.Add(SearchOptions.LookIn);
-			Get<ComboBox>("lookIn").SelectedIndexChanged += new EventHandler(LookInSelectedIndexChanged);
+			lookInComboBox.Items.Add(SearchOptions.LookIn);
+			lookInComboBox.SelectedIndexChanged += new EventHandler(LookInSelectedIndexChanged);
 			
 			if (IsMultipleLineSelection(SearchManager.GetActiveTextEditor())) {
 				SearchTarget = SearchTarget.CurrentSelection;
@@ -246,40 +374,40 @@ namespace SearchAndReplace
 				SearchTarget = SearchOptions.SearchTarget;
 			}
 			
-			Get<ComboBox>("fileTypes").Text         = SearchOptions.LookInFiletypes;
-			Get<CheckBox>("matchCase").Checked      = SearchOptions.MatchCase;
-			Get<CheckBox>("matchWholeWord").Checked = SearchOptions.MatchWholeWord;
-			Get<CheckBox>("includeSubFolder").Checked = SearchOptions.IncludeSubdirectories;
+			fileTypesComboBox.Text = SearchOptions.LookInFiletypes;
+			matchCaseCheckBox.Checked = SearchOptions.MatchCase;
+			matchWholeWordCheckBox.Checked = SearchOptions.MatchWholeWord;
+			includeSubFolderCheckBox.Checked = SearchOptions.IncludeSubdirectories;
 			
-			Get<ComboBox>("use").Items.Clear();
-			Get<ComboBox>("use").Items.Add(StringParser.Parse("${res:Dialog.NewProject.SearchReplace.SearchStrategy.Standard}"));
-			Get<ComboBox>("use").Items.Add(StringParser.Parse("${res:Dialog.NewProject.SearchReplace.SearchStrategy.RegexSearch}"));
-			Get<ComboBox>("use").Items.Add(StringParser.Parse("${res:Dialog.NewProject.SearchReplace.SearchStrategy.WildcardSearch}"));
+			useComboBox.Items.Clear();
+			useComboBox.Items.Add(StringParser.Parse("${res:Dialog.NewProject.SearchReplace.SearchStrategy.Standard}"));
+			useComboBox.Items.Add(StringParser.Parse("${res:Dialog.NewProject.SearchReplace.SearchStrategy.RegexSearch}"));
+			useComboBox.Items.Add(StringParser.Parse("${res:Dialog.NewProject.SearchReplace.SearchStrategy.WildcardSearch}"));
 			switch (SearchOptions.SearchMode) {
 				case SearchMode.RegEx:
-					Get<ComboBox>("use").SelectedIndex = 1;
+					useComboBox.SelectedIndex = 1;
 					break;
 				case SearchMode.Wildcard:
-					Get<ComboBox>("use").SelectedIndex = 2;
+					useComboBox.SelectedIndex = 2;
 					break;
 				default:
-					Get<ComboBox>("use").SelectedIndex = 0;
+					useComboBox.SelectedIndex = 0;
 					break;
 			}
 		}
 		
 		void LookInSelectedIndexChanged(object sender, EventArgs e)
 		{
-			if (Get<ComboBox>("lookIn").SelectedIndex == customDirectoryIndex) {
-				Get<ComboBox>("lookIn").DropDownStyle = ComboBoxStyle.DropDown;
-				Get<CheckBox>("includeSubFolder").Enabled = true;
-				Get<ComboBox>("fileTypes").Enabled = true;
-				Get<Label>("lookAtTypes").Enabled = true;
+			if (lookInComboBox.SelectedIndex == customDirectoryIndex) {
+				lookInComboBox.DropDownStyle = ComboBoxStyle.DropDown;
+				includeSubFolderCheckBox.Enabled = true;
+				fileTypesComboBox.Enabled = true;
+				lookAtTypesLabel.Enabled = true;
 			} else {
-				Get<ComboBox>("lookIn").DropDownStyle = ComboBoxStyle.DropDownList;
-				Get<CheckBox>("includeSubFolder").Enabled = false;
-				Get<ComboBox>("fileTypes").Enabled = false;
-				Get<Label>("lookAtTypes").Enabled = false;
+				lookInComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+				includeSubFolderCheckBox.Enabled = false;
+				fileTypesComboBox.Enabled = false;
+				lookAtTypesLabel.Enabled = false;
 			}
 		}
 		
@@ -314,13 +442,13 @@ namespace SearchAndReplace
 		void EnableButtons(bool enabled)
 		{
 			if (searchAndReplaceMode == SearchAndReplaceMode.Replace) {
-				Get<Button>("replace").Enabled = enabled;
-				Get<Button>("replaceAll").Enabled = enabled;
+				replaceButton.Enabled = enabled;
+				replaceAllButton.Enabled = enabled;
 			} else {
-				Get<Button>("bookmarkAll").Enabled = enabled;
-				Get<Button>("findAll").Enabled = enabled;
+				bookmarkAllButton.Enabled = enabled;
+				findAllButton.Enabled = enabled;
 			}
-			ControlDictionary["findNextButton"].Enabled = enabled;
+			findNextButton.Enabled = enabled;
 		}
 		
 		/// <summary>
@@ -329,7 +457,7 @@ namespace SearchAndReplace
 		/// </summary>
 		bool HasFindPattern {
 			get {
-				return Get<ComboBox>("find").Text.Length != 0;
+				return findComboBox.Text.Length != 0;
 			}
 		}
 		
