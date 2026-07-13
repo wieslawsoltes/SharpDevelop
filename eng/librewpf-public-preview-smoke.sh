@@ -198,9 +198,28 @@ run_reporting_smoke() {
   return 1
 }
 
-if ! run_reporting_smoke 1; then
-  echo "Retrying Reporting once with a fresh HOME and SharpDevelop configuration directory..." >&2
-  run_reporting_smoke 2
+reporting_smoke_mode="${LIBREWPF_SHARPDEVELOP_REPORTING_SMOKE_MODE:-auto}"
+reporting_smoke_passed=0
+winforms_assembly="$work_root/nuget/librewinforms.system.windows.forms/$expected_version/lib/net10.0/System.Windows.Forms.dll"
+if [[ "$reporting_smoke_mode" == "auto" ]]; then
+  if [[ -f "$winforms_assembly" ]] && grep -aFq 'IWinFormsIdleHost' "$winforms_assembly"; then
+    reporting_smoke_mode=1
+  else
+    reporting_smoke_mode=0
+  fi
+fi
+
+if [[ "$reporting_smoke_mode" == "1" ]]; then
+  if ! run_reporting_smoke 1; then
+    echo "Retrying Reporting once with a fresh HOME and SharpDevelop configuration directory..." >&2
+    run_reporting_smoke 2
+  fi
+  reporting_smoke_passed=1
+elif [[ "$reporting_smoke_mode" == "0" ]]; then
+  echo "Skipping the Reporting reload smoke because LibreWinForms $expected_version does not expose typed idle dispatch."
+else
+  echo "LIBREWPF_SHARPDEVELOP_REPORTING_SMOKE_MODE must be auto, 0, or 1." >&2
+  exit 1
 fi
 
 sample_checksum_after="$(cksum "$sample_source")"
@@ -215,4 +234,8 @@ if [[ "$report_checksum_before" != "$report_checksum_after" ]]; then
   exit 1
 fi
 
-echo "SharpDevelop public LibreWPF $expected_version build, FormsDesigner smoke, and Reporting workbench smoke passed."
+if [[ "$reporting_smoke_passed" == "1" ]]; then
+  echo "SharpDevelop public LibreWPF $expected_version build, FormsDesigner smoke, and Reporting workbench smoke passed."
+else
+  echo "SharpDevelop public LibreWPF $expected_version build and FormsDesigner smoke passed; Reporting reload awaits typed LibreWinForms idle dispatch."
+fi
