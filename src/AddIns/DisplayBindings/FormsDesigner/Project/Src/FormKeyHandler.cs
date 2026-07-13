@@ -21,7 +21,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.Design;
-using System.Reflection;
 using System.Windows.Forms;
 using System.Windows.Forms.Design;
 using System.Linq;
@@ -152,39 +151,27 @@ namespace ICSharpCode.FormsDesigner
 		
 		bool HandleMenuCommand(FormsDesignerViewContent formDesigner, IComponent activeComponent, Keys keyPressed)
 		{
-			Assembly asm = typeof(WindowsFormsDesignerOptionService).Assembly;
-			// Microsoft made ToolStripKeyboardHandlingService internal, so we need Reflection
-			Type keyboardType = asm.GetType("System.Windows.Forms.Design.ToolStripKeyboardHandlingService");
-			object keyboardService = formDesigner.Host.GetService(keyboardType);
+			#if LIBREWPF
+			IPortableToolStripKeyboardHandlingService keyboardService =
+				formDesigner.Host.GetService(typeof(IPortableToolStripKeyboardHandlingService))
+				as IPortableToolStripKeyboardHandlingService;
 			if (keyboardService == null) {
-				LoggingService.Debug("no ToolStripKeyboardHandlingService found");
+				LoggingService.Debug("no portable ToolStrip keyboard handling service found");
 				return false; // handle command normally
 			}
 			if (activeComponent is ToolStripItem) {
 				if (keyPressed == Keys.Up) {
-					keyboardType.InvokeMember("ProcessUpDown",
-					                          BindingFlags.Instance
-					                          | BindingFlags.Public
-					                          | BindingFlags.InvokeMethod,
-					                          null, keyboardService, new object[] { false });
+					keyboardService.ProcessUpDown(false);
 					return true; // command was handled specially
 				} else if (keyPressed == Keys.Down) {
-					keyboardType.InvokeMember("ProcessUpDown",
-					                          BindingFlags.Instance
-					                          | BindingFlags.Public
-					                          | BindingFlags.InvokeMethod,
-					                          null, keyboardService, new object[] { true });
+					keyboardService.ProcessUpDown(true);
 					return true; // command was handled specially
 				}
 			}
-			bool active = (bool)keyboardType.InvokeMember("TemplateNodeActive",
-			                                              BindingFlags.Instance
-			                                              | BindingFlags.NonPublic
-			                                              | BindingFlags.GetProperty,
-			                                              null, keyboardService, null);
-			if (active) {
+			if (keyboardService.TemplateNodeActive) {
 				return true; // command will handled specially by the text box, don't invoke the CommandID
 			}
+			#endif
 			return false; // invoke the CommandID
 		}
 		

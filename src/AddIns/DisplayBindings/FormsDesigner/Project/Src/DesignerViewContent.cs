@@ -25,7 +25,6 @@ using System.ComponentModel.Design.Serialization;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 using System.Windows.Forms;
 using ICSharpCode.Core;
@@ -452,8 +451,10 @@ namespace ICSharpCode.FormsDesigner
 				}
 				
 				designSurface.Unloaded += delegate {
-					ServiceContainer serviceContainer = designSurface.GetService(typeof(ServiceContainer)) as ServiceContainer;
-					if (serviceContainer != null) {
+					#if LIBREWPF
+					var serviceCleanup = designSurface.GetService(typeof(IPortableDesignSurfaceServiceCleanup))
+						as IPortableDesignSurfaceServiceCleanup;
+					if (serviceCleanup != null) {
 						// Workaround for .NET bug: .NET unregisters the designer host only if no component throws an exception,
 						// but then in a finally block assumes that the designer host is already unloaded.
 						// Thus we would get the confusing "InvalidOperationException: The container cannot be disposed at design time"
@@ -463,24 +464,14 @@ namespace ICSharpCode.FormsDesigner
 						// Reproducible with a custom control that has a designer that crashes on unloading
 						// e.g. http://www.codeproject.com/KB/toolbars/WinFormsRibbon.aspx
 						
-						// We work around this problem by unregistering the designer host manually.
+						// LibreWinForms owns this cleanup through a public typed service so hosts do not inspect ServiceContainer internals.
 						try {
-							var services = (Dictionary<Type, object>)typeof(ServiceContainer).InvokeMember(
-								"Services",
-								BindingFlags.Instance | BindingFlags.GetProperty | BindingFlags.NonPublic,
-								null, serviceContainer, null);
-							foreach (var pair in services.ToArray()) {
-								if (pair.Value is IDesignerHost) {
-									serviceContainer.GetType().InvokeMember(
-										"RemoveFixedService",
-										BindingFlags.Instance | BindingFlags.InvokeMethod | BindingFlags.NonPublic,
-										null, serviceContainer, new object[] { pair.Key });
-								}
-							}
+							serviceCleanup.RemoveDesignerHostServices();
 						} catch (Exception ex) {
 							LoggingService.Error(ex);
 						}
 					}
+					#endif
 				};
 				try {
 					designSurface.Dispose();
