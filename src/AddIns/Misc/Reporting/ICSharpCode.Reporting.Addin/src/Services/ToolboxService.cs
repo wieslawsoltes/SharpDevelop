@@ -55,6 +55,7 @@ namespace ICSharpCode.Reporting.Addin.Services
 	public class ToolboxService:IToolboxService
 	{
 		ArrayList toolboxItems = new ArrayList();
+		string selectedCategory = "Reporting";
 		ToolboxItem selectedItem;
 		
 		public ToolboxService()
@@ -70,11 +71,14 @@ namespace ICSharpCode.Reporting.Addin.Services
 		
 		public string SelectedCategory {
 			get {
-				System.Console.WriteLine("ToolboxSerivce:SelectedCategory");
-				return String.Empty;
+				return selectedCategory;
 			}
 			set {
-				throw new NotImplementedException();
+				if (value != selectedCategory) {
+					FireSelectedCategoryChanging();
+					selectedCategory = value;
+					FireSelectedCategoryChanged();
+				}
 			}
 		}
 		
@@ -118,14 +122,16 @@ namespace ICSharpCode.Reporting.Addin.Services
 		
 		public ToolboxItem DeserializeToolboxItem(object serializedObject)
 		{
-			System.Console.WriteLine("DeserializeToolboxItem throw exception");
-			throw new NotImplementedException();
+			return DeserializeToolboxItem(serializedObject, null);
 		}
 		
 		public ToolboxItem DeserializeToolboxItem(object serializedObject, IDesignerHost host)
 		{
-			ToolboxItem item = (ToolboxItem) ((System.Windows.Forms.IDataObject)serializedObject).GetData(typeof(ToolboxItem));
-			return item;
+			if (serializedObject is ToolboxItem item) {
+				return item;
+			}
+			var dataObject = serializedObject as System.Windows.Forms.IDataObject;
+			return dataObject != null ? dataObject.GetData(typeof(ToolboxItem)) as ToolboxItem : null;
 		}
 		
 		public ToolboxItem GetSelectedToolboxItem()
@@ -147,18 +153,17 @@ namespace ICSharpCode.Reporting.Addin.Services
 		
 		public ToolboxItemCollection GetToolboxItems(IDesignerHost host)
 		{
-			throw new NotImplementedException();
+			return GetToolboxItems();
 		}
 		
 		public ToolboxItemCollection GetToolboxItems(string category)
 		{
-			System.Console.WriteLine("ddddd");
-			throw new NotImplementedException();
+			return GetToolboxItems();
 		}
 		
 		public ToolboxItemCollection GetToolboxItems(string category, IDesignerHost host)
 		{
-			throw new NotImplementedException();
+			return GetToolboxItems();
 		}
 		
 		public bool IsSupported(object serializedObject, IDesignerHost host)
@@ -199,19 +204,14 @@ namespace ICSharpCode.Reporting.Addin.Services
 		
 		public void Refresh()
 		{
-			System.Console.WriteLine("Toolbox:Refresh()");
-			throw new NotImplementedException();
 		}
 		
 		public void RemoveCreator(string format)
 		{
-			throw new NotImplementedException();
 		}
 		
 		public void RemoveCreator(string format, IDesignerHost host)
 		{
-			System.Console.WriteLine("Toolbox:removeCreator");
-			throw new NotImplementedException();
 		}
 		
 		public void RemoveToolboxItem(ToolboxItem toolboxItem)
@@ -234,8 +234,7 @@ namespace ICSharpCode.Reporting.Addin.Services
 		
 		public object SerializeToolboxItem(ToolboxItem toolboxItem)
 		{
-			System.Console.WriteLine("nnnn");
-			throw new NotImplementedException();
+			return new System.Windows.Forms.DataObject(toolboxItem);
 		}
 		
 		public bool SetCursor()
@@ -259,14 +258,12 @@ namespace ICSharpCode.Reporting.Addin.Services
 		}
 		
 		#region EvenHelpers
-		/*
 		void FireSelectedCategoryChanging()
 		{
 			if (SelectedCategoryChanging != null) {
 				SelectedCategoryChanging(this, EventArgs.Empty);
 			}
 		}
-		*/
 		
 		void FireSelectedItemChanged()
 		{
@@ -282,14 +279,12 @@ namespace ICSharpCode.Reporting.Addin.Services
 			}
 		}
 		
-		/*
 		void FireSelectedCategoryChanged()
 		{
 			if (SelectedCategoryChanged != null) {
 				SelectedCategoryChanged(this, EventArgs.Empty);
 			}
 		}
-		*/
 		
 		void FireSelectedItemUsed()
 		{
@@ -307,12 +302,12 @@ namespace ICSharpCode.Reporting.Addin.Services
 		
 		void FireToolboxItemRemoved(ToolboxItem item, string category, IDesignerHost host)
 		{
-			if (ToolboxItemAdded != null) {
+			if (ToolboxItemRemoved != null) {
 				ToolboxItemRemoved(this, new ToolboxEventArgs(item, category, host));
 			}
 		}
-//		public event EventHandler SelectedCategoryChanging;
-//		public event EventHandler SelectedCategoryChanged;
+		public event EventHandler SelectedCategoryChanging;
+		public event EventHandler SelectedCategoryChanged;
 		public event EventHandler SelectedItemChanging;
 		public event EventHandler SelectedItemChanged;
 		public event EventHandler SelectedItemUsed;
