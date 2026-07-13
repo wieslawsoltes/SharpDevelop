@@ -76,12 +76,23 @@ namespace ClassDiagramAddin.LibreWpf
 				ClassDiagramViewContent view = content as ClassDiagramViewContent;
 				if (view == null)
 					throw new InvalidOperationException("The ClassDiagram binding did not create ClassDiagramViewContent.");
+				if (view.PrimaryFile == null)
+					throw new InvalidOperationException("ClassDiagramViewContent has no primary file to initialize.");
+				view.PrimaryFile.ForceInitializeView(view);
 
 				ClassCanvas canvas = view.Control as ClassCanvas;
 				if (canvas == null)
 					throw new InvalidOperationException("ClassDiagramViewContent did not expose ClassCanvas.");
-				if (canvas.GetCanvasItems().Length != types.Length)
-					throw new InvalidOperationException("The ClassDiagram type snapshot count changed during load.");
+				CanvasItem[] loadedItems = canvas.GetCanvasItems();
+				if (loadedItems.Length != types.Length)
+					throw new InvalidOperationException(
+						"The ClassDiagram type snapshot count changed during load."
+						+ " expected=" + types.Length
+						+ " actual=" + loadedItems.Length
+						+ " expectedTypes=" + string.Join(",", types.Select(type => type.FullName))
+						+ " actualTypes=" + string.Join(",", loadedItems
+							.OfType<ClassCanvasItem>()
+							.Select(item => item.RepresentedClassType.FullName)));
 
 				WindowsFormsHost host = await WaitForHostAsync(canvas);
 				if (host == null || !ReferenceEquals(host.Child, canvas))
@@ -153,7 +164,15 @@ namespace ClassDiagramAddin.LibreWpf
 		{
 			for (int attempt = 0; attempt < 100; attempt++) {
 				IProject project = SD.ProjectService.CurrentProject;
-				if (project != null && SD.ParserService.GetCompilation(project).MainAssembly.TopLevelTypeDefinitions.Any())
+				ISolution solution = SD.ProjectService.CurrentSolution;
+				if (project == null && solution != null) {
+					project = solution.StartupProject ?? solution.Projects.FirstOrDefault();
+					if (project != null)
+						SD.ProjectService.CurrentProject = project;
+				}
+				if (project != null
+				    && !SD.ParserService.LoadSolutionProjectsThread.IsRunning
+				    && SD.ParserService.GetCompilation(project).MainAssembly.TopLevelTypeDefinitions.Any())
 					return project;
 				await Task.Delay(100);
 			}
