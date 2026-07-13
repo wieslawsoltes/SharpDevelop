@@ -18,9 +18,9 @@
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using System.Reflection;
 using System.Windows.Threading;
 using ICSharpCode.Core;
 using ICSharpCode.FormsDesigner.Gui.OptionPanels;
@@ -55,12 +55,34 @@ namespace CSharpBinding.FormsDesigner
 		protected override string CreateUniqueMethodName(IComponent component, EventDescriptor e)
 		{
 			string componentName = GetComponentName(component);
-			return GetEventHandlerName(componentName, e.DisplayName);
+			string baseName = GetEventHandlerName(componentName, e.DisplayName);
+			ITypeDefinition definition = loader.GetPrimaryTypeDefinition();
+			HashSet<string> compatibleMethods = new HashSet<string>(
+				GetCompatibleMethods(e).Cast<string>(),
+				StringComparer.Ordinal);
+			return GetAvailableMethodName(definition, compatibleMethods, baseName);
+		}
+
+		static string GetAvailableMethodName(
+			ITypeDefinition definition,
+			HashSet<string> compatibleMethods,
+			string baseName)
+		{
+			string candidate = baseName;
+			for (int suffix = 1; ; suffix++) {
+				bool nameInUse = definition.Members.Any(member =>
+					string.Equals(member.Name, candidate, StringComparison.Ordinal));
+				if (!nameInUse || compatibleMethods.Contains(candidate))
+					return candidate;
+				candidate = baseName + suffix.ToString(System.Globalization.CultureInfo.InvariantCulture);
+			}
 		}
 		
 		string GetComponentName(IComponent component)
 		{
-			string siteName = component.Site.Name;
+			string siteName = component.Site != null ? component.Site.Name : null;
+			if (string.IsNullOrEmpty(siteName))
+				siteName = component.GetType().Name;
 			if (GeneralOptionsPanel.GenerateVisualStudioStyleEventHandlers)
 				return siteName;
 			return Char.ToUpper(siteName[0]) + siteName.Substring(1);
@@ -84,16 +106,23 @@ namespace CSharpBinding.FormsDesigner
 		{
 			ITypeDefinition definition = loader.GetPrimaryTypeDefinition();
 			ArrayList compatibleMethods = new ArrayList();
-			MethodInfo methodInfo = e.EventType.GetMethod("Invoke");
-			var methodInfoParameters = methodInfo.GetParameters();
+			IEvent eventDefinition = FindEvent(e);
+			IMethod invokeMethod = eventDefinition != null
+				? eventDefinition.ReturnType.GetDelegateInvokeMethod()
+				: null;
+			if (invokeMethod == null)
+				return compatibleMethods;
 			
 			foreach (IMethod method in definition.Methods) {
-				if (method.Parameters.Count == methodInfoParameters.Length) {
+				if (method.Parameters.Count == invokeMethod.Parameters.Count
+				    && string.Equals(method.ReturnType.ReflectionName, invokeMethod.ReturnType.ReflectionName, StringComparison.Ordinal)) {
 					bool found = true;
-					for (int i = 0; i < methodInfoParameters.Length; ++i) {
-						ParameterInfo pInfo = methodInfoParameters[i];
+					for (int i = 0; i < invokeMethod.Parameters.Count; ++i) {
+						IParameter invokeParameter = invokeMethod.Parameters[i];
 						IParameter p = method.Parameters[i];
-						if (p.Type.ReflectionName != pInfo.ParameterType.ToString()) {
+						if (!string.Equals(p.Type.ReflectionName, invokeParameter.Type.ReflectionName, StringComparison.Ordinal)
+						    || p.IsRef != invokeParameter.IsRef
+						    || p.IsOut != invokeParameter.IsOut) {
 							found = false;
 							break;
 						}
@@ -144,6 +173,9 @@ namespace CSharpBinding.FormsDesigner
 		
 		void InsertEventHandlerInternal(string methodName, IEvent evt)
 		{
+			if (TryJumpToCurrentPrimaryMethod(methodName))
+				return;
+
 			CSharpCodeGenerator generator = new CSharpCodeGenerator();
 			var primary = loader.GetPrimaryTypeDefinition();
 			var evtHandler = primary.GetMethods(m => m.Name == methodName, GetMemberOptions.IgnoreInheritedMembers).FirstOrDefault();
@@ -172,6 +204,32 @@ namespace CSharpBinding.FormsDesigner
 					SD.FileService.JumpToFilePosition(fileName, location.Line, location.Column);
 				}
 			}
+		}
+
+		bool TryJumpToCurrentPrimaryMethod(string methodName)
+		{
+			CSharpBinding.Parser.CSharpFullParseInformation parseInfo = context.GetPrimaryFileParseInformation();
+			ITypeDefinition primary = loader.GetPrimaryTypeDefinition();
+			TypeDeclaration primaryDeclaration = parseInfo.SyntaxTree
+				.Descendants
+				.OfType<TypeDeclaration>()
+				.FirstOrDefault(type => string.Equals(type.Name, primary.Name, StringComparison.Ordinal));
+			MethodDeclaration declaration = primaryDeclaration != null
+				? primaryDeclaration.Members
+					.OfType<MethodDeclaration>()
+					.FirstOrDefault(method => string.Equals(method.Name, methodName, StringComparison.Ordinal))
+				: null;
+			if (declaration == null)
+				return false;
+
+			TextLocation location = declaration.Body != null && !declaration.Body.IsNull
+				? declaration.Body.StartLocation
+				: declaration.StartLocation;
+			SD.FileService.JumpToFilePosition(
+				new FileName(parseInfo.UnresolvedFile.FileName),
+				location.Line,
+				location.Column);
+			return true;
 		}
 		
 		IEvent FindEvent(EventDescriptor edesc)
