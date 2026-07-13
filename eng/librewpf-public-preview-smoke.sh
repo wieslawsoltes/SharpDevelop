@@ -76,9 +76,15 @@ sample_source="$repo_root/samples/LineCounter/Src/LineCounterBrowser.cs"
 wpf_designer_solution="$repo_root/samples/SharpSnippetCompiler/SharpSnippetCompiler.sln"
 wpf_designer_xaml="$repo_root/samples/SharpSnippetCompiler/SharpSnippetCompiler/MainWindow.xaml"
 report_fixture="$repo_root/src/AddIns/Analysis/CodeQuality/Reporting/DependencyReport.srd"
+wpf_designer_smoke_source="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Src/LibreWpf/LibreWpfWpfDesignerSmokeHook.cs"
 
 if [[ ! -f "$app_dll" ]]; then
   echo "Missing SharpDevelop runtime: $app_dll" >&2
+  exit 1
+fi
+
+if grep -Eq 'System\.Reflection|BindingFlags|Get(Field|Method|Event)\(' "$wpf_designer_smoke_source"; then
+  echo "The WPF designer smoke must keep outline integration on typed APIs." >&2
   exit 1
 fi
 
@@ -362,6 +368,8 @@ run_wpf_designer_smoke() {
     && grep -Fq 'LibreWPF WPF designer smoke result=Success' "$log_file" \
     && grep -Fq 'selected=System.Windows.Controls.Grid' "$log_file" \
     && grep -Fq 'propertyGrid=True presented=True edit=True undo=True redo=True save=True' "$log_file" \
+    && grep -Fq 'outlineSelection=True outlinePrimary=System.Windows.Controls.Grid' "$log_file" \
+    && grep -Fq 'outlinePropertyGrid=True outlineEdit=True outlineUndo=True outlineRedo=True outlineSave=True outlineRestore=True' "$log_file" \
     && grep -Fq 'LibreWPF WorkbenchStartup application exit code=0' "$log_file"; then
     grep -E 'WPF designer smoke result=|application exit code=' "$log_file"
     return 0

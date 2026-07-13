@@ -30,7 +30,12 @@ set, build the ResourceToolkit-enabled workbench, and exercise StartPage,
 Search/Replace, ClassDiagram, the LineCounter WinForms designer, the WPF/XAML
 designer, ResourceToolkit, HexEditor, and Reporting in isolated configuration
 directories. Both designer gates verify typed selection, editing, undo/redo,
-serialization, presentation, clean shutdown, and unchanged source fixtures.
+serialization, presentation, clean shutdown, and unchanged source fixtures. The
+WPF designer gate also selects a real child through its typed outline model,
+verifies that the design surface and property grid follow that selection, edits
+the selected child with undo/redo serialization, and restores the prior
+selection before closing the document. That outline lane is source-guarded
+against reflection-based field, method, or event discovery.
 
 ## System Requirements (running #Develop)
 
