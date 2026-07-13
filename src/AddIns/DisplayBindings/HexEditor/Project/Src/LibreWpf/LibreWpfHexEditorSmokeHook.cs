@@ -75,6 +75,23 @@ namespace HexEditor.LibreWpf
 				container.PerformLayout();
 				container.Invalidate();
 				await Task.Delay(100);
+
+				long graphicsDispatchBeforeResize = host.PortableCreateGraphicsDispatchCount;
+				System.Drawing.Size originalEditorSize = container.hexEditControl.Size;
+				container.hexEditControl.Size = new System.Drawing.Size(
+					Math.Max(1, originalEditorSize.Width - 1),
+					Math.Max(1, originalEditorSize.Height - 1));
+				await Task.Delay(100);
+				long graphicsDispatchAfterResize = host.PortableCreateGraphicsDispatchCount;
+				container.hexEditControl.Size = originalEditorSize;
+				await Task.Delay(100);
+
+				long graphicsDispatchBeforeRepaint = host.PortableCreateGraphicsDispatchCount;
+				container.Invalidate();
+				await Task.Delay(100);
+				container.Invalidate();
+				await Task.Delay(100);
+				long graphicsDispatchAfterRepaint = host.PortableCreateGraphicsDispatchCount;
 				long paintVersionAfter = paintSource.PortablePaintVersion;
 
 				container.SelectAll();
@@ -92,12 +109,20 @@ namespace HexEditor.LibreWpf
 				bool painted = paintSource.SupportsPortablePainting && paintVersionAfter > paintVersionBefore;
 				bool hostedGraphics = host.PortableCreateGraphicsSurfaceCount >= 4;
 				bool invalidationRouted = host.PortableChildInvalidationDispatchCount > 0;
-				if (!painted || !hostedGraphics || !invalidationRouted) {
+				bool resizedGraphics = graphicsDispatchAfterResize > graphicsDispatchBeforeResize;
+				bool repaintStable = graphicsDispatchAfterRepaint == graphicsDispatchBeforeRepaint;
+				if (!painted || !hostedGraphics || !invalidationRouted || !resizedGraphics || !repaintStable) {
 					throw new InvalidOperationException(
 						"HexEditor host rendering did not reach the portable paint/create-graphics path."
 						+ " painted=" + painted
 						+ " surfaces=" + host.PortableCreateGraphicsSurfaceCount
-						+ " invalidations=" + host.PortableChildInvalidationDispatchCount);
+						+ " invalidations=" + host.PortableChildInvalidationDispatchCount
+						+ " resizedGraphics=" + resizedGraphics
+						+ " repaintStable=" + repaintStable
+						+ " dispatches=" + graphicsDispatchBeforeResize
+						+ "/" + graphicsDispatchAfterResize
+						+ "/" + graphicsDispatchBeforeRepaint
+						+ "/" + graphicsDispatchAfterRepaint);
 				}
 
 				WriteResult(
@@ -105,7 +130,9 @@ namespace HexEditor.LibreWpf
 					"bytes=" + FixtureBytes.Length
 					+ " paintVersion=" + paintVersionAfter
 					+ " surfaces=" + host.PortableCreateGraphicsSurfaceCount
-					+ " invalidations=" + host.PortableChildInvalidationDispatchCount);
+					+ " invalidations=" + host.PortableChildInvalidationDispatchCount
+					+ " dispatches=" + graphicsDispatchAfterRepaint
+					+ " repaintStable=True");
 			} finally {
 				if (content != null && content.WorkbenchWindow != null) {
 					content.WorkbenchWindow.CloseWindow(true);
