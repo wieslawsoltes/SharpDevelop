@@ -24,7 +24,7 @@ trap cleanup EXIT
 
 mkdir -p "$work_root/nuget"
 
-if git -C "$repo_root" grep -n -E 'preview\.sharpdevelop\.1|SharpDevelopLocal' -- \
+if git -C "$repo_root" grep --recurse-submodules -n -E 'preview\.sharpdevelop\.1|SharpDevelopLocal' -- \
   Directory.Build.props NuGet.config '*.csproj' '*.props'; then
   echo "Private SharpDevelop package pins or feeds remain in the repository." >&2
   exit 1
@@ -34,6 +34,7 @@ echo "Building SharpDevelop against public LibreWPF $expected_version packages..
 NUGET_PACKAGES="$work_root/nuget" \
   "$dotnet_cmd" build "$repo_root/src/Main/SharpDevelop/SharpDevelop.Full.LibreWpf.csproj" \
   --configuration Release \
+  --force \
   --verbosity minimal \
   --nologo \
   --disable-build-servers \
