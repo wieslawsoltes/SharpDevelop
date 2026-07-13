@@ -36,6 +36,10 @@ namespace ICSharpCode.Reporting.Addin.DesignerBinding
 		public bool RecoveringFailedReload {
 			get { return recoveringFailedReload; }
 		}
+
+		public bool HasPendingLoad {
+			get { return Loading || ReloadPending || pendingReloadContent != null || recoveringFailedReload; }
+		}
 		
 		#region Constructors
 

@@ -355,8 +355,12 @@ namespace ICSharpCode.Reporting.Addin.Views
 		
 		public IDesignerHost Host {
 			get {
-				return this.designSurface.GetService(typeof(IDesignerHost)) as IDesignerHost;
+				return designSurface == null ? null : designSurface.GetService(typeof(IDesignerHost)) as IDesignerHost;
 			}
+		}
+
+		public bool IsDesignerLoadPending {
+			get { return loader == null || loader.HasPendingLoad; }
 		}
 		
 		#endregion
