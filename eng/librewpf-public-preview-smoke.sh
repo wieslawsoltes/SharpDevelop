@@ -79,6 +79,8 @@ report_fixture="$repo_root/src/AddIns/Analysis/CodeQuality/Reporting/DependencyR
 wpf_designer_smoke_source="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Src/LibreWpf/LibreWpfWpfDesignerSmokeHook.cs"
 wpf_designer_tools_source="$repo_root/src/Libraries/WpfDesigner/WpfDesign/Project/Tools.cs"
 wpf_designer_pointer_source="$repo_root/src/Libraries/WpfDesigner/WpfDesign.Designer/Project/Services/PointerTool.cs"
+forms_designer_event_binding_source="$repo_root/src/AddIns/BackendBindings/CSharpBinding/Project/Src/FormsDesigner/CSharpEventBindingService.cs"
+forms_designer_loader_source="$repo_root/src/AddIns/BackendBindings/CSharpBinding/Project/Src/FormsDesigner/CSharpDesignerLoader.cs"
 
 if [[ ! -f "$app_dll" ]]; then
   echo "Missing SharpDevelop runtime: $app_dll" >&2
@@ -90,6 +92,18 @@ if grep -Eq 'System\.Reflection|BindingFlags|Get(Field|Method|Event)\(|GetType\(
   "$wpf_designer_tools_source" \
   "$wpf_designer_pointer_source"; then
   echo "The WPF designer smoke and pointer feed must keep workbench input integration on typed APIs." >&2
+  exit 1
+fi
+
+if grep -Eq 'System\.Reflection|BindingFlags|Get(Field|Method|Property|Event)\(|dynamic([[:space:]]|$)' \
+  "$forms_designer_event_binding_source"; then
+  echo "The Forms Designer event-binding service must keep method matching and navigation on typed APIs." >&2
+  exit 1
+fi
+
+if ! grep -Fq 'DesignerLoaderHost.AddService(typeof(System.ComponentModel.Design.IEventBindingService), new CSharpEventBindingService' \
+  "$forms_designer_loader_source"; then
+  echo "The C# designer loader must register its typed event-binding service on the loader-local host." >&2
   exit 1
 fi
 
@@ -356,10 +370,14 @@ run_designer_smoke() {
     && grep -Fq 'LibreWPF FormsDesigner custom-paint smoke result=Success' "$log_file" \
     && grep -Fq 'LibreWPF owner-draw smoke result=Success' "$log_file" \
     && grep -Fq 'LibreWPF FormsDesigner mutation smoke result=Success' "$log_file" \
+    && grep -Fq 'LibreWPF FormsDesigner event-binding smoke result=Success' "$log_file" \
+    && grep -Fq 'service=True componentCreated=True uniqueName=True reusedName=True valueSet=True' "$log_file" \
+    && grep -Fq 'undoCleared=True redoRestored=True serialized=True' "$log_file" \
+    && grep -Fq 'showCode=True methodCreated=True showCodeReused=True sourceActive=True caretAtHandler=True componentRemoved=True' "$log_file" \
     && grep -Fq 'toolboxUndoRedo=True' "$log_file" \
     && grep -Fq 'toolboxDeleteUndoRedo=True' "$log_file" \
     && grep -Fq 'LibreWPF WorkbenchStartup application exit code=0' "$log_file"; then
-    grep -E 'FormsDesigner (smoke|custom-paint smoke|mutation smoke) result=|owner-draw smoke result=|application exit code=' "$log_file"
+    grep -E 'FormsDesigner (smoke|custom-paint smoke|mutation smoke|event-binding smoke) result=|owner-draw smoke result=|application exit code=' "$log_file"
     return 0
   fi
 
