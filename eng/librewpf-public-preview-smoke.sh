@@ -77,20 +77,59 @@ wpf_designer_solution="$repo_root/samples/SharpSnippetCompiler/SharpSnippetCompi
 wpf_designer_xaml="$repo_root/samples/SharpSnippetCompiler/SharpSnippetCompiler/MainWindow.xaml"
 report_fixture="$repo_root/src/AddIns/Analysis/CodeQuality/Reporting/DependencyReport.srd"
 wpf_designer_smoke_source="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Src/LibreWpf/LibreWpfWpfDesignerSmokeHook.cs"
+wpf_designer_tools_source="$repo_root/src/Libraries/WpfDesigner/WpfDesign/Project/Tools.cs"
+wpf_designer_pointer_source="$repo_root/src/Libraries/WpfDesigner/WpfDesign.Designer/Project/Services/PointerTool.cs"
 
 if [[ ! -f "$app_dll" ]]; then
   echo "Missing SharpDevelop runtime: $app_dll" >&2
   exit 1
 fi
 
-if grep -Eq 'System\.Reflection|BindingFlags|Get(Field|Method|Event)\(' "$wpf_designer_smoke_source"; then
-  echo "The WPF designer smoke must keep outline and toolbox integration on typed APIs." >&2
+if grep -Eq 'System\.Reflection|BindingFlags|Get(Field|Method|Event)\(|GetType\(\)\.GetProperty\(|Invoke\(' \
+  "$wpf_designer_smoke_source" \
+  "$wpf_designer_tools_source" \
+  "$wpf_designer_pointer_source"; then
+  echo "The WPF designer smoke and pointer feed must keep workbench input integration on typed APIs." >&2
   exit 1
 fi
 
 for typed_toolbox_contract in TrySelectComponentTool TryInsertSelectedComponent; do
   if ! grep -Fq "$typed_toolbox_contract" "$wpf_designer_smoke_source"; then
     echo "The WPF designer smoke must exercise typed $typed_toolbox_contract integration." >&2
+    exit 1
+  fi
+done
+
+for typed_pointer_contract in \
+  'interface IPointerTool : ITool' \
+  'interface IPointerToolGesture' \
+  'IPointerToolGesture TryStartGesture' \
+  'bool Move(Point pointerPosition)'; do
+  if ! grep -Fq "$typed_pointer_contract" "$wpf_designer_tools_source"; then
+    echo "The WPF designer core must publish the typed $typed_pointer_contract contract." >&2
+    exit 1
+  fi
+done
+
+for shared_pointer_path in \
+  'sealed class PointerTool : IPointerTool' \
+  'new RoutedPointerToolGesture(gesture).Start(designPanel, e)' \
+  'return new PointerToolGesture(' \
+  'moveLogic = new MoveLogic(hitItem)'; do
+  if ! grep -Fq "$shared_pointer_path" "$wpf_designer_pointer_source"; then
+    echo "The routed mouse adapter and typed pointer feed must share $shared_pointer_path." >&2
+    exit 1
+  fi
+done
+
+for typed_pointer_evidence in \
+  TryStartGesture \
+  ResizeThumbExtension \
+  SelectionAdornerProvider \
+  PointerMissFailClosed \
+  PointerRestoreReady; do
+  if ! grep -Fq "$typed_pointer_evidence" "$wpf_designer_smoke_source"; then
+    echo "The WPF designer smoke must exercise typed $typed_pointer_evidence evidence." >&2
     exit 1
   fi
 done
@@ -380,6 +419,11 @@ run_wpf_designer_smoke() {
     && grep -Fq 'toolboxToolSelected=True toolboxInserted=True toolboxPrimary=System.Windows.Controls.Button' "$log_file" \
     && grep -Fq 'toolboxSelection=True toolboxPropertyGrid=True toolboxXaml=True' "$log_file" \
     && grep -Fq 'toolboxUndo=True toolboxRedo=True toolboxRestore=True toolboxToolReset=True' "$log_file" \
+    && grep -Fq 'pointerTool=True pointerMissFailClosed=True pointerHit=True' "$log_file" \
+    && grep -Fq 'pointerSelection=True pointerPropertyGrid=True' "$log_file" \
+    && grep -Fq 'pointerAdornerExtension=True pointerAdornerPanel=True' "$log_file" \
+    && grep -Fq 'pointerMove=True pointerXaml=True pointerUndo=True pointerRedo=True' "$log_file" \
+    && grep -Fq 'pointerRestore=True' "$log_file" \
     && grep -Fq 'LibreWPF WorkbenchStartup application exit code=0' "$log_file"; then
     grep -E 'WPF designer smoke result=|application exit code=' "$log_file"
     return 0
