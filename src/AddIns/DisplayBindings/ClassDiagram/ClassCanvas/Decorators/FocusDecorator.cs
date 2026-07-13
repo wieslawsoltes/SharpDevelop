@@ -25,10 +25,6 @@ using System.Drawing.Drawing2D;
 using System.Xml;
 using System.Xml.XPath;
 
-using ICSharpCode.SharpDevelop;
-using ICSharpCode.SharpDevelop.Dom;
-using ICSharpCode.SharpDevelop.Project;
-
 using Tools.Diagrams;
 
 namespace ClassDiagram

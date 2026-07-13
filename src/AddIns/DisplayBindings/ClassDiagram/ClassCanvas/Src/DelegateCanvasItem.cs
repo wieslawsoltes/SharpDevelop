@@ -17,19 +17,9 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
-using System.Collections.Generic;
-
 using System.Drawing;
-using System.Drawing.Drawing2D;
 
 using System.Xml;
-using System.Xml.XPath;
-
-using ICSharpCode.SharpDevelop;
-using ICSharpCode.SharpDevelop.Dom;
-using ICSharpCode.SharpDevelop.Project;
-
-using System.Globalization;
 
 using Tools.Diagrams;
 using Tools.Diagrams.Drawables;
@@ -39,7 +29,7 @@ namespace ClassDiagram
 	// TODO - perhaps abandon this base class and implement styles mechanism instead?
 	public class EnumDelegateCanvasItem : ClassCanvasItem
 	{
-		public EnumDelegateCanvasItem (IClass ct) : base (ct) {}
+		public EnumDelegateCanvasItem (ClassDiagramTypeSnapshot ct) : base (ct) {}
 
 		private InteractiveItemsStack items = new InteractiveItemsStack();
 		
@@ -90,7 +80,7 @@ namespace ClassDiagram
 	
 	public class DelegateCanvasItem : EnumDelegateCanvasItem
 	{
-		public DelegateCanvasItem (IClass ct) : base (ct) {}
+		public DelegateCanvasItem (ClassDiagramTypeSnapshot ct) : base (ct) {}
 		
 		static Color titlesBG = Color.FromArgb(255, 237, 219, 221);
 		protected override Color TitleBackground
@@ -107,11 +97,9 @@ namespace ClassDiagram
 		protected override void PrepareMembersContent()
 		{
 			Items.Clear();
-			IMethod invokeMethod = RepresentedClassType.SearchMember("Invoke", RepresentedClassType.ProjectContent.Language) as IMethod;
-			IAmbience ambience = GetAmbience();
-			foreach (IParameter par in invokeMethod.Parameters)
+			foreach (ClassDiagramParameterSnapshot parameter in RepresentedClassType.DelegateParameters)
 			{
-				TextSegment ts = new TextSegment(Graphics, par.Name  + " : " + ambience.Convert(par.ReturnType), MemberFont, true);
+				TextSegment ts = new TextSegment(Graphics, parameter.DisplayText, MemberFont, true);
 				Items.Add(ts);
 			}
 		}

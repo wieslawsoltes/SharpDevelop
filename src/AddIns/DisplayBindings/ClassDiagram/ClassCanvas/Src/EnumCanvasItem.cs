@@ -16,17 +16,9 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-using System;
-using System.Collections.Generic;
-
 using System.Drawing;
-using System.Drawing.Drawing2D;
 
 using System.Xml;
-using System.Xml.XPath;
-
-using ICSharpCode.SharpDevelop.Dom;
-using ICSharpCode.SharpDevelop.Project;
 
 using Tools.Diagrams;
 using Tools.Diagrams.Drawables;
@@ -35,7 +27,7 @@ namespace ClassDiagram
 {
 	public class EnumCanvasItem : EnumDelegateCanvasItem
 	{
-		public EnumCanvasItem (IClass ct) : base (ct) {}
+		public EnumCanvasItem (ClassDiagramTypeSnapshot ct) : base (ct) {}
 	
 		private InteractiveItemsStack fields = new InteractiveItemsStack();
 		
@@ -53,7 +45,7 @@ namespace ClassDiagram
 		protected override void PrepareMembersContent ()
 		{
 			Items.Clear();
-			PrepareMembersContent <IField> (RepresentedClassType.Fields, Items);
+			PrepareMembersContent(RepresentedClassType.Fields, Items);
 		}
 		
 		protected override XmlElement CreateXmlElement(XmlDocument doc)

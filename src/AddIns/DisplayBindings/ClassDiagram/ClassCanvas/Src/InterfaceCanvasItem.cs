@@ -16,23 +16,15 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-using System;
-using System.Collections.Generic;
-
 using System.Drawing;
-using System.Drawing.Drawing2D;
 
 using System.Xml;
-using System.Xml.XPath;
-
-using ICSharpCode.SharpDevelop.Dom;
-using ICSharpCode.SharpDevelop.Project;
 
 namespace ClassDiagram
 {
 	public class InterfaceCanvasItem : ClassCanvasItem
 	{
-		public InterfaceCanvasItem (IClass ct) : base (ct) {}
+		public InterfaceCanvasItem (ClassDiagramTypeSnapshot ct) : base (ct) {}
 		
 		static Color titlesBG = Color.FromArgb(255, 233, 242, 224);
 		protected override Color TitleBackground

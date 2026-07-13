@@ -27,10 +27,6 @@ using System.Windows.Forms;
 using System.Xml;
 using System.Xml.XPath;
 
-using ICSharpCode.SharpDevelop;
-using ICSharpCode.SharpDevelop.Dom;
-using ICSharpCode.SharpDevelop.Project;
-
 using Tools.Diagrams;
 
 namespace ClassDiagram
@@ -93,7 +89,8 @@ namespace ClassDiagram
 		LinkedListNode<CanvasItemData> hoverItemNode;
 		LinkedList<CanvasItemData> itemsList = new LinkedList<CanvasItemData>();
 		Dictionary<CanvasItem, CanvasItemData> itemsData = new Dictionary<CanvasItem, CanvasItemData>();
-		Dictionary<IClass, CanvasItemData> classesToData = new Dictionary<IClass, CanvasItemData>();
+		Dictionary<string, CanvasItemData> classesToData =
+			new Dictionary<string, CanvasItemData>(StringComparer.Ordinal);
 				
 		DiagramRouter diagramRouter = new DiagramRouter();
 		
@@ -454,16 +451,16 @@ namespace ClassDiagram
 			ClassCanvasItem classItem = item as ClassCanvasItem;
 			if (classItem != null)
 			{
-				classesToData.Add(classItem.RepresentedClassType, itemData);
+				classesToData.Add(classItem.RepresentedClassType.FullName, itemData);
 				foreach (CanvasItemData ci in itemsList)
 				{
 					ClassCanvasItem cci = ci.Item as ClassCanvasItem;
 					if (cci != null)
 					{
 						Route r = null;
-						if (cci.RepresentedClassType == classItem.RepresentedClassType.BaseClass)
+						if (IsDirectBaseType(classItem.RepresentedClassType, cci.RepresentedClassType))
 							r = diagramRouter.AddRoute(item, cci);
-						else if (classItem.RepresentedClassType == cci.RepresentedClassType.BaseClass)
+						else if (IsDirectBaseType(cci.RepresentedClassType, classItem.RepresentedClassType))
 							r = diagramRouter.AddRoute(cci, classItem);
 						
 						if (r != null)
@@ -497,7 +494,7 @@ namespace ClassDiagram
 			ClassCanvasItem classItem = item as ClassCanvasItem;
 			if (classItem != null)
 			{
-				classesToData.Remove (classItem.RepresentedClassType);
+				classesToData.Remove(classItem.RepresentedClassType.FullName);
 			}
 			
 			LayoutChanged(this, EventArgs.Empty);
@@ -525,18 +522,20 @@ namespace ClassDiagram
 			return items;
 		}
 		
-		public bool Contains (IClass ct)
+		private static bool IsDirectBaseType(ClassDiagramTypeSnapshot type, ClassDiagramTypeSnapshot candidateBaseType)
 		{
-			return classesToData.ContainsKey(ct);
-			/*
- 			foreach (CanvasItemData ci in itemsList)
-			{
-				ClassCanvasItem cci = ci.Item as ClassCanvasItem;
-				if (cci != null)
-					if (cci.RepresentedClassType.Equals(ct)) return true;
-			}*/
-			
-			//return false;
+			return type.BaseClass != null &&
+				String.Equals(type.BaseClass.FullName, candidateBaseType.FullName, StringComparison.Ordinal);
+		}
+
+		public bool Contains(ClassDiagramTypeSnapshot type)
+		{
+			return type != null && Contains(type.FullName);
+		}
+
+		public bool Contains(string fullName)
+		{
+			return fullName != null && classesToData.ContainsKey(fullName);
 		}
 		
 		public void AutoArrange ()
@@ -544,17 +543,17 @@ namespace ClassDiagram
 			diagramRouter.RecalcPositions();
 		}
 		
-		public static ClassCanvasItem CreateItemFromType (IClass ct)
+		public static ClassCanvasItem CreateItemFromType (ClassDiagramTypeSnapshot ct)
 		{
 			if (ct == null) return null;
 			ClassCanvasItem item = null;
-			if (ct.ClassType == ClassType.Interface)
+			if (ct.Kind == ClassDiagramTypeKind.Interface)
 				item = new InterfaceCanvasItem(ct);
-			else if (ct.ClassType == ClassType.Enum)
+			else if (ct.Kind == ClassDiagramTypeKind.Enum)
 				item = new EnumCanvasItem(ct);
-			else if (ct.ClassType == ClassType.Struct)
+			else if (ct.Kind == ClassDiagramTypeKind.Struct)
 				item = new StructCanvasItem(ct);
-			else if (ct.ClassType == ClassType.Delegate)
+			else if (ct.Kind == ClassDiagramTypeKind.Delegate)
 				item = new DelegateCanvasItem(ct);
 			else
 				item = new ClassCanvasItem(ct);
@@ -612,9 +611,9 @@ namespace ClassDiagram
 			return doc;
 		}
 		
-		public void LoadFromXml (IXPathNavigable doc, IProjectContent pc)
+		public void LoadFromXml (IXPathNavigable doc, IClassDiagramTypeResolver typeResolver)
 		{
-			if (pc == null) return;
+			if (typeResolver == null) return;
 			if (doc == null) return;
 			ClearCanvas();
 			
@@ -623,7 +622,8 @@ namespace ClassDiagram
 			while (ni.MoveNext())
 			{
 				string typeName = ni.Current.GetAttribute("Name", "");
-				IClass ct = pc.GetClass(typeName, 0);
+				ClassDiagramTypeSnapshot ct;
+				typeResolver.TryResolve(typeName, out ct);
 				ClassCanvasItem canvasitem = ClassCanvas.CreateItemFromType(ct);
 				if (canvasitem != null)
 				{

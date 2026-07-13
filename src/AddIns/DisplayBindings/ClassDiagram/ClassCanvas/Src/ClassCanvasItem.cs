@@ -25,12 +25,6 @@ using System.Drawing.Drawing2D;
 using System.Xml;
 using System.Xml.XPath;
 
-using ICSharpCode.SharpDevelop;
-using ICSharpCode.SharpDevelop.Dom;
-using ICSharpCode.SharpDevelop.Project;
-
-using System.Globalization;
-
 using Tools.Diagrams;
 using Tools.Diagrams.Drawables;
 
@@ -38,7 +32,7 @@ namespace ClassDiagram
 {
 	public class ClassCanvasItem : CanvasItem, IDisposable
 	{
-		IClass classtype;
+		ClassDiagramTypeSnapshot classtype;
 		string typeclass;
 		InteractiveHeaderedItem classItemHeaderedContent;
 		DrawableItemsStack classItemContainer = new DrawableItemsStack();
@@ -98,15 +92,17 @@ namespace ClassDiagram
 			return classItemHeaderedContent.GetAbsoluteContentHeight();
 		}
 		
-		public IClass RepresentedClassType
+		public ClassDiagramTypeSnapshot RepresentedClassType
 		{
 			get { return classtype; }
 		}
 
 		#region Constructors
 		
-		public ClassCanvasItem (IClass ct)
+		public ClassCanvasItem (ClassDiagramTypeSnapshot ct)
 		{
+			if (ct == null)
+				throw new ArgumentNullException("ct");
 			classtype = ct;
 	
 			grad = new LinearGradientBrush(
@@ -151,11 +147,7 @@ namespace ClassDiagram
 			titlesExpanded.Add(titles);
 			titlesExpanded.OrientationAxis = Axis.Z;
 			
-			if (classtype != null)
-			{
-				typeclass = classtype.Modifiers.ToString();
-				typeclass += " " + classtype.ClassType.ToString();
-			}
+			typeclass = classtype.DeclarationDisplayText;
 		}
 		
 		#endregion
@@ -266,18 +258,9 @@ namespace ClassDiagram
 		
 		#region Preparations
 		
-		protected IAmbience GetAmbience()
-		{
-			IAmbience ambience = AmbienceService.GetCurrentAmbience();
-			ambience.ConversionFlags = ConversionFlags.None;
-			return ambience;
-		}
-		
 		protected virtual void PrepareTitles ()
 		{
 			if (classtype == null) return;
-			
-			IAmbience ambience = GetAmbience();
 			
 			DrawableItemsStack title = new DrawableItemsStack();
 			title.OrientationAxis = Axis.X;
@@ -299,49 +282,39 @@ namespace ClassDiagram
 				DrawableItemsStack inherits = new DrawableItemsStack();
 				inherits.OrientationAxis = Axis.X;
 				inherits.Add(new InheritanceShape());
-				inherits.Add(new TextSegment(base.Graphics, classtype.BaseClass.Name, SubtextFont, true));
+				inherits.Add(new TextSegment(base.Graphics, classtype.BaseClass.DisplayName, SubtextFont, true));
 				titles.Add(inherits);
 			}
 			
-			foreach (IReturnType rt in classtype.BaseTypes)
+			foreach (ClassDiagramTypeReferenceSnapshot typeReference in classtype.Interfaces)
 			{
-				IClass ct = rt.GetUnderlyingClass();
-				if (ct != null && ct.ClassType == ClassType.Interface)
-					interfaces.Add(new TextSegment(base.Graphics, ambience.Convert(rt), SubtextFont, true));
+				interfaces.Add(new TextSegment(base.Graphics, typeReference.DisplayName, SubtextFont, true));
 			}
 		}
 		
 		protected class MemberData : IComparable<MemberData>
 		{
-			public MemberData (IMember member, IAmbience ambience, Graphics graphics, Font font)
+			public MemberData (ClassDiagramMemberSnapshot member, Graphics graphics, Font font)
 			{
-				IMethod methodMember = member as IMethod;
-				IEvent eventMember = member as IEvent;
-				IProperty propertyMember = member as IProperty;
-				IField fieldMember = member as IField;
-				
 				DrawableItemsStack<VectorShape> image = new DrawableItemsStack<VectorShape>();
 				image.OrientationAxis = Axis.Z; // stack image components one on top of the other
 				image.KeepAspectRatio = true;
 				
-				if (methodMember != null)
+				memberString = member.DisplayText;
+				if (member.Kind == ClassDiagramMemberKind.Method)
 				{
-					memberString = ambience.Convert(methodMember) + " : " + ambience.Convert(member.ReturnType);
 					image.Add(new MethodShape());
 				}
-				else if (eventMember != null)
+				else if (member.Kind == ClassDiagramMemberKind.Event)
 				{
-					memberString = ambience.Convert(eventMember) + " : " + ambience.Convert(member.ReturnType);
 					image.Add(new EventShape());
 				}
-				else if (fieldMember != null)
+				else if (member.Kind == ClassDiagramMemberKind.Field)
 				{
-					memberString = ambience.Convert(fieldMember) + " : " + ambience.Convert(member.ReturnType);
 					image.Add(new FieldShape());
 				}
-				else if (propertyMember != null)
+				else if (member.Kind == ClassDiagramMemberKind.Property)
 				{
-					memberString = ambience.Convert(propertyMember) + " : " + ambience.Convert(member.ReturnType);
 					image.Add(new PropertyShape());
 				}
 				
@@ -418,13 +391,13 @@ namespace ClassDiagram
 			return tg;
 		}
 		
-		protected virtual InteractiveItemsStack PrepareMembersContent <MT> (ICollection<MT> members) where MT : IMember
+		protected virtual InteractiveItemsStack PrepareMembersContent (ICollection<ClassDiagramMemberSnapshot> members)
 		{
 			if (members == null) return null;
 			if (members.Count == 0) return null;
 			InteractiveItemsStack content = new InteractiveItemsStack();
 			content.OrientationAxis = Axis.Y;
-			PrepareMembersContent <MT> (members, content);
+			PrepareMembersContent(members, content);
 			return content;
 		}
 		
@@ -434,7 +407,7 @@ namespace ClassDiagram
 			innerItems.OrientationAxis = Axis.Y;
 			innerItems.Spacing = 10;
 			innerItems.Padding = 10;
-			foreach (IClass ct in classtype.InnerClasses)
+			foreach (ClassDiagramTypeSnapshot ct in classtype.NestedTypes)
 			{
 				ClassCanvasItem innerItem = ClassCanvas.CreateItemFromType(ct);
 				innerItems.Add(innerItem);
@@ -443,18 +416,16 @@ namespace ClassDiagram
 			return innerItems;
 		}
 		
-		protected virtual void PrepareMembersContent <MT> (ICollection<MT> members, InteractiveItemsStack content) where MT : IMember
+		protected virtual void PrepareMembersContent (ICollection<ClassDiagramMemberSnapshot> members, InteractiveItemsStack content)
 		{
 			if (members == null) return;
 			if (members.Count == 0) return;
 			
-			IAmbience ambience = GetAmbience();
-			
 			#region Prepare Group Members
 			List<MemberData> membersData = new List<MemberData>();
-			foreach (MT member in members)
+			foreach (ClassDiagramMemberSnapshot member in members)
 			{
-				membersData.Add(new MemberData(member, ambience, Graphics, MemberFont));
+				membersData.Add(new MemberData(member, Graphics, MemberFont));
 			}
 			membersData.Sort();
 			#endregion
@@ -484,17 +455,17 @@ namespace ClassDiagram
 			
 			groups.Clear();
 			
-			InteractiveItemsStack propertiesContent = PrepareMembersContent <IProperty> (classtype.Properties);
-			InteractiveItemsStack methodsContent = PrepareMembersContent <IMethod> (classtype.Methods);
-			InteractiveItemsStack fieldsContent = PrepareMembersContent <IField> (classtype.Fields);
-			InteractiveItemsStack eventsContent = PrepareMembersContent <IEvent> (classtype.Events);
+			InteractiveItemsStack propertiesContent = PrepareMembersContent(classtype.Properties);
+			InteractiveItemsStack methodsContent = PrepareMembersContent(classtype.Methods);
+			InteractiveItemsStack fieldsContent = PrepareMembersContent(classtype.Fields);
+			InteractiveItemsStack eventsContent = PrepareMembersContent(classtype.Events);
 			
 			AddGroupToContent("Properties", propertiesContent);
 			AddGroupToContent("Methods", methodsContent);
 			AddGroupToContent("Fields", fieldsContent);
 			AddGroupToContent("Events", eventsContent);
 			
-			if (classtype.InnerClasses.Count > 0)
+			if (classtype.NestedTypes.Count > 0)
 			{
 				InteractiveItemsStack nestedTypesContent = PrepareNestedTypesContent();
 				AddGroupToContent("Nested Types", nestedTypesContent);
@@ -620,7 +591,7 @@ namespace ClassDiagram
 		protected override void FillXmlElement(XmlElement element, XmlDocument document)
 		{
 			base.FillXmlElement(element, document);
-			element.SetAttribute("Name", RepresentedClassType.FullyQualifiedName);
+			element.SetAttribute("Name", RepresentedClassType.FullName);
 			element.SetAttribute("Collapsed", Collapsed.ToString());
 			
 			//<Compartments>

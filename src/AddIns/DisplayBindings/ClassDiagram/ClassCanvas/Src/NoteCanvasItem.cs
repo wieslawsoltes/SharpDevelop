@@ -25,9 +25,6 @@ using System.Drawing.Drawing2D;
 using System.Xml;
 using System.Xml.XPath;
 
-using ICSharpCode.SharpDevelop.Dom;
-using ICSharpCode.SharpDevelop.Project;
-
 using System.Globalization;
 using System.Windows.Forms;
 

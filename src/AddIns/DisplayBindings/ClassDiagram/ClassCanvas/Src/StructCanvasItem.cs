@@ -16,23 +16,13 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-using System;
-using System.Collections.Generic;
-
-using System.Drawing;
-using System.Drawing.Drawing2D;
-
 using System.Xml;
-using System.Xml.XPath;
-
-using ICSharpCode.SharpDevelop.Dom;
-using ICSharpCode.SharpDevelop.Project;
 
 namespace ClassDiagram
 {
 	public class StructCanvasItem : ClassCanvasItem
 	{
-		public StructCanvasItem (IClass ct) : base (ct) {}
+		public StructCanvasItem (ClassDiagramTypeSnapshot ct) : base (ct) {}
 		/*
 		protected override Color TitleBackground
 		{
