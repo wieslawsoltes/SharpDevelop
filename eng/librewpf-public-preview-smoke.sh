@@ -79,6 +79,7 @@ report_fixture="$repo_root/src/AddIns/Analysis/CodeQuality/Reporting/DependencyR
 wpf_designer_smoke_source="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Src/LibreWpf/LibreWpfWpfDesignerSmokeHook.cs"
 wpf_designer_tools_source="$repo_root/src/Libraries/WpfDesigner/WpfDesign/Project/Tools.cs"
 wpf_designer_pointer_source="$repo_root/src/Libraries/WpfDesigner/WpfDesign.Designer/Project/Services/PointerTool.cs"
+wpf_designer_resize_source="$repo_root/src/Libraries/WpfDesigner/WpfDesign.Designer/Project/Extensions/ResizeThumbExtension.cs"
 forms_designer_event_binding_source="$repo_root/src/AddIns/BackendBindings/CSharpBinding/Project/Src/FormsDesigner/CSharpEventBindingService.cs"
 forms_designer_loader_source="$repo_root/src/AddIns/BackendBindings/CSharpBinding/Project/Src/FormsDesigner/CSharpDesignerLoader.cs"
 
@@ -90,7 +91,8 @@ fi
 if grep -Eq 'System\.Reflection|BindingFlags|Get(Field|Method|Event)\(|GetType\(\)\.GetProperty\(|Invoke\(' \
   "$wpf_designer_smoke_source" \
   "$wpf_designer_tools_source" \
-  "$wpf_designer_pointer_source"; then
+  "$wpf_designer_pointer_source" \
+  "$wpf_designer_resize_source"; then
   echo "The WPF designer smoke and pointer feed must keep workbench input integration on typed APIs." >&2
   exit 1
 fi
@@ -110,6 +112,28 @@ fi
 for typed_toolbox_contract in TrySelectComponentTool TryInsertSelectedComponent; do
   if ! grep -Fq "$typed_toolbox_contract" "$wpf_designer_smoke_source"; then
     echo "The WPF designer smoke must exercise typed $typed_toolbox_contract integration." >&2
+    exit 1
+  fi
+done
+
+for typed_resize_contract in \
+  'public interface IResizeThumbGesture' \
+  'public IResizeThumbGesture TryStartGesture' \
+  'bool Update(Vector delta, bool preserveAspectRatio)' \
+  'sealed class ResizeThumbGesture : IResizeThumbGesture'; do
+  if ! grep -Fq "$typed_resize_contract" "$wpf_designer_resize_source"; then
+    echo "The WPF designer core must publish the typed $typed_resize_contract contract." >&2
+    exit 1
+  fi
+done
+
+for typed_resize_evidence in \
+  IResizeThumbGesture \
+  TryStartGesture \
+  ResizeFailClosedReady \
+  ResizeRestoreReady; do
+  if ! grep -Fq "$typed_resize_evidence" "$wpf_designer_smoke_source"; then
+    echo "The WPF designer smoke must exercise typed $typed_resize_evidence evidence." >&2
     exit 1
   fi
 done
@@ -371,9 +395,10 @@ run_designer_smoke() {
     && grep -Fq 'LibreWPF owner-draw smoke result=Success' "$log_file" \
     && grep -Fq 'LibreWPF FormsDesigner mutation smoke result=Success' "$log_file" \
     && grep -Fq 'LibreWPF FormsDesigner event-binding smoke result=Success' "$log_file" \
-    && grep -Fq 'service=True componentCreated=True uniqueName=True reusedName=True valueSet=True' "$log_file" \
-    && grep -Fq 'undoCleared=True redoRestored=True serialized=True' "$log_file" \
-    && grep -Fq 'showCode=True methodCreated=True showCodeReused=True sourceActive=True caretAtHandler=True componentRemoved=True' "$log_file" \
+    && grep -Fq 'service=True portableService=True serviceStable=True componentCreated=True uniqueName=True reusedName=True valueSet=True' "$log_file" \
+    && grep -Fq 'undoCleared=True redoRestored=True serializedHandler=True serializedEvent=True serialized=True bindingAfterMerge=True' "$log_file" \
+    && grep -Fq 'showCode=True methodCreated=True showCodeReused=True sourceActive=True caretAtHandler=True componentUnsited=True componentParentRemoved=True componentCountRestored=True' "$log_file" \
+    && grep -Fq 'componentRemoved=True cleanup=True' "$log_file" \
     && grep -Fq 'toolboxUndoRedo=True' "$log_file" \
     && grep -Fq 'toolboxDeleteUndoRedo=True' "$log_file" \
     && grep -Fq 'LibreWPF WorkbenchStartup application exit code=0' "$log_file"; then
@@ -444,6 +469,7 @@ run_wpf_designer_smoke() {
     && grep -Fq 'pointerAdornerExtension=True pointerAdornerPanel=True' "$log_file" \
     && grep -Fq 'pointerMove=True pointerXaml=True pointerUndo=True pointerRedo=True' "$log_file" \
     && grep -Fq 'pointerRestore=True' "$log_file" \
+    && grep -Fq 'resizeFailClosed=True resizeApplied=True resizeXaml=True resizeUndo=True resizeRedo=True resizeCancel=True resizeRestore=True' "$log_file" \
     && grep -Fq 'LibreWPF WorkbenchStartup application exit code=0' "$log_file"; then
     grep -E 'WPF designer smoke result=|application exit code=' "$log_file"
     return 0
