@@ -46,6 +46,27 @@ namespace HexEditor.View
 		{
 			InitializeComponent();
 		}
+
+#if LIBREWPF
+		internal static System.Drawing.Image LoadLibreWpfSizeToFitImage()
+		{
+			var resourceUri = new Uri("/HexEditor;component/Resources/sizefittowindow.bmp", UriKind.Relative);
+			var resource = System.Windows.Application.GetResourceStream(resourceUri);
+			if (resource == null) {
+				throw new InvalidOperationException("The LibreWPF HexEditor size-to-fit image resource is missing.");
+			}
+
+			using (resource.Stream) {
+				return new System.Drawing.Bitmap(resource.Stream);
+			}
+		}
+
+		internal static System.Text.Encoding GetLibreWpfEditorEncoding()
+		{
+			System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+			return System.Text.Encoding.GetEncoding(1252);
+		}
+#endif
 		
 		bool loaded = false;
 		

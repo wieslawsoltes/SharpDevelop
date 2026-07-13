@@ -20,6 +20,10 @@
 		                title = "Hex editor"
 		                class = "HexEditor.View.HexEditDisplayBinding"/>
 	</Path>
+
+	<Path name="/SharpDevelop/LibreWpf/SmokeHooks">
+		<Class id="HexEditorSmoke" class="HexEditor.LibreWpf.LibreWpfHexEditorSmokeHook"/>
+	</Path>
 	
    	<Path name = "/SharpDevelop/Dialogs/OptionsDialog/ToolsOptions">
 		<OptionPanel id    = "HexEditor"

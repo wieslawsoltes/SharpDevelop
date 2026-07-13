@@ -1646,7 +1646,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					opened = true;
 					Console.WriteLine("LibreWPF WinForms context menu Opened event");
 				};
-				EventHandler closedHandler = delegate {
+				System.Windows.Forms.ToolStripDropDownClosedEventHandler closedHandler = delegate {
 					Console.WriteLine("LibreWPF WinForms context menu Closed event");
 				};
 				grid.ContextMenuStrip.Opened += openedHandler;

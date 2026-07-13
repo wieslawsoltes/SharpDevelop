@@ -48,7 +48,9 @@ namespace HexEditor.View
         /// </summary>
         private void InitializeComponent()
         {
+#if !LIBREWPF
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(HexEditContainer));
+#endif
             this.tbSizeToFit = new System.Windows.Forms.ToolStripButton();
             this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
             this.tCBViewMode = new System.Windows.Forms.ToolStripComboBox();
@@ -63,7 +65,11 @@ namespace HexEditor.View
             // 
             this.tbSizeToFit.CheckOnClick = true;
             this.tbSizeToFit.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+#if LIBREWPF
+            this.tbSizeToFit.Image = LoadLibreWpfSizeToFitImage();
+#else
             this.tbSizeToFit.Image = ((System.Drawing.Image)(resources.GetObject("tbSizeToFit.Image")));
+#endif
             this.tbSizeToFit.ImageScaling = System.Windows.Forms.ToolStripItemImageScaling.None;
             this.tbSizeToFit.ImageTransparentColor = System.Drawing.Color.Magenta;
             this.tbSizeToFit.Name = "tbSizeToFit";
@@ -118,7 +124,11 @@ namespace HexEditor.View
             this.hexEditControl.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
             this.hexEditControl.BytesPerLine = 16;
             this.hexEditControl.Dock = System.Windows.Forms.DockStyle.Fill;
+#if LIBREWPF
+            this.hexEditControl.Encoding = GetLibreWpfEditorEncoding();
+#else
             this.hexEditControl.Encoding = ((System.Text.Encoding)(resources.GetObject("hexEditControl.Encoding")));
+#endif
             this.hexEditControl.FileName = null;
             this.hexEditControl.FitToWindowWidth = false;
             this.hexEditControl.Location = new System.Drawing.Point(0, 25);

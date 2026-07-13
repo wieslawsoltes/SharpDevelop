@@ -50,6 +50,7 @@
     <None Include="..\Base\Project\ICSharpCode.SharpDevelop.addin" TargetPath="ICSharpCode.SharpDevelop.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\BackendBindings\CSharpBinding\Project\CSharpBinding.LibreWpf.addin" TargetPath="CSharpBinding.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\DisplayBindings\FormsDesigner\Project\FormsDesigner.addin" TargetPath="FormsDesigner.addin" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\AddIns\DisplayBindings\HexEditor\Project\HexEditor.addin" TargetPath="HexEditor.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\DisplayBindings\XmlEditor\Project\XmlEditor.addin" TargetPath="XmlEditor.addin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\AddIns\Misc\ResourceToolkit\Project\Hornung.ResourceToolkit.addin" TargetPath="Hornung.ResourceToolkit.addin" CopyToOutputDirectory="PreserveNewest" Condition="'$(LibreWpfSharpDevelopIncludeResourceToolkit)' == 'true'" />
     <None Include="Templates\SharpDevelop.Setup.sln" />
@@ -83,6 +84,7 @@
     <ProjectReference Include="..\..\Libraries\AvalonEdit\ICSharpCode.AvalonEdit\ICSharpCode.AvalonEdit.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\AvalonEdit.AddIn\AvalonEdit.AddIn.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\FormsDesigner\Project\FormsDesigner.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\AddIns\DisplayBindings\HexEditor\Project\HexEditor.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\DisplayBindings\XmlEditor\Project\XmlEditor.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\BackendBindings\CSharpBinding\Project\CSharpBinding.LibreWpf.csproj" />
     <ProjectReference Include="..\..\AddIns\Misc\ResourceToolkit\Project\ResourceToolkit.LibreWpf.csproj" Condition="'$(LibreWpfSharpDevelopIncludeResourceToolkit)' == 'true'" />
