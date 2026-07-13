@@ -100,7 +100,11 @@ namespace ICSharpCode.Reporting.Test.Expressions.InterationTests {
 		}
 			
 		
+		#if LIBREWPF
+		[OneTimeSetUp]
+		#else
 		[TestFixtureSetUp]
+		#endif
 		public void Setup() {
 			expressionVisitor = new ExpressionVisitor(new ReportSettings());
 		}

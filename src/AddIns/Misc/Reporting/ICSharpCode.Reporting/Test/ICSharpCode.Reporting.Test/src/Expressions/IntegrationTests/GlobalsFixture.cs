@@ -85,7 +85,13 @@ namespace ICSharpCode.Reporting.Test.Expressions.InterationTests
 			var page = reportCreator.Pages[0];
 			var sec = (ExportContainer)page.ExportedItems[0];
 			var s = (ExportText)sec.ExportedItems[1];
+			#if LIBREWPF
+			string expectedFolder = System.IO.Path.GetDirectoryName(
+				System.IO.Path.GetFullPath(ICSharpCode.Reporting.Globals.GlobalValues.PlainFileName));
+			Assert.That(s.Text,Does.Contain(expectedFolder));
+			#else
 			Assert.That (s.Text.Contains(@"\UnitTests"));
+			#endif
 			Assert.That(s.Text.Contains("ReportFolder"));
 		}
 		
@@ -96,7 +102,12 @@ namespace ICSharpCode.Reporting.Test.Expressions.InterationTests
 			var page = reportCreator.Pages[0];
 			var sec = (ExportContainer)page.ExportedItems[0];
 			var s = (ExportText)sec.ExportedItems[0];
+			#if LIBREWPF
+			string expectedFileName = System.IO.Path.GetFullPath(ICSharpCode.Reporting.Globals.GlobalValues.PlainFileName);
+			Assert.That(s.Text,Does.Contain(expectedFileName));
+			#else
 			Assert.That (s.Text.Contains(@"\UnitTests\Report1.srd"));
+			#endif
 			Assert.That(s.Text.Contains("ReportFileName"));
 		}
 		

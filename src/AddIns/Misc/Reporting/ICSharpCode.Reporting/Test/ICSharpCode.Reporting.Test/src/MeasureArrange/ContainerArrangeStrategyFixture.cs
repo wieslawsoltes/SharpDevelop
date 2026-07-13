@@ -169,7 +169,11 @@ namespace ICSharpCode.Reporting.Test.MeasureArrange
 			return container;
 		}
 		
+		#if LIBREWPF
+		[OneTimeSetUp]
+		#else
 		[TestFixtureSetUp]
+		#endif
 		public void Init()
 		{
 			strategy = new ContainerArrangeStrategy();
