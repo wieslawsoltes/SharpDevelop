@@ -17,31 +17,179 @@
 // DEALINGS IN THE SOFTWARE.
 
 using System;
+using System.Collections.Generic;
+using System.Reflection;
+
+using ICSharpCode.Core;
 using ICSharpCode.NRefactory.TypeSystem;
 using ICSharpCode.SharpDevelop;
+using ICSharpCode.SharpDevelop.Designer;
 using ICSharpCode.SharpDevelop.Project;
-using System.Reflection;
-using System.Collections.Generic;
-using System.IO;
 using ICSharpCode.WpfDesign.Designer.Services;
 
 namespace ICSharpCode.WpfDesign.AddIn
 {
-	//TODO
 	public class IdeChooseClassService : ChooseClassServiceBase
 	{
+		static readonly Assembly[] emptyAssemblies = new Assembly[0];
+
+		readonly IProject project;
+		readonly TypeResolutionService typeResolutionService;
+
+		public IdeChooseClassService()
+			: this(ProjectService.CurrentProject, new TypeResolutionService())
+		{
+		}
+
+		internal IdeChooseClassService(IProject project, TypeResolutionService typeResolutionService)
+		{
+			if (typeResolutionService == null)
+				throw new ArgumentNullException("typeResolutionService");
+			this.project = project;
+			this.typeResolutionService = typeResolutionService;
+		}
+
 		public override IEnumerable<Assembly> GetAssemblies()
 		{
-			yield break;
-			#warning should load all assemblies available in the current project
-			/*var pc = ProjectService.CurrentProject;
-			if (pc == null) yield break;
-			var a = GetAssembly(pc);
-			if (a != null) yield return a;
-			foreach (var r in pc.ThreadSafeGetReferencedContents()) {
-				a = GetAssembly(r);
-				if (a != null) yield return a;
-			} */
+			if (project == null)
+				return emptyAssemblies;
+
+			ICompilation compilation = TryGetCompilation(project);
+			if (compilation == null)
+				return emptyAssemblies;
+
+			Assembly projectAssembly = TryLoadAssembly(
+				() => typeResolutionService.LoadAssembly(project),
+				project.AssemblyName);
+			var referencedAssemblies = new List<Assembly>(compilation.ReferencedAssemblies.Count);
+			var references = new List<IAssembly>(compilation.ReferencedAssemblies.Count);
+			foreach (IAssembly reference in compilation.ReferencedAssemblies) {
+				if (reference != null)
+					references.Add(reference);
+			}
+			references.Sort(CompareReferences);
+
+			foreach (IAssembly reference in references) {
+				Assembly assembly = TryLoadAssembly(
+					() => typeResolutionService.LoadAssembly(reference),
+					reference.FullAssemblyName);
+				if (assembly != null)
+					referencedAssemblies.Add(assembly);
+			}
+
+			return SelectAssemblies(projectAssembly, referencedAssemblies);
+		}
+
+		ICompilation TryGetCompilation(IProject selectedProject)
+		{
+			try {
+				return SD.ParserService.GetCompilation(selectedProject);
+			} catch (Exception ex) {
+				LogLoadFailure(selectedProject.AssemblyName, ex);
+				return null;
+			}
+		}
+
+		internal static Assembly TryLoadAssembly(Func<Assembly> loadAssembly, string identity)
+		{
+			if (loadAssembly == null)
+				return null;
+
+			try {
+				return loadAssembly();
+			} catch (Exception ex) {
+				LogLoadFailure(identity, ex);
+				return null;
+			}
+		}
+
+		internal static Assembly[] SelectAssemblies(
+			Assembly projectAssembly,
+			IEnumerable<Assembly> referencedAssemblies)
+		{
+			var result = new List<Assembly>();
+			var identities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			TryAddAssembly(result, identities, projectAssembly);
+
+			if (referencedAssemblies != null) {
+				var references = new List<Assembly>();
+				foreach (Assembly assembly in referencedAssemblies) {
+					if (IsRuntimeAssembly(assembly))
+						references.Add(assembly);
+				}
+				references.Sort(CompareAssemblies);
+				foreach (Assembly assembly in references)
+					TryAddAssembly(result, identities, assembly);
+			}
+
+			return result.ToArray();
+		}
+
+		static bool TryAddAssembly(
+			ICollection<Assembly> assemblies,
+			ISet<string> identities,
+			Assembly assembly)
+		{
+			if (!IsRuntimeAssembly(assembly))
+				return false;
+
+			string identity = GetAssemblyIdentity(assembly);
+			if (string.IsNullOrEmpty(identity) || !identities.Add(identity))
+				return false;
+
+			assemblies.Add(assembly);
+			return true;
+		}
+
+		static bool IsRuntimeAssembly(Assembly assembly)
+		{
+			if (assembly == null)
+				return false;
+			try {
+				return !assembly.IsDynamic;
+			} catch (Exception ex) {
+				LogLoadFailure(null, ex);
+				return false;
+			}
+		}
+
+		static int CompareReferences(IAssembly left, IAssembly right)
+		{
+			int nameResult = StringComparer.OrdinalIgnoreCase.Compare(
+				left.AssemblyName,
+				right.AssemblyName);
+			if (nameResult != 0)
+				return nameResult;
+			return StringComparer.Ordinal.Compare(left.FullAssemblyName, right.FullAssemblyName);
+		}
+
+		static int CompareAssemblies(Assembly left, Assembly right)
+		{
+			return StringComparer.Ordinal.Compare(
+				GetAssemblyIdentity(left),
+				GetAssemblyIdentity(right));
+		}
+
+		static string GetAssemblyIdentity(Assembly assembly)
+		{
+			try {
+				return assembly.FullName ?? assembly.GetName().Name;
+			} catch (Exception ex) {
+				LogLoadFailure(null, ex);
+				return null;
+			}
+		}
+
+		static void LogLoadFailure(string identity, Exception exception)
+		{
+			try {
+				LoggingService.Warn(
+					"The WPF designer could not load a class-selection assembly"
+					+ (string.IsNullOrEmpty(identity) ? "." : " '" + identity + "'."),
+					exception);
+			} catch {
+				// Assembly discovery must fail closed even before IDE logging is initialized.
+			}
 		}
 	}
 }
