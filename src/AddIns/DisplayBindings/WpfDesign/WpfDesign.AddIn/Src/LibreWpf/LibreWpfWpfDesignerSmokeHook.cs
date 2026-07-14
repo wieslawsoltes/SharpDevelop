@@ -55,14 +55,18 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 
 		public async Task RunAsync(string mode)
 		{
+			WriteTrace("starting");
 			string filePath = Path.GetFullPath(mode);
 			if (!File.Exists(filePath) || !string.Equals(Path.GetExtension(filePath), ".xaml", StringComparison.OrdinalIgnoreCase))
 				throw new ArgumentException("Set LIBREWPF_SHARPDEVELOP_WPF_DESIGNER_SMOKE to an existing XAML document.");
 
 			await WaitForProjectAsync();
+			WriteTrace("project ready");
 			IViewContent primary = null;
 			try {
+				WriteTrace("opening XAML document");
 				primary = SD.FileService.OpenFile(FileName.Create(filePath), true);
+				WriteTrace("opened XAML document");
 				if (primary == null)
 					throw new InvalidOperationException("The XAML document did not create a primary view.");
 
@@ -76,37 +80,52 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				}
 				if (designer == null)
 					throw new InvalidOperationException("The registered WPF designer did not attach a secondary view.");
+				WriteTrace("designer attached");
 
 				if (designer.WorkbenchWindow != null) {
+					WriteTrace("activating designer");
 					designer.WorkbenchWindow.ActiveViewContent = designer;
 					designer.WorkbenchWindow.SelectWindow();
 				}
+				WriteTrace("initializing designer view");
 				designer.PrimaryFile.ForceInitializeView(designer);
+				WriteTrace("initialized designer view");
 
 				for (int attempt = 0; attempt < 100 && designer.DesignContext == null; attempt++)
 					await Task.Delay(100);
 				if (designer.HasLoadError || designer.DesignContext == null || designer.DesignContext.RootItem == null)
 					throw new InvalidOperationException("The WPF designer failed to load the XAML design context.");
+				WriteTrace("design context ready");
 
 				var surface = designer.DesignSurface;
 				surface.ApplyTemplate();
 				surface.UpdateLayout();
 				await Task.Delay(250);
+				WriteTrace("selecting stable design item");
 				var selection = await SelectStableDesignItemAsync(designer);
+				WriteTrace("selected stable design item");
 				var primarySelection = selection.PrimarySelection;
 				bool selectionReady = primarySelection != null
 					&& selection.SelectedItems.Contains(primarySelection);
 				bool propertyGridReady = designer.PropertyContainer.PropertyGridReplacementContent is PropertyGridView;
 				bool rootViewReady = designer.DesignContext.RootItem.View is FrameworkElement;
 				bool presented = PresentationSource.FromVisual(surface) != null;
+				WriteTrace("verifying class selection");
 				var classSelectionResult = VerifyClassSelection(designer, filePath);
+				WriteTrace("verified class selection");
 				bool editReady;
 				bool undoReady;
 				bool redoReady;
 				bool saveReady;
+				WriteTrace("verifying edit history");
 				VerifyEditUndoRedoAndSave(designer, out editReady, out undoReady, out redoReady, out saveReady);
+				WriteTrace("verified edit history");
+				WriteTrace("verifying outline selection");
 				var outlineResult = await VerifyOutlineSelectionAsync(designer);
+				WriteTrace("verified outline selection");
+				WriteTrace("verifying toolbox interactions");
 				var toolboxResult = await VerifyToolboxInsertionAsync(designer, primarySelection);
+				WriteTrace("verified toolbox interactions");
 				if (!selectionReady || !propertyGridReady || !rootViewReady || !presented
 					|| !classSelectionResult.ServiceReady
 					|| !classSelectionResult.ProjectAssemblyFirst
@@ -586,6 +605,12 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			Point lastInputPoint = default(Point);
 			bool inputButtonPressed = false;
 			DispatcherOperation[] queuedInputOperations = null;
+			int dragEnterCount = 0;
+			int dragOverCount = 0;
+			int dropCount = 0;
+			DragEventHandler dragEnter = delegate { dragEnterCount++; };
+			DragEventHandler dragOver = delegate { dragOverCount++; };
+			DragEventHandler drop = delegate { dropCount++; };
 
 			try {
 				PadDescriptor toolsPad = SD.Workbench.GetPad(typeof(ToolsPad));
@@ -639,14 +664,21 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				inputActivationService = activationService;
 
 				var designPanel = designer.DesignSurface.DesignPanel;
+				designPanel.DragEnter += dragEnter;
+				designPanel.DragOver += dragOver;
+				designPanel.Drop += drop;
 				designer.DesignSurface.ApplyTemplate();
 				designer.DesignSurface.UpdateLayout();
+				WriteTrace(
+					"locating rendered toolbox drop point panel="
+					+ designPanel.RenderSize.Width + "x" + designPanel.RenderSize.Height);
 				Point destinationPoint;
 				if (!TryFindRenderedToolboxDropPoint(
 					designPanel,
 					preferredContainer,
 					out destinationPoint))
 					return;
+				WriteTrace("located rendered toolbox drop point=" + destinationPoint);
 
 				var destinationPoints = new[] {
 					destinationPoint,
@@ -728,6 +760,7 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 						}
 					}));
 
+				WriteTrace("raising rendered toolbox drag threshold");
 				bool dragThresholdRaised = false;
 				dragSource.InputControl.RaiseMouseMove(
 					new System.Windows.Forms.MouseEventArgs(
@@ -737,6 +770,11 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 						y: sourcePoint.Y,
 						delta: 0));
 				dragThresholdRaised = true;
+				WriteTrace(
+					"raised rendered toolbox drag threshold"
+					+ " enter=" + dragEnterCount
+					+ " over=" + dragOverCount
+					+ " drop=" + dropCount);
 				if (queuedInputFailure != null)
 					throw new InvalidOperationException(
 						"The queued rendered toolbox pointer sequence failed.",
@@ -818,6 +856,10 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					await Task.Delay(50);
 				}
 			} finally {
+				var designPanel = designer.DesignSurface.DesignPanel;
+				designPanel.DragEnter -= dragEnter;
+				designPanel.DragOver -= dragOver;
+				designPanel.Drop -= drop;
 				if (queuedInputOperations != null) {
 					foreach (DispatcherOperation operation in queuedInputOperations) {
 						if (operation != null)
@@ -856,6 +898,11 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			ICSharpCode.WpfDesign.DesignItem preferredContainer,
 			out Point dropPoint)
 		{
+			const int columnCount = 8;
+			const int rowCount = 8;
+			const double leadingInset = 16;
+			const double trailingInset = 24;
+
 			dropPoint = default(Point);
 			if (designPanel == null || designPanel.Context == null)
 				return false;
@@ -866,8 +913,12 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 
 			Point fallbackPoint = default(Point);
 			bool hasFallback = false;
-			for (double y = 16; y <= panel.ActualHeight - 24; y += 16) {
-				for (double x = 16; x <= panel.ActualWidth - 24; x += 16) {
+			double availableWidth = panel.ActualWidth - leadingInset - trailingInset;
+			double availableHeight = panel.ActualHeight - leadingInset - trailingInset;
+			for (int row = 0; row < rowCount; row++) {
+				double y = leadingInset + availableHeight * row / (rowCount - 1);
+				for (int column = 0; column < columnCount; column++) {
+					double x = leadingInset + availableWidth * column / (columnCount - 1);
 					var firstPoint = new Point(x, y);
 					var secondPoint = firstPoint + new Vector(4, 3);
 					var thirdPoint = firstPoint + new Vector(8, 6);
@@ -1604,6 +1655,12 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			string message = "LibreWPF WPF designer smoke result=" + result + " " + details;
 			Console.WriteLine(message);
 			SD.StatusBar.SetMessage(message);
+		}
+
+		static void WriteTrace(string state)
+		{
+			if (Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_TRACE_OPEN") == "1")
+				Console.WriteLine("LibreWPF WPF designer smoke state=" + state);
 		}
 	}
 }
