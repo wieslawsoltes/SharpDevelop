@@ -514,7 +514,7 @@ namespace ICSharpCode.SharpDevelop.Parser
 			typeof(System.ComponentModel.Component)
 		};
 
-		static readonly Type[] LibreWpfPortableCompatibilityReferenceTypes = {
+		internal static readonly Type[] LibreWpfPortableCompatibilityReferenceTypes = {
 			typeof(System.ComponentModel.ToolboxItemAttribute),
 			typeof(System.ComponentModel.ToolboxItemFilterAttribute),
 			typeof(System.Drawing.Point),
@@ -524,7 +524,12 @@ namespace ICSharpCode.SharpDevelop.Parser
 			typeof(System.Drawing.Color),
 			typeof(System.Drawing.Bitmap),
 			typeof(System.Windows.Forms.Form),
-			typeof(System.Windows.Forms.UserControl)
+			typeof(System.Windows.Forms.UserControl),
+			typeof(System.Windows.DependencyObject),
+			typeof(System.Windows.Media.Visual),
+			typeof(System.Windows.Controls.Primitives.ButtonBase),
+			typeof(System.Xaml.XamlReader),
+			typeof(System.Windows.Forms.Integration.WindowsFormsHost)
 		};
 
 		static void AddLibreWpfDefaultAssemblyReferences(List<IAssemblyReference> newReferences, CancellationToken cancellationToken)
@@ -574,12 +579,16 @@ namespace ICSharpCode.SharpDevelop.Parser
 			}
 		}
 
-		static bool IsLibreWpfPortableCompatibilityReference(string include)
+		internal static bool IsLibreWpfPortableCompatibilityReference(string include)
 		{
 			string name = GetLibreWpfReferenceShortName(include);
 			return string.Equals(name, "System.Drawing", StringComparison.OrdinalIgnoreCase)
 				|| string.Equals(name, "System.Drawing.Common", StringComparison.OrdinalIgnoreCase)
 				|| string.Equals(name, "System.Windows.Forms", StringComparison.OrdinalIgnoreCase)
+				|| string.Equals(name, "PresentationCore", StringComparison.OrdinalIgnoreCase)
+				|| string.Equals(name, "PresentationFramework", StringComparison.OrdinalIgnoreCase)
+				|| string.Equals(name, "WindowsBase", StringComparison.OrdinalIgnoreCase)
+				|| string.Equals(name, "System.Xaml", StringComparison.OrdinalIgnoreCase)
 				|| string.Equals(name, "WindowsFormsIntegration", StringComparison.OrdinalIgnoreCase);
 		}
 
