@@ -81,6 +81,10 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="DesignerSmokeWindow.xaml.cs">
+      <DependentUpon>DesignerSmokeWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="MainViewModel.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
@@ -143,6 +147,7 @@
   </ItemGroup>
   <ItemGroup>
     <Page Include="App.xaml" />
+    <Page Include="DesignerSmokeWindow.xaml" />
     <Page Include="MainWindow.xaml" />
   </ItemGroup>
   <ItemGroup>

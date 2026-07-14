@@ -84,8 +84,9 @@ app_dll="$repo_root/src/Main/SharpDevelop/bin/Release/net10.0-windows/SharpDevel
 solution="$repo_root/samples/LineCounter/LineCounter.sln"
 sample_source="$repo_root/samples/LineCounter/Src/LineCounterBrowser.cs"
 wpf_designer_solution="$repo_root/samples/SharpSnippetCompiler/SharpSnippetCompiler.sln"
-wpf_designer_xaml="$repo_root/samples/SharpSnippetCompiler/SharpSnippetCompiler/MainWindow.xaml"
+wpf_designer_xaml="$repo_root/samples/SharpSnippetCompiler/SharpSnippetCompiler/DesignerSmokeWindow.xaml"
 wpf_designer_code="$wpf_designer_xaml.cs"
+wpf_designer_class_selection_code="$repo_root/samples/SharpSnippetCompiler/SharpSnippetCompiler/MainWindow.xaml.cs"
 report_fixture="$repo_root/src/AddIns/Analysis/CodeQuality/Reporting/DependencyReport.srd"
 wpf_designer_smoke_source="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Src/LibreWpf/LibreWpfWpfDesignerSmokeHook.cs"
 wpf_designer_toolbox_source="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Src/WpfToolbox.cs"
@@ -264,7 +265,7 @@ for rendered_toolbox_smoke_evidence in \
   PortableWpfServiceRegistry.TryGetWindowActivationService \
   PortableWpfServiceKey.PresentationFramework \
   TryProcessInputEvent \
-  InputControl.RaiseMouseMove \
+  TryStartComponentDrag \
   WindowsFormsHost \
   IsKeyboardFocusWithin \
   'const int columnCount = 8' \
@@ -386,7 +387,7 @@ prepare_wpf_designer_project_output() {
     <AssemblyName>SharpSnippetCompiler</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="$wpf_designer_code" Link="MainWindow.xaml.cs" />
+    <Compile Include="$wpf_designer_class_selection_code" Link="MainWindow.xaml.cs" />
     <Compile Include="$fixture_source" />
   </ItemGroup>
 </Project>
@@ -709,10 +710,10 @@ run_wpf_designer_smoke() {
 
   if [[ "$exit_code" -eq 0 ]] \
     && grep -Fq 'LibreWPF WPF designer smoke result=Success' "$log_file" \
-    && grep -Fq 'selected=System.Windows.Controls.Grid' "$log_file" \
+    && grep -Fq 'selected=System.Windows.Controls.Canvas' "$log_file" \
     && grep -Fq 'propertyGrid=True presented=True edit=True undo=True redo=True save=True' "$log_file" \
     && grep -Fq 'classService=True classProjectFirst=True classStable=True dataContextClass=True' "$log_file" \
-    && grep -Fq 'outlineSelection=True outlinePrimary=System.Windows.Controls.Grid' "$log_file" \
+    && grep -Fq 'outlineSelection=True outlinePrimary=System.Windows.Controls.Canvas' "$log_file" \
     && grep -Fq 'outlinePropertyGrid=True outlineEdit=True outlineUndo=True outlineRedo=True outlineSave=True outlineRestore=True' "$log_file" \
     && grep -Fq 'renderedToolboxPresented=True renderedToolboxInput=True' "$log_file" \
     && grep -Fq 'renderedToolboxHostFocus=True renderedToolboxToolSelected=True' "$log_file" \
