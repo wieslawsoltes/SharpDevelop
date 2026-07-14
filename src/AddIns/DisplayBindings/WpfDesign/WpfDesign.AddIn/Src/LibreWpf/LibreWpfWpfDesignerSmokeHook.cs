@@ -95,6 +95,7 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				bool propertyGridReady = designer.PropertyContainer.PropertyGridReplacementContent is PropertyGridView;
 				bool rootViewReady = designer.DesignContext.RootItem.View is FrameworkElement;
 				bool presented = PresentationSource.FromVisual(surface) != null;
+				var classSelectionResult = VerifyClassSelection(designer, filePath);
 				bool editReady;
 				bool undoReady;
 				bool redoReady;
@@ -103,6 +104,10 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				var outlineResult = await VerifyOutlineSelectionAsync(designer);
 				var toolboxResult = await VerifyToolboxInsertionAsync(designer, primarySelection);
 				if (!selectionReady || !propertyGridReady || !rootViewReady || !presented
+					|| !classSelectionResult.ServiceReady
+					|| !classSelectionResult.ProjectAssemblyFirst
+					|| !classSelectionResult.Stable
+					|| !classSelectionResult.DataContextClassReady
 					|| !editReady || !undoReady || !redoReady || !saveReady
 					|| !outlineResult.SelectionReady || !outlineResult.PropertyGridReady
 					|| !outlineResult.EditReady || !outlineResult.UndoReady
@@ -139,6 +144,10 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 						+ " propertyGrid=" + propertyGridReady
 						+ " rootView=" + rootViewReady
 						+ " presented=" + presented
+						+ " classService=" + classSelectionResult.ServiceReady
+						+ " classProjectFirst=" + classSelectionResult.ProjectAssemblyFirst
+						+ " classStable=" + classSelectionResult.Stable
+						+ " dataContextClass=" + classSelectionResult.DataContextClassReady
 						+ " edit=" + editReady
 						+ " undo=" + undoReady
 						+ " redo=" + redoReady
@@ -200,6 +209,7 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					+ " root=" + designer.DesignContext.RootItem.ComponentType.FullName
 					+ " selected=" + primarySelection.ComponentType.FullName
 					+ " propertyGrid=True presented=True edit=True undo=True redo=True save=True"
+					+ " classService=True classProjectFirst=True classStable=True dataContextClass=True"
 					+ " outlineSelection=True outlinePrimary=" + outlineResult.PrimaryTypeName
 					+ " outlinePropertyGrid=True outlineEdit=True outlineUndo=True outlineRedo=True"
 					+ " outlineSave=True outlineRestore=True"
@@ -221,6 +231,40 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				if (primary != null && primary.WorkbenchWindow != null)
 					primary.WorkbenchWindow.CloseWindow(true);
 			}
+		}
+
+		static ClassSelectionSmokeResult VerifyClassSelection(
+			WpfViewContent designer,
+			string filePath)
+		{
+			var result = new ClassSelectionSmokeResult();
+			var service = designer.DesignContext.Services.GetService<ChooseClassServiceBase>();
+			result.ServiceReady = service is IdeChooseClassService;
+			if (!result.ServiceReady)
+				return result;
+
+			var assemblies = service.GetAssemblies().Where(assembly => assembly != null).ToArray();
+			var secondAssemblies = service.GetAssemblies().Where(assembly => assembly != null).ToArray();
+			IProject project = SD.ProjectService.FindProjectContainingFile(FileName.Create(filePath));
+			result.ProjectAssemblyFirst = project != null
+				&& assemblies.Length > 0
+				&& string.Equals(
+					assemblies[0].GetName().Name,
+					project.AssemblyName,
+					StringComparison.OrdinalIgnoreCase);
+			result.Stable = assemblies.SequenceEqual(secondAssemblies);
+			if (!result.ProjectAssemblyFirst || !result.Stable)
+				return result;
+
+			var chooser = new ChooseClass(assemblies) { ShowSystemClasses = true };
+			result.DataContextClassReady = chooser.Classes
+				.Cast<object>()
+				.OfType<Type>()
+				.Any(type => string.Equals(
+					type.FullName,
+					"ICSharpCode.SharpSnippetCompiler.MainWindow",
+					StringComparison.Ordinal));
+			return result;
 		}
 
 		static void VerifyEditUndoRedoAndSave(
@@ -1030,6 +1074,14 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				offset += token.Length;
 			}
 			return count;
+		}
+
+		sealed class ClassSelectionSmokeResult
+		{
+			public bool ServiceReady;
+			public bool ProjectAssemblyFirst;
+			public bool Stable;
+			public bool DataContextClassReady;
 		}
 
 		sealed class OutlineSmokeResult
