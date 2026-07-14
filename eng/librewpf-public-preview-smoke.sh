@@ -7,6 +7,9 @@ dotnet_cmd="${DOTNET:-dotnet}"
 expected_version="${LIBREWPF_SHARPDEVELOP_EXPECTED_VERSION:-$(sed -n 's:.*<ProGpuWpfSdkVersion>\([^<]*\)</ProGpuWpfSdkVersion>.*:\1:p' "$repo_root/Directory.Build.props" | head -n 1)}"
 work_root="${LIBREWPF_SHARPDEVELOP_SMOKE_WORK_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/sharpdevelop-librewpf-public.XXXXXX")}"
 keep_work_root="${LIBREWPF_SHARPDEVELOP_KEEP_SMOKE_WORK_ROOT:-0}"
+wpf_designer_project_output="$repo_root/samples/SharpSnippetCompiler/SharpSnippetCompiler/bin/SharpSnippetCompiler.exe"
+wpf_designer_project_output_backup=""
+wpf_designer_project_output_created=0
 
 if [[ -z "$expected_version" ]]; then
   echo "Unable to read ProGpuWpfSdkVersion from Directory.Build.props." >&2
@@ -14,6 +17,13 @@ if [[ -z "$expected_version" ]]; then
 fi
 
 cleanup() {
+  if [[ "$wpf_designer_project_output_created" == "1" ]]; then
+    if [[ -n "$wpf_designer_project_output_backup" ]]; then
+      cp "$wpf_designer_project_output_backup" "$wpf_designer_project_output"
+    else
+      rm -f "$wpf_designer_project_output"
+    fi
+  fi
   if [[ "$keep_work_root" != "1" ]]; then
     rm -rf "$work_root"
   else
@@ -81,6 +91,9 @@ wpf_designer_smoke_source="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDe
 wpf_designer_event_source="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Src/AbstractEventHandlerService.cs"
 wpf_designer_event_test_project="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Tests/WpfDesign.AddIn.LibreWpf.EventBinding.Tests.csproj"
 wpf_designer_event_test_dll="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Tests/bin/Release/net10.0-windows/WpfDesign.AddIn.LibreWpf.EventBinding.Tests.dll"
+wpf_designer_choose_class_source="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Src/IdeChooseClassService.cs"
+wpf_designer_choose_class_test_project="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Tests/WpfDesign.AddIn.LibreWpf.ChooseClass.Tests.csproj"
+wpf_designer_choose_class_test_dll="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Tests/bin/Release/net10.0-windows/WpfDesign.AddIn.LibreWpf.ChooseClass.Tests.dll"
 wpf_designer_tools_source="$repo_root/src/Libraries/WpfDesigner/WpfDesign/Project/Tools.cs"
 wpf_designer_pointer_source="$repo_root/src/Libraries/WpfDesigner/WpfDesign.Designer/Project/Services/PointerTool.cs"
 wpf_designer_resize_source="$repo_root/src/Libraries/WpfDesigner/WpfDesign.Designer/Project/Extensions/ResizeThumbExtension.cs"
@@ -109,6 +122,24 @@ if grep -Eq 'System\.Reflection|BindingFlags|GetCustomAttributes|Get(Field|Metho
   exit 1
 fi
 
+if grep -Eq 'BindingFlags|GetTypes\(|Get(Field|Method|Property|Event)\(|Assembly\.Load(From|File)?\(' \
+  "$wpf_designer_choose_class_source"; then
+  echo "The WPF designer class-selection service must load typed project/runtime assemblies without private or direct runtime probing." >&2
+  exit 1
+fi
+
+for typed_class_selection_contract in \
+  'SD.ParserService.GetCompilation' \
+  'typeResolutionService.LoadAssembly(project)' \
+  'typeResolutionService.LoadAssembly(reference)' \
+  'references.Sort(CompareReferences)' \
+  'SelectAssemblies(projectAssembly, referencedAssemblies)'; do
+  if ! grep -Fq "$typed_class_selection_contract" "$wpf_designer_choose_class_source"; then
+    echo "The WPF designer class-selection service must preserve typed $typed_class_selection_contract behavior." >&2
+    exit 1
+  fi
+done
+
 for typed_event_contract in \
   TryCreateEventHandler \
   TryGetPrimaryCodeBehindFile \
@@ -128,6 +159,16 @@ for event_smoke_evidence in \
   EventRestoreReady; do
   if ! grep -Fq "$event_smoke_evidence" "$wpf_designer_smoke_source"; then
     echo "The WPF designer smoke must preserve $event_smoke_evidence evidence." >&2
+    exit 1
+  fi
+done
+
+for class_selection_smoke_evidence in \
+  ClassSelectionSmokeResult \
+  ProjectAssemblyFirst \
+  DataContextClassReady; do
+  if ! grep -Fq "$class_selection_smoke_evidence" "$wpf_designer_smoke_source"; then
+    echo "The WPF designer smoke must preserve $class_selection_smoke_evidence evidence." >&2
     exit 1
   fi
 done
@@ -239,6 +280,73 @@ NUGET_PACKAGES="$work_root/nuget" \
   --nologo \
   --disable-build-servers
 "$dotnet_cmd" "$wpf_designer_event_test_dll"
+
+echo "Running focused WPF designer class-selection contracts..."
+NUGET_PACKAGES="$work_root/nuget" \
+  "$dotnet_cmd" build "$wpf_designer_choose_class_test_project" \
+  --configuration Release \
+  --force \
+  --verbosity minimal \
+  --nologo \
+  --disable-build-servers
+"$dotnet_cmd" "$wpf_designer_choose_class_test_dll"
+
+prepare_wpf_designer_project_output() {
+  local fixture_root="$work_root/wpf-designer-project-output"
+  local fixture_project="$fixture_root/SharpSnippetCompiler.ProjectOutput.csproj"
+  local fixture_source="$fixture_root/MainWindow.Generated.cs"
+  local fixture_output="$fixture_root/bin/Release/net10.0-windows/SharpSnippetCompiler.dll"
+
+  mkdir -p "$fixture_root"
+  cat >"$fixture_project" <<EOF
+<Project Sdk="LibreWPF.Sdk/$expected_version">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>SharpSnippetCompiler</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$wpf_designer_code" Link="MainWindow.xaml.cs" />
+    <Compile Include="$fixture_source" />
+  </ItemGroup>
+</Project>
+EOF
+  cat >"$fixture_source" <<'EOF'
+namespace ICSharpCode.SharpSnippetCompiler
+{
+    public partial class MainWindow
+    {
+        void InitializeComponent()
+        {
+        }
+    }
+}
+EOF
+
+  echo "Building the WPF designer project-output class-selection fixture..."
+  NUGET_PACKAGES="$work_root/nuget" \
+    "$dotnet_cmd" build "$fixture_project" \
+    --configuration Release \
+    --verbosity minimal \
+    --nologo \
+    --disable-build-servers
+
+  if [[ ! -f "$fixture_output" ]]; then
+    echo "Missing WPF designer project-output fixture: $fixture_output" >&2
+    exit 1
+  fi
+
+  if [[ -f "$wpf_designer_project_output" ]]; then
+    wpf_designer_project_output_backup="$work_root/SharpSnippetCompiler.exe.backup"
+    cp "$wpf_designer_project_output" "$wpf_designer_project_output_backup"
+  fi
+  mkdir -p "$(dirname "$wpf_designer_project_output")"
+  cp "$fixture_output" "$wpf_designer_project_output"
+  wpf_designer_project_output_created=1
+}
+
+prepare_wpf_designer_project_output
 
 run_start_page_smoke() {
   local attempt="$1"
@@ -522,6 +630,7 @@ run_wpf_designer_smoke() {
     && grep -Fq 'LibreWPF WPF designer smoke result=Success' "$log_file" \
     && grep -Fq 'selected=System.Windows.Controls.Grid' "$log_file" \
     && grep -Fq 'propertyGrid=True presented=True edit=True undo=True redo=True save=True' "$log_file" \
+    && grep -Fq 'classService=True classProjectFirst=True classStable=True dataContextClass=True' "$log_file" \
     && grep -Fq 'outlineSelection=True outlinePrimary=System.Windows.Controls.Grid' "$log_file" \
     && grep -Fq 'outlinePropertyGrid=True outlineEdit=True outlineUndo=True outlineRedo=True outlineSave=True outlineRestore=True' "$log_file" \
     && grep -Fq 'toolboxToolSelected=True toolboxInserted=True toolboxPrimary=System.Windows.Controls.Button' "$log_file" \
