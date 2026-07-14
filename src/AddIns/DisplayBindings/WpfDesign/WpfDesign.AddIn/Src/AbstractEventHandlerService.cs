@@ -37,6 +37,25 @@ using ICSharpCode.WpfDesign.Designer.Xaml;
 
 namespace ICSharpCode.WpfDesign.AddIn
 {
+	internal enum EventHandlerCreationFailure
+	{
+		None,
+		InvalidEventProperty,
+		ProjectUnavailable,
+		CodeBehindUnavailable,
+		SourceDocumentUnavailable,
+		SourceParseFailed,
+		DesignedClassUnavailable,
+		PrimaryCodePartMismatch,
+		EventDeclarationUnavailable,
+		ComponentNameUnavailable,
+		InvalidHandlerName,
+		HandlerNameUnavailable,
+		SourceInsertionFailed,
+		InsertedHandlerVerificationFailed,
+		XamlBindingFailed
+	}
+
 	sealed class SharpDevelopEventHandlerService : IEventHandlerService
 	{
 		readonly WpfViewContent viewContent;
@@ -55,13 +74,24 @@ namespace ICSharpCode.WpfDesign.AddIn
 
 		internal bool TryCreateEventHandler(DesignItemProperty eventProperty)
 		{
+			EventHandlerCreationFailure failure;
+			return TryCreateEventHandler(eventProperty, out failure);
+		}
+
+		internal bool TryCreateEventHandler(
+			DesignItemProperty eventProperty,
+			out EventHandlerCreationFailure failure)
+		{
+			failure = EventHandlerCreationFailure.None;
 			EventHandlerPlan plan;
-			if (!TryCreatePlan(eventProperty, out plan))
+			if (!TryCreatePlan(eventProperty, out plan, out failure))
 				return false;
 
 			if (plan.CompatibleMethod != null) {
-				if (!TryCommitXamlBinding(plan))
+				if (!TryCommitXamlBinding(plan)) {
+					failure = EventHandlerCreationFailure.XamlBindingFailed;
 					return false;
+				}
 				JumpToMethod(plan.CompatibleMethod);
 				return true;
 			}
@@ -75,6 +105,7 @@ namespace ICSharpCode.WpfDesign.AddIn
 				plan.OpenedFile != null ? (Func<bool>)(() => plan.OpenedFile.IsDirty) : null,
 				plan.OpenedFile != null ? (Action<bool>)(value => plan.OpenedFile.IsDirty = value) : null)) {
 				try {
+					failure = EventHandlerCreationFailure.SourceInsertionFailed;
 					plan.Project.LanguageBinding.CodeGenerator.InsertEventHandler(
 						plan.DesignedClass,
 						plan.HandlerName,
@@ -84,16 +115,20 @@ namespace ICSharpCode.WpfDesign.AddIn
 					EventHandlerPlan currentPlan;
 					if (!TryRefreshPlan(plan, out currentPlan)
 					    || currentPlan.CompatibleMethod == null) {
+						failure = EventHandlerCreationFailure.InsertedHandlerVerificationFailed;
 						throw new InvalidOperationException(
 							"The language binding did not create the requested event-handler signature in the current code-behind document.");
 					}
 
-					if (!TryCommitXamlBinding(currentPlan))
+					if (!TryCommitXamlBinding(currentPlan)) {
+						failure = EventHandlerCreationFailure.XamlBindingFailed;
 						throw new InvalidOperationException("The event hookup could not be committed to the XAML model.");
+					}
 
 					insertedMethod = currentPlan.CompatibleMethod;
 					sourceTransaction.Commit();
 					sourceCommitted = true;
+					failure = EventHandlerCreationFailure.None;
 				} catch (Exception ex) {
 					LoggingService.Error("The WPF designer could not create the event handler without changing an unrelated source or XAML document.", ex);
 				}
@@ -108,19 +143,27 @@ namespace ICSharpCode.WpfDesign.AddIn
 			return true;
 		}
 
-		bool TryCreatePlan(DesignItemProperty eventProperty, out EventHandlerPlan plan)
+		bool TryCreatePlan(
+			DesignItemProperty eventProperty,
+			out EventHandlerPlan plan,
+			out EventHandlerCreationFailure failure)
 		{
 			plan = null;
+			failure = EventHandlerCreationFailure.InvalidEventProperty;
 			if (eventProperty == null || !eventProperty.IsEvent || eventProperty.DesignItem == null)
 				return false;
 
 			IProject project = FindProjectContainingFile();
-			if (project == null)
+			if (project == null) {
+				failure = EventHandlerCreationFailure.ProjectUnavailable;
 				return false;
+			}
 
 			FileName codeBehindFile;
-			if (!TryGetPrimaryCodeBehindFile(project, viewContent.PrimaryFileName, out codeBehindFile))
+			if (!TryGetPrimaryCodeBehindFile(project, viewContent.PrimaryFileName, out codeBehindFile)) {
+				failure = EventHandlerCreationFailure.CodeBehindUnavailable;
 				return false;
+			}
 
 			IViewContent sourceView;
 			ITextEditor editor;
@@ -131,25 +174,34 @@ namespace ICSharpCode.WpfDesign.AddIn
 				openedFile = SD.FileService.GetOpenedFile(codeBehindFile);
 			} catch (Exception ex) {
 				LoggingService.Error("The WPF designer could not open the current code-behind document.", ex);
+				failure = EventHandlerCreationFailure.SourceDocumentUnavailable;
 				return false;
 			}
 			if (editor == null || editor.Document == null
-			    || !FileUtility.IsEqualFileName(editor.FileName, codeBehindFile))
+			    || !FileUtility.IsEqualFileName(editor.FileName, codeBehindFile)) {
+				failure = EventHandlerCreationFailure.SourceDocumentUnavailable;
 				return false;
+			}
 
 			try {
 				SD.ParserService.Parse(codeBehindFile, editor.Document, project);
 			} catch (Exception ex) {
 				LoggingService.Error("The WPF designer could not parse the current code-behind document.", ex);
+				failure = EventHandlerCreationFailure.SourceParseFailed;
 				return false;
 			}
 
 			ICompilation compilation = SD.ParserService.GetCompilation(project);
 			ITypeDefinition designedClass = GetDesignedClass(compilation);
 			IUnresolvedTypeDefinition targetPart;
-			if (designedClass == null
-			    || !TrySelectPrimaryCodePart(designedClass, codeBehindFile, out targetPart))
+			if (designedClass == null) {
+				failure = EventHandlerCreationFailure.DesignedClassUnavailable;
 				return false;
+			}
+			if (!TrySelectPrimaryCodePart(designedClass, codeBehindFile, out targetPart)) {
+				failure = EventHandlerCreationFailure.PrimaryCodePartMismatch;
+				return false;
+			}
 
 			IEvent eventDefinition = FindEventDeclaration(
 				compilation,
@@ -158,8 +210,10 @@ namespace ICSharpCode.WpfDesign.AddIn
 			IMethod invokeMethod = eventDefinition != null
 				? eventDefinition.ReturnType.GetDelegateInvokeMethod()
 				: null;
-			if (invokeMethod == null)
+			if (invokeMethod == null) {
+				failure = EventHandlerCreationFailure.EventDeclarationUnavailable;
 				return false;
+			}
 
 			string currentHandlerName = eventProperty.ValueOnInstance as string;
 			string componentName = eventProperty.DesignItem.Name;
@@ -168,22 +222,28 @@ namespace ICSharpCode.WpfDesign.AddIn
 			if (setComponentName)
 				componentName = GetAvailableDesignItemName(eventProperty.DesignItem);
 			if (string.IsNullOrWhiteSpace(currentHandlerName)
-			    && string.IsNullOrWhiteSpace(componentName))
+			    && string.IsNullOrWhiteSpace(componentName)) {
+				failure = EventHandlerCreationFailure.ComponentNameUnavailable;
 				return false;
+			}
 
 			string baseHandlerName = string.IsNullOrWhiteSpace(currentHandlerName)
 				? componentName + "_" + eventProperty.Name
 				: currentHandlerName.Trim();
-			if (!IsPortableIdentifier(baseHandlerName))
+			if (!IsPortableIdentifier(baseHandlerName)) {
+				failure = EventHandlerCreationFailure.InvalidHandlerName;
 				return false;
+			}
 
 			string handlerName = GetAvailableHandlerName(
 				designedClass,
 				invokeMethod,
 				baseHandlerName,
 				codeBehindFile);
-			if (string.IsNullOrEmpty(handlerName))
+			if (string.IsNullOrEmpty(handlerName)) {
+				failure = EventHandlerCreationFailure.HandlerNameUnavailable;
 				return false;
+			}
 
 			plan = new EventHandlerPlan {
 				EventProperty = eventProperty,
@@ -203,6 +263,7 @@ namespace ICSharpCode.WpfDesign.AddIn
 				SetComponentName = setComponentName,
 				SetEventHandler = !string.Equals(currentHandlerName, handlerName, StringComparison.Ordinal)
 			};
+			failure = EventHandlerCreationFailure.None;
 			return true;
 		}
 
