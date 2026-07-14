@@ -17,6 +17,7 @@
     <Compile Include="WpfDesignerEventHandlerServiceTests.cs" />
     <ProjectReference Include="..\WpfDesign.AddIn.LibreWpf.csproj" />
     <ProjectReference Include="..\..\..\..\..\Libraries\AvalonEdit\ICSharpCode.AvalonEdit\ICSharpCode.AvalonEdit.LibreWpf.csproj" />
+    <ProjectReference Include="..\..\..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory.Cecil\ICSharpCode.NRefactory.Cecil.LibreWpf.csproj" />
     <ProjectReference Include="..\..\..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory.CSharp\ICSharpCode.NRefactory.CSharp.LibreWpf.csproj" />
   </ItemGroup>
 </Project>

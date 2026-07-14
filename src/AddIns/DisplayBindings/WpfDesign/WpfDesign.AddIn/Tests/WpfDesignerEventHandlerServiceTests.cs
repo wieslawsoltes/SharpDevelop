@@ -6,6 +6,7 @@ using ICSharpCode.Core;
 using ICSharpCode.NRefactory.CSharp;
 using ICSharpCode.NRefactory.CSharp.TypeSystem;
 using ICSharpCode.NRefactory.TypeSystem;
+using ICSharpCode.SharpDevelop.Parser;
 
 namespace ICSharpCode.WpfDesign.AddIn.Tests
 {
@@ -16,6 +17,7 @@ namespace ICSharpCode.WpfDesign.AddIn.Tests
 		public static int Main()
 		{
 			try {
+				LegacyBareWpfReferencesResolveClickDelegate();
 				ExactPrimaryPartAndDelegateSignatureAreRequired();
 				ShorterUnrelatedPartialPartFailsClosed();
 				SourceTransactionRollsBackAndCommitsDeterministically();
@@ -26,6 +28,58 @@ namespace ICSharpCode.WpfDesign.AddIn.Tests
 				Console.Error.WriteLine("FAIL: " + ex);
 				return 1;
 			}
+		}
+
+		static void LegacyBareWpfReferencesResolveClickDelegate()
+		{
+			string[] bareReferences = {
+				"PresentationFramework",
+				"PresentationCore",
+				"WindowsBase",
+				"System.Xaml",
+				"WindowsFormsIntegration"
+			};
+			foreach (string reference in bareReferences) {
+				Assert(ProjectContentContainer.IsLibreWpfPortableCompatibilityReference(reference),
+				       "The legacy bare-name reference did not activate typed desktop compatibility: " + reference);
+			}
+
+			var loader = new CecilLoader { LazyLoad = true };
+			IUnresolvedAssembly[] assemblies = ProjectContentContainer
+				.LibreWpfPortableCompatibilityReferenceTypes
+				.Concat(new[] { typeof(object) })
+				.Select(type => type.Assembly.Location)
+				.Where(location => !string.IsNullOrEmpty(location))
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.Select(loader.LoadAssemblyFile)
+				.Where(assembly => assembly != null)
+				.ToArray();
+			ICompilation compilation = new CSharpProjectContent()
+				.AddAssemblyReferences(assemblies)
+				.CreateCompilation();
+			ITypeDefinition buttonBase = compilation
+				.FindType(new FullTypeName("System.Windows.Controls.Primitives.ButtonBase"))
+				.GetDefinition();
+			IEvent click = buttonBase != null
+				? buttonBase.GetEvents(
+					eventDefinition => string.Equals(eventDefinition.Name, "Click", StringComparison.Ordinal))
+					.FirstOrDefault()
+				: null;
+			IMethod invoke = click != null ? click.ReturnType.GetDelegateInvokeMethod() : null;
+			Assert(buttonBase != null, "The typed PresentationFramework anchor did not resolve ButtonBase.");
+			Assert(click != null, "The typed PresentationFramework anchor did not resolve ButtonBase.Click.");
+			Assert(invoke != null, "The Click event did not resolve its RoutedEventHandler signature.");
+			Assert(invoke.Parameters.Count == 2,
+			       "The resolved RoutedEventHandler signature did not contain two parameters.");
+			Assert(string.Equals(invoke.ReturnType.ReflectionName, "System.Void", StringComparison.Ordinal),
+			       "The resolved RoutedEventHandler return type was not System.Void.");
+			Assert(string.Equals(invoke.Parameters[0].Type.ReflectionName, "System.Object", StringComparison.Ordinal),
+			       "The resolved RoutedEventHandler sender type was not System.Object.");
+			Assert(string.Equals(
+				invoke.Parameters[1].Type.ReflectionName,
+				"System.Windows.RoutedEventArgs",
+				StringComparison.Ordinal),
+			       "The resolved RoutedEventHandler args type was not System.Windows.RoutedEventArgs.");
 		}
 
 		static void ExactPrimaryPartAndDelegateSignatureAreRequired()
