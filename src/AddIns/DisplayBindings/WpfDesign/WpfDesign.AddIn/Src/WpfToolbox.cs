@@ -23,6 +23,7 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Forms;
 using System.Linq;
+using Drawing = System.Drawing;
 
 using ICSharpCode.Core;
 using ICSharpCode.SharpDevelop;
@@ -37,6 +38,25 @@ using WPF = System.Windows.Controls;
 
 namespace ICSharpCode.WpfDesign.AddIn
 {
+	internal readonly struct WpfToolboxDragSource
+	{
+		internal WpfToolboxDragSource(
+			Control inputControl,
+			CreateComponentTool tool,
+			Drawing.Point inputPoint)
+		{
+			InputControl = inputControl;
+			Tool = tool;
+			InputPoint = inputPoint;
+		}
+
+		internal Control InputControl { get; }
+
+		internal CreateComponentTool Tool { get; }
+
+		internal Drawing.Point InputPoint { get; }
+	}
+
 	/// <summary>
 	/// Manages the WpfToolbox.
 	/// </summary>
@@ -150,6 +170,31 @@ namespace ICSharpCode.WpfDesign.AddIn
 					tab.ChosenItem = item;
 					selectedTool = componentTool;
 					return ReferenceEquals(toolService.CurrentTool, componentTool);
+				}
+			}
+
+			return false;
+		}
+
+		internal bool TryLocateComponentDragSource(
+			Type componentType,
+			out WpfToolboxDragSource dragSource)
+		{
+			if (componentType == null)
+				throw new ArgumentNullException("componentType");
+
+			dragSource = default(WpfToolboxDragSource);
+			foreach (SideTab tab in sideBar.Tabs) {
+				foreach (SideTabItem item in tab.Items) {
+					var componentTool = item.Tag as CreateComponentTool;
+					if (componentTool == null || componentTool.ComponentType != componentType)
+						continue;
+
+					sideBar.ActiveTab = tab;
+					sideBar.EnsureVisible(item);
+					sideBar.PerformLayout();
+					sideBar.Refresh();
+					return sideBar.TryLocateDragSource(item, componentTool, out dragSource);
 				}
 			}
 
@@ -275,6 +320,42 @@ namespace ICSharpCode.WpfDesign.AddIn
 		
 		sealed class WpfSideBar : SharpDevelopSideBar
 		{
+			internal bool TryLocateDragSource(
+				SideTabItem item,
+				CreateComponentTool tool,
+				out WpfToolboxDragSource dragSource)
+			{
+				dragSource = default(WpfToolboxDragSource);
+				if (item == null
+					|| tool == null
+					|| ActiveTab == null
+					|| !ActiveTab.Items.Contains(item)
+					|| !ReferenceEquals(item.Tag, tool)
+					|| sideTabContent == null
+					|| !sideTabContent.Visible
+					|| sideTabContent.Width <= 2
+					|| sideTabContent.Height < ActiveTab.ItemHeight)
+					return false;
+
+				int itemIndex = ActiveTab.Items.IndexOf(item);
+				int visibleIndex = itemIndex - ActiveTab.ScrollIndex;
+				int itemTop = visibleIndex * ActiveTab.ItemHeight;
+				int itemBottom = itemTop + ActiveTab.ItemHeight;
+				if (visibleIndex < 0
+					|| itemTop < 0
+					|| itemBottom > sideTabContent.ClientSize.Height)
+					return false;
+
+				var inputPoint = new Drawing.Point(
+					Math.Max(1, sideTabContent.ClientSize.Width / 2),
+					itemTop + ActiveTab.ItemHeight / 2);
+				if (!sideTabContent.ClientRectangle.Contains(inputPoint))
+					return false;
+
+				dragSource = new WpfToolboxDragSource(sideTabContent, tool, inputPoint);
+				return true;
+			}
+
 			protected override object StartItemDrag(SideTabItem draggedItem)
 			{
 				if (this.ActiveTab.ChosenItem != draggedItem && this.ActiveTab.Items.Contains(draggedItem)) {
