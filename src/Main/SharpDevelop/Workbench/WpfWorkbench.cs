@@ -659,6 +659,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					await RunLibreWpfOwnerDrawSmoke();
 					await RunLibreWpfFormsDesignerMutationSmoke(designerContent as FormsDesignerViewContent, designerProperties, rootComponent);
 					await RunLibreWpfFormsDesignerEventBindingSmoke(designerContent as FormsDesignerViewContent, designerProperties, rootComponent);
+					await RunLibreWpfFormsDesignerVerbSmoke(designerContent as FormsDesignerViewContent, designerProperties, rootComponent);
 					await RunLibreWpfFormsDesignerKeyboardAndUnloadSmoke(designerContent as FormsDesignerViewContent, designerProperties, rootComponent);
 				} catch (Exception ex) {
 					Console.WriteLine("LibreWPF FormsDesigner smoke failed: " + ex);
@@ -1651,6 +1652,201 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					+ " cleanup=" + cleanupSucceeded
 					+ " handler=" + handlerName
 					+ " methodOccurrences=" + methodOccurrences;
+				Console.WriteLine(message);
+				SD.StatusBar.SetMessage(message);
+			}
+
+			async Task RunLibreWpfFormsDesignerVerbSmoke(
+				FormsDesignerViewContent designerContent,
+				PropertyContainer designerProperties,
+				object rootComponent)
+			{
+				System.ComponentModel.Design.IDesignerHost host = designerProperties != null
+					? designerProperties.Host
+					: null;
+				System.Windows.Forms.Control rootControl = rootComponent as System.Windows.Forms.Control;
+				System.ComponentModel.Design.ISelectionService selectionService = host != null
+					? host.GetService(typeof(System.ComponentModel.Design.ISelectionService))
+						as System.ComponentModel.Design.ISelectionService
+					: null;
+				System.ComponentModel.Design.IMenuCommandService menuCommandService = host != null
+					? host.GetService(typeof(System.ComponentModel.Design.IMenuCommandService))
+						as System.ComponentModel.Design.IMenuCommandService
+					: null;
+				object[] originalSelection = selectionService != null
+					? selectionService.GetSelectedComponents().Cast<object>().ToArray()
+					: Array.Empty<object>();
+				System.Windows.Forms.Button verbComponent = null;
+				System.ComponentModel.Design.IDesigner componentDesigner = null;
+				System.ComponentModel.Design.DesignerVerb testVerb = null;
+				var builtItems = new List<System.Windows.Forms.ToolStripItem>();
+				int componentCountBefore = host != null && host.Container != null
+					? host.Container.Components.Count
+					: -1;
+				int invocationCount = 0;
+				bool serviceReady = false;
+				bool designerReady = false;
+				bool selected = false;
+				bool cachePrimed = false;
+				bool typeRefreshAdded = false;
+				bool exposed = false;
+				bool builderReady = false;
+				bool invoked = false;
+				bool selectionInvalidated = false;
+				bool reselectionReady = false;
+				bool typeRefreshRemoved = false;
+				bool removed = false;
+				bool selectionRestored = false;
+				bool componentRemoved = false;
+				bool cleanupSucceeded = true;
+				string verbText = "LibreWPF selected designer verb " + Guid.NewGuid().ToString("N");
+
+				try {
+					if (designerContent == null || host == null || rootControl == null
+					    || selectionService == null || menuCommandService == null) {
+						throw new InvalidOperationException(
+							"The FormsDesigner designer-verb smoke requires its loaded typed design services.");
+					}
+
+					serviceReady = ReferenceEquals(
+						menuCommandService,
+						host.GetService(typeof(System.ComponentModel.Design.IMenuCommandService)));
+					string componentName = "libreWpfDesignerVerbButton";
+					for (int suffix = 1; host.Container.Components[componentName] != null; suffix++) {
+						componentName = "libreWpfDesignerVerbButton" + suffix.ToString(CultureInfo.InvariantCulture);
+					}
+
+					using (System.ComponentModel.Design.DesignerTransaction transaction =
+					       host.CreateTransaction("Create selected-designer verb smoke component")) {
+						verbComponent = host.CreateComponent(typeof(System.Windows.Forms.Button), componentName)
+							as System.Windows.Forms.Button;
+						if (verbComponent == null)
+							throw new InvalidOperationException("The FormsDesigner host did not create the designer-verb button.");
+						verbComponent.Location = new System.Drawing.Point(18, 18);
+						verbComponent.Text = "Designer verb";
+						rootControl.Controls.Add(verbComponent);
+						transaction.Commit();
+					}
+
+					componentDesigner = host.GetDesigner(verbComponent);
+					designerReady = componentDesigner != null
+						&& ReferenceEquals(componentDesigner.Component, verbComponent);
+					if (!designerReady)
+						throw new InvalidOperationException("The real selected component designer is unavailable.");
+
+					selectionService.SetSelectedComponents(
+						new object[] { verbComponent },
+						System.ComponentModel.Design.SelectionTypes.Replace);
+					selected = ReferenceEquals(selectionService.PrimarySelection, verbComponent)
+						&& selectionService.SelectionCount == 1;
+					System.ComponentModel.Design.DesignerVerbCollection initialVerbs = menuCommandService.Verbs;
+					cachePrimed = !initialVerbs.Cast<System.ComponentModel.Design.DesignerVerb>()
+						.Any(verb => string.Equals(verb.Text, verbText, StringComparison.Ordinal));
+
+					testVerb = new System.ComponentModel.Design.DesignerVerb(
+						verbText,
+						delegate { invocationCount++; });
+					componentDesigner.Verbs.Add(testVerb);
+					TypeDescriptor.Refresh(verbComponent.GetType());
+					System.ComponentModel.Design.DesignerVerbCollection selectedVerbs = menuCommandService.Verbs;
+					typeRefreshAdded = !ReferenceEquals(initialVerbs, selectedVerbs);
+					exposed = selectedVerbs.Contains(testVerb);
+
+					var builder = new ICSharpCode.FormsDesigner.Commands.DesignerVerbSubmenuBuilder();
+					builtItems.AddRange(builder.BuildItems(null, menuCommandService)
+						.OfType<System.Windows.Forms.ToolStripItem>());
+					System.Windows.Forms.ToolStripItem builtVerbMenuItem = builtItems.FirstOrDefault(
+						item => string.Equals(item.Text, verbText, StringComparison.Ordinal));
+					builderReady = builtVerbMenuItem != null
+						&& builtItems.OfType<System.Windows.Forms.ToolStripSeparator>().Any();
+					if (builtVerbMenuItem != null)
+						builtVerbMenuItem.PerformClick();
+					invoked = invocationCount == 1;
+
+					selectionService.SetSelectedComponents(
+						new object[] { rootComponent },
+						System.ComponentModel.Design.SelectionTypes.Replace);
+					System.ComponentModel.Design.DesignerVerbCollection rootVerbs = menuCommandService.Verbs;
+					selectionInvalidated = !ReferenceEquals(selectedVerbs, rootVerbs)
+						&& !rootVerbs.Contains(testVerb);
+
+					selectionService.SetSelectedComponents(
+						new object[] { verbComponent },
+						System.ComponentModel.Design.SelectionTypes.Replace);
+					System.ComponentModel.Design.DesignerVerbCollection reselectedVerbs = menuCommandService.Verbs;
+					reselectionReady = !ReferenceEquals(rootVerbs, reselectedVerbs)
+						&& reselectedVerbs.Contains(testVerb);
+
+					componentDesigner.Verbs.Remove(testVerb);
+					TypeDescriptor.Refresh(verbComponent.GetType());
+					System.ComponentModel.Design.DesignerVerbCollection removedVerbs = menuCommandService.Verbs;
+					typeRefreshRemoved = !ReferenceEquals(reselectedVerbs, removedVerbs);
+					removed = !removedVerbs.Contains(testVerb);
+					await Task.Yield();
+				} catch (Exception ex) {
+					cleanupSucceeded = false;
+					Console.WriteLine("LibreWPF FormsDesigner designer-verb smoke failed: " + ex);
+					SD.StatusBar.SetMessage("LibreWPF FormsDesigner designer-verb smoke failed: " + ex.Message);
+				} finally {
+					Action<string, Action> tryCleanup = (operation, action) => {
+						try {
+							action();
+						} catch (Exception ex) {
+							cleanupSucceeded = false;
+							Console.WriteLine("LibreWPF FormsDesigner designer-verb " + operation + " failed: " + ex);
+						}
+					};
+
+					if (componentDesigner != null && testVerb != null && componentDesigner.Verbs.Contains(testVerb)) {
+						tryCleanup("verb removal", () => componentDesigner.Verbs.Remove(testVerb));
+					}
+					foreach (System.Windows.Forms.ToolStripItem builtItem in builtItems) {
+						tryCleanup("menu-item disposal", builtItem.Dispose);
+					}
+					if (selectionService != null && rootComponent != null) {
+						tryCleanup("temporary root selection", () => selectionService.SetSelectedComponents(
+							new object[] { rootComponent },
+							System.ComponentModel.Design.SelectionTypes.Replace));
+					}
+					if (host != null && verbComponent != null && verbComponent.Site != null)
+						tryCleanup("component destruction", () => host.DestroyComponent(verbComponent));
+					if (verbComponent != null && verbComponent.Parent != null)
+						tryCleanup("parent removal", () => verbComponent.Parent.Controls.Remove(verbComponent));
+					if (selectionService != null) {
+						tryCleanup("selection restoration", () => selectionService.SetSelectedComponents(
+							originalSelection,
+							System.ComponentModel.Design.SelectionTypes.Replace));
+						object[] restoredSelection = selectionService.GetSelectedComponents().Cast<object>().ToArray();
+						selectionRestored = restoredSelection.Length == originalSelection.Length
+							&& originalSelection.All(component => restoredSelection.Contains(component));
+					}
+					componentRemoved = host != null
+						&& host.Container.Components.Count == componentCountBefore
+						&& (verbComponent == null || (verbComponent.Site == null && verbComponent.Parent == null));
+				}
+
+				bool success = serviceReady && designerReady && selected && cachePrimed
+					&& typeRefreshAdded && exposed && builderReady && invoked
+					&& selectionInvalidated && reselectionReady
+					&& typeRefreshRemoved && removed
+					&& selectionRestored && componentRemoved && cleanupSucceeded;
+				string message = "LibreWPF FormsDesigner designer-verb smoke result=" + (success ? "Success" : "Partial")
+					+ " service=" + serviceReady
+					+ " designer=" + designerReady
+					+ " selected=" + selected
+					+ " cachePrimed=" + cachePrimed
+					+ " typeRefreshAdded=" + typeRefreshAdded
+					+ " exposed=" + exposed
+					+ " builder=" + builderReady
+					+ " invoked=" + invoked
+					+ " selectionInvalidated=" + selectionInvalidated
+					+ " reselection=" + reselectionReady
+					+ " typeRefreshRemoved=" + typeRefreshRemoved
+					+ " removed=" + removed
+					+ " selectionRestored=" + selectionRestored
+					+ " componentRemoved=" + componentRemoved
+					+ " cleanup=" + cleanupSucceeded
+					+ " invocations=" + invocationCount;
 				Console.WriteLine(message);
 				SD.StatusBar.SetMessage(message);
 			}
