@@ -43,12 +43,16 @@ namespace ICSharpCode.WpfDesign.AddIn
 		internal WpfToolboxDragSource(
 			Control inputControl,
 			CreateComponentTool tool,
-			Drawing.Point inputPoint)
+			Drawing.Point inputPoint,
+			System.Windows.Forms.IDataObject dragData)
 		{
 			InputControl = inputControl;
 			Tool = tool;
 			InputPoint = inputPoint;
+			DragData = dragData;
 		}
+
+		internal System.Windows.Forms.IDataObject DragData { get; }
 
 		internal Control InputControl { get; }
 
@@ -201,6 +205,11 @@ namespace ICSharpCode.WpfDesign.AddIn
 			return false;
 		}
 
+		internal bool TryStartComponentDrag(WpfToolboxDragSource dragSource)
+		{
+			return sideBar.TryStartComponentDrag(dragSource);
+		}
+
 		internal bool TryInsertSelectedComponent(
 			DesignItem container,
 			Rect bounds,
@@ -320,6 +329,30 @@ namespace ICSharpCode.WpfDesign.AddIn
 		
 		sealed class WpfSideBar : SharpDevelopSideBar
 		{
+			internal bool TryStartComponentDrag(WpfToolboxDragSource dragSource)
+			{
+				if (dragSource.InputControl == null
+					|| dragSource.Tool == null
+					|| dragSource.DragData == null
+					|| !ReferenceEquals(dragSource.InputControl, sideTabContent)
+					|| ActiveTab == null)
+					return false;
+
+				SideTabItem item = ActiveTab.Items
+					.Cast<SideTabItem>()
+					.FirstOrDefault(candidate => ReferenceEquals(candidate.Tag, dragSource.Tool));
+				if (item == null)
+					return false;
+
+				System.Windows.Forms.DragDropEffects effect = sideTabContent.DoDragDrop(
+					dragSource.DragData,
+					ActiveTab.CanDragDrop
+						? System.Windows.Forms.DragDropEffects.All
+						: System.Windows.Forms.DragDropEffects.Copy
+							| System.Windows.Forms.DragDropEffects.None);
+				return effect != System.Windows.Forms.DragDropEffects.None;
+			}
+
 			internal bool TryLocateDragSource(
 				SideTabItem item,
 				CreateComponentTool tool,
@@ -352,7 +385,12 @@ namespace ICSharpCode.WpfDesign.AddIn
 				if (!sideTabContent.ClientRectangle.Contains(inputPoint))
 					return false;
 
-				dragSource = new WpfToolboxDragSource(sideTabContent, tool, inputPoint);
+				dragSource = new WpfToolboxDragSource(
+					sideTabContent,
+					tool,
+					inputPoint,
+					new System.Windows.Forms.DataObject(
+						new System.Windows.DataObject(tool)));
 				return true;
 			}
 

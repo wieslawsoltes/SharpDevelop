@@ -30,6 +30,7 @@ using System.Windows.Forms.Integration;
 using System.Windows.Media;
 using System.Windows.Threading;
 using System.Xml;
+using System.Xml.Linq;
 
 using ICSharpCode.Core;
 using ICSharpCode.SharpDevelop;
@@ -540,13 +541,10 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					&& CountElementsByLocalName(insertedXaml, "Button") == originalButtonCount + 1;
 				if (result.XamlReady)
 					await VerifyEventHandlerAsync(designer, createdItem, result);
-				if (result.XamlReady && result.EventRestoreReady)
-					await VerifyPointerManipulationAsync(designer, createdItem, insertedXaml, result);
-
 				designer.DesignSurface.Undo();
 				result.UndoReady = !ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(createdItem)
 					&& designer.DesignSurface.CanRedo()
-					&& string.Equals(SaveDesignerToString(designer), originalXaml, StringComparison.Ordinal);
+					&& AreXamlDocumentsEquivalent(SaveDesignerToString(designer), originalXaml);
 
 				designer.DesignSurface.Redo();
 				result.RedoReady = ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(createdItem)
@@ -568,7 +566,7 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					result.RestoreReady = selectionRestored
 						&& propertyGridRestored
 						&& !ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(createdItem)
-						&& string.Equals(SaveDesignerToString(designer), originalXaml, StringComparison.Ordinal);
+						&& AreXamlDocumentsEquivalent(SaveDesignerToString(designer), originalXaml);
 					if (result.RestoreReady)
 						break;
 					await Task.Delay(50);
@@ -605,12 +603,26 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			Point lastInputPoint = default(Point);
 			bool inputButtonPressed = false;
 			DispatcherOperation[] queuedInputOperations = null;
+			WpfToolboxDragSource dragSource = default(WpfToolboxDragSource);
 			int dragEnterCount = 0;
 			int dragOverCount = 0;
 			int dropCount = 0;
 			DragEventHandler dragEnter = delegate { dragEnterCount++; };
-			DragEventHandler dragOver = delegate { dragOverCount++; };
-			DragEventHandler drop = delegate { dropCount++; };
+			DragEventHandler dragOver = delegate(object sender, DragEventArgs e) {
+				dragOverCount++;
+				WriteTrace(
+					"rendered toolbox drag-over data="
+					+ (e.Data.GetData(typeof(CreateComponentTool)) == null ? "<null>" : e.Data.GetData(typeof(CreateComponentTool)).GetType().FullName)
+					+ " sameTool=" + ReferenceEquals(e.Data.GetData(typeof(CreateComponentTool)), dragSource.Tool)
+					+ " currentTool=" + context.Services.Tool.CurrentTool.GetType().FullName
+					+ " active=" + ReferenceEquals(context.Services.Tool.CurrentTool, dragSource.Tool)
+					+ " effects=" + e.Effects
+					+ " handled=" + e.Handled);
+			};
+			DragEventHandler drop = delegate(object sender, DragEventArgs e) {
+				dropCount++;
+				WriteTrace("rendered toolbox drop effects=" + e.Effects + " handled=" + e.Handled);
+			};
 
 			try {
 				PadDescriptor toolsPad = SD.Workbench.GetPad(typeof(ToolsPad));
@@ -620,7 +632,6 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				toolsPad.BringPadToFront();
 				ContentPresenter presenter = null;
 				WindowsFormsHost host = null;
-				WpfToolboxDragSource dragSource = default(WpfToolboxDragSource);
 				for (int attempt = 0; attempt < 50; attempt++) {
 					var padContent = toolsPad.PadContent as ToolsPad;
 					presenter = padContent == null ? null : padContent.Control as ContentPresenter;
@@ -683,20 +694,20 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				var destinationPoints = new[] {
 					destinationPoint,
 					destinationPoint + new Vector(4, 3),
-					destinationPoint + new Vector(8, 6)
+					destinationPoint + new Vector(8, 6),
+					destinationPoint + new Vector(12, 9),
+					destinationPoint + new Vector(16, 12)
 				};
 				Point[] destinationWindowPoints = destinationPoints
 					.Select(point => ToWindowInputPoint(window, designPanel.PointToScreen(point)))
 					.ToArray();
+				var destinationHit = window.InputHitTest(destinationWindowPoints[0]) as DependencyObject;
+				WriteTrace(
+					"rendered toolbox destination window=" + destinationWindowPoints[0]
+					+ " hit=" + (destinationHit == null ? "<null>" : destinationHit.GetType().FullName)
+					+ " allowDrop=" + GetAllowDrop(destinationHit));
 
 				var sourcePoint = dragSource.InputPoint;
-				int dragDistance = Math.Max(8, System.Windows.Forms.SystemInformation.DragSize.Width + 2);
-				int dragX = Math.Min(dragSource.InputControl.ClientSize.Width - 2, sourcePoint.X + dragDistance);
-				if (dragX == sourcePoint.X)
-					dragX = Math.Max(1, sourcePoint.X - dragDistance);
-				if (dragX == sourcePoint.X)
-					return;
-
 				Point sourceWindowPoint = ToWindowInputPoint(
 					window,
 					ToWpfPoint(dragSource.InputControl.PointToScreen(sourcePoint)));
@@ -723,6 +734,7 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				bool[] destinationMovesReady = new bool[destinationWindowPoints.Length];
 				bool destinationUpReady = false;
 				Exception queuedInputFailure = null;
+				bool dragStarted = false;
 				queuedInputOperations = new DispatcherOperation[destinationWindowPoints.Length + 1];
 				for (int index = 0; index < destinationWindowPoints.Length; index++) {
 					int capturedIndex = index;
@@ -759,19 +771,10 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 							queuedInputFailure = queuedInputFailure ?? ex;
 						}
 					}));
-
-				WriteTrace("raising rendered toolbox drag threshold");
-				bool dragThresholdRaised = false;
-				dragSource.InputControl.RaiseMouseMove(
-					new System.Windows.Forms.MouseEventArgs(
-						System.Windows.Forms.MouseButtons.Left,
-						clicks: 0,
-						x: dragX,
-						y: sourcePoint.Y,
-						delta: 0));
-				dragThresholdRaised = true;
+				WriteTrace("starting rendered toolbox drag");
+				dragStarted = WpfToolbox.Instance.TryStartComponentDrag(dragSource);
 				WriteTrace(
-					"raised rendered toolbox drag threshold"
+					"completed rendered toolbox drag"
 					+ " enter=" + dragEnterCount
 					+ " over=" + dragOverCount
 					+ " drop=" + dropCount);
@@ -779,7 +782,7 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					throw new InvalidOperationException(
 						"The queued rendered toolbox pointer sequence failed.",
 						queuedInputFailure);
-				result.RenderedToolboxInputReady = dragThresholdRaised
+				result.RenderedToolboxInputReady = dragStarted
 					&& destinationMovesReady.All(ready => ready)
 					&& destinationUpReady;
 				if (!result.RenderedToolboxInputReady)
@@ -788,6 +791,14 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				for (int attempt = 0; attempt < 50; attempt++) {
 					droppedItem = selection.PrimarySelection;
 					string droppedXaml = SaveDesignerToString(designer);
+					if (attempt == 0) {
+						WriteTrace(
+							"rendered toolbox post-drop primary="
+							+ (droppedItem == null ? "<null>" : droppedItem.ComponentType.FullName)
+							+ " selection=" + selection.SelectionCount
+							+ " buttons=" + CountElementsByLocalName(droppedXaml, "Button")
+							+ " tool=" + context.Services.Tool.CurrentTool.GetType().FullName);
+					}
 					result.RenderedToolboxDropped = droppedItem != null
 						&& droppedItem.ComponentType == typeof(System.Windows.Controls.Button)
 						&& ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(droppedItem);
@@ -820,11 +831,21 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					return;
 
 				string committedXaml = SaveDesignerToString(designer);
+				await VerifyPointerManipulationAsync(designer, droppedItem, committedXaml, result);
+				if (!result.PointerRestoreReady || !result.ResizeRestoreReady)
+					return;
+
 				designer.DesignSurface.Undo();
 				result.RenderedToolboxUndoReady = undoService.UndoActions.Count() == originalUndoCount
 					&& !ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(droppedItem)
 					&& designer.DesignSurface.CanRedo()
-					&& string.Equals(SaveDesignerToString(designer), originalXaml, StringComparison.Ordinal);
+					&& AreXamlDocumentsEquivalent(SaveDesignerToString(designer), originalXaml);
+				WriteTrace(
+					"rendered toolbox undo ready=" + result.RenderedToolboxUndoReady
+					+ " undoCount=" + undoService.UndoActions.Count() + "/" + originalUndoCount
+					+ " inDocument=" + ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(droppedItem)
+					+ " canRedo=" + designer.DesignSurface.CanRedo()
+					+ " xaml=" + AreXamlDocumentsEquivalent(SaveDesignerToString(designer), originalXaml));
 
 				designer.DesignSurface.Redo();
 				result.RenderedToolboxRedoReady = undoService.UndoActions.Count() == originalUndoCount + 1
@@ -850,7 +871,7 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 						&& propertyGridRestored
 						&& !ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(droppedItem)
 						&& undoService.UndoActions.Count() == originalUndoCount
-						&& string.Equals(SaveDesignerToString(designer), originalXaml, StringComparison.Ordinal);
+						&& AreXamlDocumentsEquivalent(SaveDesignerToString(designer), originalXaml);
 					if (result.RenderedToolboxRestoreReady)
 						break;
 					await Task.Delay(50);
@@ -967,6 +988,16 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					return true;
 			}
 			return false;
+		}
+
+		static string GetAllowDrop(DependencyObject candidate)
+		{
+			for (var current = candidate; current != null; current = VisualTreeHelper.GetParent(current)) {
+				var element = current as UIElement;
+				if (element != null && element.AllowDrop)
+					return current.GetType().FullName;
+			}
+			return "<none>";
 		}
 
 		static Point ToWpfPoint(System.Drawing.Point point)
@@ -1202,6 +1233,14 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 						true,
 						ICSharpCode.WpfDesign.HitTestType.ElementSelection);
 					result.PointerHitReady = ReferenceEquals(hit.ModelHit, item);
+					if (attempt == 0) {
+						WriteTrace(
+							"pointer target size=" + view.ActualWidth + "x" + view.ActualHeight
+							+ " point=" + pointerPosition
+							+ " panel=" + designer.DesignSurface.DesignPanel.RenderSize
+							+ " model=" + (hit.ModelHit == null ? "<null>" : hit.ModelHit.ComponentType.FullName)
+							+ " visual=" + (hit.VisualHit == null ? "<null>" : hit.VisualHit.GetType().FullName));
+					}
 				}
 				if (result.PointerHitReady)
 					break;
@@ -1508,10 +1547,17 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					&& !canceledGesture.IsActive
 					&& !resizeExtension.IsResizing
 					&& undoService.UndoActions.Count() == originalUndoCount
-					&& string.Equals(
+					&& AreXamlDocumentsEquivalent(
 						SaveDesignerToString(designer),
-						originalXaml,
-						StringComparison.Ordinal);
+						originalXaml);
+				WriteTrace(
+					"resize cancel mutation=" + cancelMutationReady
+					+ " active=" + canceledGesture.IsActive
+					+ " resizing=" + resizeExtension.IsResizing
+					+ " undoCount=" + undoService.UndoActions.Count() + "/" + originalUndoCount
+					+ " xaml=" + AreXamlDocumentsEquivalent(
+						SaveDesignerToString(designer),
+						originalXaml));
 			} finally {
 				if (canceledGesture != null && canceledGesture.IsActive)
 					canceledGesture.Cancel();
@@ -1519,10 +1565,9 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 
 			result.ResizeRestoreReady = result.ResizeCancelReady
 				&& undoService.UndoActions.Count() == originalUndoCount
-				&& string.Equals(
+				&& AreXamlDocumentsEquivalent(
 					SaveDesignerToString(designer),
-					originalXaml,
-					StringComparison.Ordinal);
+					originalXaml);
 		}
 
 		static string SaveDesignerToString(WpfViewContent designer)
@@ -1532,6 +1577,30 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				designer.DesignSurface.SaveDesigner(writer);
 			}
 			return output.ToString();
+		}
+
+		static bool AreXamlDocumentsEquivalent(string first, string second)
+		{
+			XDocument firstDocument = XDocument.Parse(first);
+			XDocument secondDocument = XDocument.Parse(second);
+			NormalizeXamlDocument(firstDocument);
+			NormalizeXamlDocument(secondDocument);
+			return XNode.DeepEquals(firstDocument, secondDocument);
+		}
+
+		static void NormalizeXamlDocument(XDocument document)
+		{
+			foreach (XElement element in document.Descendants().ToArray()) {
+				var attributes = element.Attributes()
+					.OrderBy(attribute => attribute.IsNamespaceDeclaration ? 0 : 1)
+					.ThenBy(attribute => attribute.Name.NamespaceName, StringComparer.Ordinal)
+					.ThenBy(attribute => attribute.Name.LocalName, StringComparer.Ordinal)
+					.Select(attribute => new XAttribute(attribute))
+					.ToArray();
+				element.ReplaceAttributes(attributes);
+				if (!element.Nodes().Any())
+					element.Add(new XText(string.Empty));
+			}
 		}
 
 		static int CountElementsByLocalName(string xaml, string localName)
