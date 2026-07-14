@@ -75,8 +75,12 @@ solution="$repo_root/samples/LineCounter/LineCounter.sln"
 sample_source="$repo_root/samples/LineCounter/Src/LineCounterBrowser.cs"
 wpf_designer_solution="$repo_root/samples/SharpSnippetCompiler/SharpSnippetCompiler.sln"
 wpf_designer_xaml="$repo_root/samples/SharpSnippetCompiler/SharpSnippetCompiler/MainWindow.xaml"
+wpf_designer_code="$wpf_designer_xaml.cs"
 report_fixture="$repo_root/src/AddIns/Analysis/CodeQuality/Reporting/DependencyReport.srd"
 wpf_designer_smoke_source="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Src/LibreWpf/LibreWpfWpfDesignerSmokeHook.cs"
+wpf_designer_event_source="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Src/AbstractEventHandlerService.cs"
+wpf_designer_event_test_project="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Tests/WpfDesign.AddIn.LibreWpf.EventBinding.Tests.csproj"
+wpf_designer_event_test_dll="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Tests/bin/Release/net10.0-windows/WpfDesign.AddIn.LibreWpf.EventBinding.Tests.dll"
 wpf_designer_tools_source="$repo_root/src/Libraries/WpfDesigner/WpfDesign/Project/Tools.cs"
 wpf_designer_pointer_source="$repo_root/src/Libraries/WpfDesigner/WpfDesign.Designer/Project/Services/PointerTool.cs"
 wpf_designer_resize_source="$repo_root/src/Libraries/WpfDesigner/WpfDesign.Designer/Project/Extensions/ResizeThumbExtension.cs"
@@ -98,6 +102,35 @@ if grep -Eq 'System\.Reflection|BindingFlags|Get(Field|Method|Event)\(|GetType\(
   echo "The WPF designer smoke and pointer feed must keep workbench input integration on typed APIs." >&2
   exit 1
 fi
+
+if grep -Eq 'System\.Reflection|BindingFlags|GetCustomAttributes|Get(Field|Method|Event)\(|dynamic([[:space:]]|$)' \
+  "$wpf_designer_event_source"; then
+  echo "The WPF designer event service must keep source selection, method matching, and rollback on typed APIs." >&2
+  exit 1
+fi
+
+for typed_event_contract in \
+  TryCreateEventHandler \
+  TryGetPrimaryCodeBehindFile \
+  TrySelectPrimaryCodePart \
+  IsCompatibleEventHandler \
+  SourceDocumentTransaction \
+  TypeDescriptor.GetAttributes; do
+  if ! grep -Fq "$typed_event_contract" "$wpf_designer_event_source"; then
+    echo "The WPF designer event service must preserve typed $typed_event_contract behavior." >&2
+    exit 1
+  fi
+done
+
+for event_smoke_evidence in \
+  EventFailClosedReady \
+  EventDuplicateFreeReady \
+  EventRestoreReady; do
+  if ! grep -Fq "$event_smoke_evidence" "$wpf_designer_smoke_source"; then
+    echo "The WPF designer smoke must preserve $event_smoke_evidence evidence." >&2
+    exit 1
+  fi
+done
 
 if grep -Eq 'System\.Reflection|BindingFlags|Get(Field|Method|Property|Event)\(|dynamic([[:space:]]|$)' \
   "$forms_designer_event_binding_source"; then
@@ -194,7 +227,18 @@ done
 
 sample_checksum_before="$(cksum "$sample_source")"
 wpf_designer_checksum_before="$(cksum "$wpf_designer_xaml")"
+wpf_designer_code_checksum_before="$(cksum "$wpf_designer_code")"
 report_checksum_before="$(cksum "$report_fixture")"
+
+echo "Running focused WPF designer event-binding contracts..."
+NUGET_PACKAGES="$work_root/nuget" \
+  "$dotnet_cmd" build "$wpf_designer_event_test_project" \
+  --configuration Release \
+  --force \
+  --verbosity minimal \
+  --nologo \
+  --disable-build-servers
+"$dotnet_cmd" "$wpf_designer_event_test_dll"
 
 run_start_page_smoke() {
   local attempt="$1"
@@ -483,6 +527,9 @@ run_wpf_designer_smoke() {
     && grep -Fq 'toolboxToolSelected=True toolboxInserted=True toolboxPrimary=System.Windows.Controls.Button' "$log_file" \
     && grep -Fq 'toolboxSelection=True toolboxPropertyGrid=True toolboxXaml=True' "$log_file" \
     && grep -Fq 'toolboxUndo=True toolboxRedo=True toolboxRestore=True toolboxToolReset=True' "$log_file" \
+    && grep -Fq 'eventService=True eventFailClosed=True eventFailure=None eventCreated=True eventXaml=True' "$log_file" \
+    && grep -Fq 'eventSource=True eventNavigation=True eventReused=True eventDuplicateFree=True' "$log_file" \
+    && grep -Fq 'eventUndo=True eventRedo=True eventReload=True eventRestore=True' "$log_file" \
     && grep -Fq 'pointerTool=True pointerMissFailClosed=True pointerHit=True' "$log_file" \
     && grep -Fq 'pointerSelection=True pointerPropertyGrid=True' "$log_file" \
     && grep -Fq 'pointerAdornerExtension=True pointerAdornerPanel=True' "$log_file" \
@@ -705,6 +752,12 @@ fi
 wpf_designer_checksum_after="$(cksum "$wpf_designer_xaml")"
 if [[ "$wpf_designer_checksum_before" != "$wpf_designer_checksum_after" ]]; then
   echo "The WPF designer smoke changed $wpf_designer_xaml." >&2
+  exit 1
+fi
+
+wpf_designer_code_checksum_after="$(cksum "$wpf_designer_code")"
+if [[ "$wpf_designer_code_checksum_before" != "$wpf_designer_code_checksum_after" ]]; then
+  echo "The WPF designer event smoke changed $wpf_designer_code." >&2
   exit 1
 fi
 
