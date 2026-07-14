@@ -88,6 +88,7 @@ wpf_designer_xaml="$repo_root/samples/SharpSnippetCompiler/SharpSnippetCompiler/
 wpf_designer_code="$wpf_designer_xaml.cs"
 report_fixture="$repo_root/src/AddIns/Analysis/CodeQuality/Reporting/DependencyReport.srd"
 wpf_designer_smoke_source="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Src/LibreWpf/LibreWpfWpfDesignerSmokeHook.cs"
+wpf_designer_toolbox_source="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Src/WpfToolbox.cs"
 wpf_designer_event_source="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Src/AbstractEventHandlerService.cs"
 wpf_designer_event_test_project="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Tests/WpfDesign.AddIn.LibreWpf.EventBinding.Tests.csproj"
 wpf_designer_event_test_dll="$repo_root/src/AddIns/DisplayBindings/WpfDesign/WpfDesign.AddIn/Tests/bin/Release/net10.0-windows/WpfDesign.AddIn.LibreWpf.EventBinding.Tests.dll"
@@ -107,7 +108,7 @@ if [[ ! -f "$app_dll" ]]; then
   exit 1
 fi
 
-if grep -Eq 'System\.Reflection|BindingFlags|Get(Field|Method|Event)\(|GetType\(\)\.GetProperty\(|Invoke\(' \
+if grep -Eq 'System\.Reflection|BindingFlags|Get(Field|Method|Event)\(|GetType\(\)\.GetProperty\(|(^|[^[:alnum:]_])Invoke\(' \
   "$wpf_designer_smoke_source" \
   "$wpf_designer_tools_source" \
   "$wpf_designer_pointer_source" \
@@ -204,6 +205,42 @@ done
 for typed_toolbox_contract in TrySelectComponentTool TryInsertSelectedComponent; do
   if ! grep -Fq "$typed_toolbox_contract" "$wpf_designer_smoke_source"; then
     echo "The WPF designer smoke must exercise typed $typed_toolbox_contract integration." >&2
+    exit 1
+  fi
+done
+
+for rendered_toolbox_locator_contract in \
+  WpfToolboxDragSource \
+  TryLocateComponentDragSource \
+  'Control InputControl' \
+  'CreateComponentTool Tool' \
+  'Drawing.Point InputPoint' \
+  'itemIndex - ActiveTab.ScrollIndex' \
+  'sideTabContent.ClientRectangle.Contains(inputPoint)'; do
+  if ! grep -Fq "$rendered_toolbox_locator_contract" "$wpf_designer_toolbox_source"; then
+    echo "The WPF toolbox must preserve the typed $rendered_toolbox_locator_contract rendered-input contract." >&2
+    exit 1
+  fi
+done
+
+for rendered_toolbox_smoke_evidence in \
+  PortableWpfServiceRegistry.TryGetWindowActivationService \
+  PortableWpfServiceKey.PresentationFramework \
+  TryProcessInputEvent \
+  WindowsFormsHost \
+  IsKeyboardFocusWithin \
+  'destinationPoint + new Vector(4, 3)' \
+  'destinationPoint + new Vector(8, 6)' \
+  DispatcherPriority.Input \
+  mouseUpInputKind \
+  RenderedToolboxPresented \
+  RenderedToolboxHostFocusReady \
+  RenderedToolboxDropped \
+  RenderedToolboxUndoReady \
+  RenderedToolboxRedoReady \
+  RenderedToolboxRestoreReady; do
+  if ! grep -Fq "$rendered_toolbox_smoke_evidence" "$wpf_designer_smoke_source"; then
+    echo "The WPF designer smoke must preserve $rendered_toolbox_smoke_evidence rendered-toolbox evidence." >&2
     exit 1
   fi
 done
@@ -633,6 +670,12 @@ run_wpf_designer_smoke() {
     && grep -Fq 'classService=True classProjectFirst=True classStable=True dataContextClass=True' "$log_file" \
     && grep -Fq 'outlineSelection=True outlinePrimary=System.Windows.Controls.Grid' "$log_file" \
     && grep -Fq 'outlinePropertyGrid=True outlineEdit=True outlineUndo=True outlineRedo=True outlineSave=True outlineRestore=True' "$log_file" \
+    && grep -Fq 'renderedToolboxPresented=True renderedToolboxInput=True' "$log_file" \
+    && grep -Fq 'renderedToolboxHostFocus=True renderedToolboxToolSelected=True' "$log_file" \
+    && grep -Fq 'renderedToolboxDropped=True renderedToolboxSelection=True' "$log_file" \
+    && grep -Fq 'renderedToolboxPropertyGrid=True renderedToolboxXaml=True' "$log_file" \
+    && grep -Fq 'renderedToolboxToolReset=True renderedToolboxUndo=True' "$log_file" \
+    && grep -Fq 'renderedToolboxRedo=True renderedToolboxRestore=True' "$log_file" \
     && grep -Fq 'toolboxToolSelected=True toolboxInserted=True toolboxPrimary=System.Windows.Controls.Button' "$log_file" \
     && grep -Fq 'toolboxSelection=True toolboxPropertyGrid=True toolboxXaml=True' "$log_file" \
     && grep -Fq 'toolboxUndo=True toolboxRedo=True toolboxRestore=True toolboxToolReset=True' "$log_file" \
