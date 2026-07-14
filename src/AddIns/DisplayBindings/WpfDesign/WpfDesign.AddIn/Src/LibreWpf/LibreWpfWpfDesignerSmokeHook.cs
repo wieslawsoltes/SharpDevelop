@@ -26,12 +26,15 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Forms.Integration;
 using System.Windows.Media;
+using System.Windows.Threading;
 using System.Xml;
 
 using ICSharpCode.Core;
 using ICSharpCode.SharpDevelop;
 using ICSharpCode.SharpDevelop.Editor;
+using ICSharpCode.SharpDevelop.Gui;
 using ICSharpCode.SharpDevelop.Project;
 using ICSharpCode.SharpDevelop.Workbench;
 using ICSharpCode.WpfDesign;
@@ -40,6 +43,7 @@ using ICSharpCode.WpfDesign.Designer.Extensions;
 using ICSharpCode.WpfDesign.Designer.OutlineView;
 using ICSharpCode.WpfDesign.Designer.PropertyGrid;
 using ICSharpCode.WpfDesign.Designer.Services;
+using ProGPU.Wpf.Interop;
 
 namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 {
@@ -113,6 +117,18 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					|| !outlineResult.EditReady || !outlineResult.UndoReady
 					|| !outlineResult.RedoReady || !outlineResult.SaveReady
 					|| !outlineResult.RestoreReady
+					|| !toolboxResult.RenderedToolboxPresented
+					|| !toolboxResult.RenderedToolboxInputReady
+					|| !toolboxResult.RenderedToolboxHostFocusReady
+					|| !toolboxResult.RenderedToolboxToolSelected
+					|| !toolboxResult.RenderedToolboxDropped
+					|| !toolboxResult.RenderedToolboxSelectionReady
+					|| !toolboxResult.RenderedToolboxPropertyGridReady
+					|| !toolboxResult.RenderedToolboxXamlReady
+					|| !toolboxResult.RenderedToolboxToolResetReady
+					|| !toolboxResult.RenderedToolboxUndoReady
+					|| !toolboxResult.RenderedToolboxRedoReady
+					|| !toolboxResult.RenderedToolboxRestoreReady
 					|| !toolboxResult.ToolSelected || !toolboxResult.Inserted
 					|| !toolboxResult.SelectionReady || !toolboxResult.PropertyGridReady
 					|| !toolboxResult.XamlReady || !toolboxResult.UndoReady
@@ -160,6 +176,18 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 						+ " outlineRedo=" + outlineResult.RedoReady
 						+ " outlineSave=" + outlineResult.SaveReady
 						+ " outlineRestore=" + outlineResult.RestoreReady
+						+ " renderedToolboxPresented=" + toolboxResult.RenderedToolboxPresented
+						+ " renderedToolboxInput=" + toolboxResult.RenderedToolboxInputReady
+						+ " renderedToolboxHostFocus=" + toolboxResult.RenderedToolboxHostFocusReady
+						+ " renderedToolboxToolSelected=" + toolboxResult.RenderedToolboxToolSelected
+						+ " renderedToolboxDropped=" + toolboxResult.RenderedToolboxDropped
+						+ " renderedToolboxSelection=" + toolboxResult.RenderedToolboxSelectionReady
+						+ " renderedToolboxPropertyGrid=" + toolboxResult.RenderedToolboxPropertyGridReady
+						+ " renderedToolboxXaml=" + toolboxResult.RenderedToolboxXamlReady
+						+ " renderedToolboxToolReset=" + toolboxResult.RenderedToolboxToolResetReady
+						+ " renderedToolboxUndo=" + toolboxResult.RenderedToolboxUndoReady
+						+ " renderedToolboxRedo=" + toolboxResult.RenderedToolboxRedoReady
+						+ " renderedToolboxRestore=" + toolboxResult.RenderedToolboxRestoreReady
 						+ " toolboxToolSelected=" + toolboxResult.ToolSelected
 						+ " toolboxInserted=" + toolboxResult.Inserted
 						+ " toolboxPrimary=" + toolboxResult.PrimaryTypeName
@@ -213,6 +241,12 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					+ " outlineSelection=True outlinePrimary=" + outlineResult.PrimaryTypeName
 					+ " outlinePropertyGrid=True outlineEdit=True outlineUndo=True outlineRedo=True"
 					+ " outlineSave=True outlineRestore=True"
+					+ " renderedToolboxPresented=True renderedToolboxInput=True"
+					+ " renderedToolboxHostFocus=True renderedToolboxToolSelected=True"
+					+ " renderedToolboxDropped=True renderedToolboxSelection=True"
+					+ " renderedToolboxPropertyGrid=True renderedToolboxXaml=True"
+					+ " renderedToolboxToolReset=True renderedToolboxUndo=True"
+					+ " renderedToolboxRedo=True renderedToolboxRestore=True"
 					+ " toolboxToolSelected=True toolboxInserted=True"
 					+ " toolboxPrimary=" + toolboxResult.PrimaryTypeName
 					+ " toolboxSelection=True toolboxPropertyGrid=True toolboxXaml=True"
@@ -431,6 +465,21 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			ICSharpCode.WpfDesign.DesignItem createdItem = null;
 
 			try {
+				await VerifyRenderedToolboxDragAsync(designer, container, result);
+				if (!result.RenderedToolboxPresented
+					|| !result.RenderedToolboxInputReady
+					|| !result.RenderedToolboxHostFocusReady
+					|| !result.RenderedToolboxToolSelected
+					|| !result.RenderedToolboxDropped
+					|| !result.RenderedToolboxSelectionReady
+					|| !result.RenderedToolboxPropertyGridReady
+					|| !result.RenderedToolboxXamlReady
+					|| !result.RenderedToolboxToolResetReady
+					|| !result.RenderedToolboxUndoReady
+					|| !result.RenderedToolboxRedoReady
+					|| !result.RenderedToolboxRestoreReady)
+					return result;
+
 				CreateComponentTool selectedTool;
 				result.ToolSelected = WpfToolbox.Instance.TrySelectComponentTool(
 					typeof(System.Windows.Controls.Button),
@@ -510,6 +559,383 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			}
 
 			return result;
+		}
+
+		static async Task VerifyRenderedToolboxDragAsync(
+			WpfViewContent designer,
+			ICSharpCode.WpfDesign.DesignItem preferredContainer,
+			ToolboxSmokeResult result)
+		{
+			const int mouseMoveInputKind = 3;
+			const int mouseDownInputKind = 4;
+			const int mouseUpInputKind = 5;
+			const int leftMouseButton = 1;
+
+			var context = designer.DesignContext;
+			var selection = context.Services.Selection;
+			var undoService = context.Services.GetService<UndoService>();
+			var propertyGridView = designer.PropertyContainer.PropertyGridReplacementContent as PropertyGridView;
+			var originalItems = selection.SelectedItems.ToArray();
+			var originalPrimary = selection.PrimarySelection;
+			string originalXaml = SaveDesignerToString(designer);
+			int originalButtonCount = CountElementsByLocalName(originalXaml, "Button");
+			int originalUndoCount = undoService == null ? -1 : undoService.UndoActions.Count();
+			ICSharpCode.WpfDesign.DesignItem droppedItem = null;
+			Window inputWindow = null;
+			IPortableWindowActivationServiceRegistrar inputActivationService = null;
+			Point lastInputPoint = default(Point);
+			bool inputButtonPressed = false;
+			DispatcherOperation[] queuedInputOperations = null;
+
+			try {
+				PadDescriptor toolsPad = SD.Workbench.GetPad(typeof(ToolsPad));
+				if (toolsPad == null || undoService == null)
+					return;
+
+				toolsPad.BringPadToFront();
+				ContentPresenter presenter = null;
+				WindowsFormsHost host = null;
+				WpfToolboxDragSource dragSource = default(WpfToolboxDragSource);
+				for (int attempt = 0; attempt < 50; attempt++) {
+					var padContent = toolsPad.PadContent as ToolsPad;
+					presenter = padContent == null ? null : padContent.Control as ContentPresenter;
+					host = presenter == null ? null : presenter.Content as WindowsFormsHost;
+					if (host != null) {
+						host.ApplyTemplate();
+						host.UpdateLayout();
+					}
+
+					var toolboxControl = WpfToolbox.Instance.ToolboxControl;
+					result.RenderedToolboxPresented = presenter != null
+						&& host != null
+						&& host.IsLoaded
+						&& host.IsVisible
+						&& PresentationSource.FromVisual(host) != null
+						&& ReferenceEquals(host.Child, toolboxControl)
+						&& toolboxControl.Visible;
+					result.RenderedToolboxInputReady = result.RenderedToolboxPresented
+						&& WpfToolbox.Instance.TryLocateComponentDragSource(
+							typeof(System.Windows.Controls.Button),
+							out dragSource)
+						&& dragSource.InputControl != null
+						&& dragSource.Tool != null
+						&& dragSource.Tool.ComponentType == typeof(System.Windows.Controls.Button)
+						&& IsHostedControlDescendant(toolboxControl, dragSource.InputControl);
+					if (result.RenderedToolboxInputReady)
+						break;
+					await Task.Delay(50);
+				}
+				if (!result.RenderedToolboxInputReady)
+					return;
+
+				Window window = Window.GetWindow(host);
+				IPortableWindowActivationServiceRegistrar activationService;
+				if (window == null
+					|| !PortableWpfServiceRegistry.TryGetWindowActivationService(
+						PortableWpfServiceKey.PresentationFramework,
+						out activationService))
+					return;
+				inputWindow = window;
+				inputActivationService = activationService;
+
+				var designPanel = designer.DesignSurface.DesignPanel;
+				designer.DesignSurface.ApplyTemplate();
+				designer.DesignSurface.UpdateLayout();
+				Point destinationPoint;
+				if (!TryFindRenderedToolboxDropPoint(
+					designPanel,
+					preferredContainer,
+					out destinationPoint))
+					return;
+
+				var destinationPoints = new[] {
+					destinationPoint,
+					destinationPoint + new Vector(4, 3),
+					destinationPoint + new Vector(8, 6)
+				};
+				Point[] destinationWindowPoints = destinationPoints
+					.Select(point => ToWindowInputPoint(window, designPanel.PointToScreen(point)))
+					.ToArray();
+
+				var sourcePoint = dragSource.InputPoint;
+				int dragDistance = Math.Max(8, System.Windows.Forms.SystemInformation.DragSize.Width + 2);
+				int dragX = Math.Min(dragSource.InputControl.ClientSize.Width - 2, sourcePoint.X + dragDistance);
+				if (dragX == sourcePoint.X)
+					dragX = Math.Max(1, sourcePoint.X - dragDistance);
+				if (dragX == sourcePoint.X)
+					return;
+
+				Point sourceWindowPoint = ToWindowInputPoint(
+					window,
+					ToWpfPoint(dragSource.InputControl.PointToScreen(sourcePoint)));
+				Point dragWindowPoint = ToWindowInputPoint(
+					window,
+					ToWpfPoint(dragSource.InputControl.PointToScreen(
+						new System.Drawing.Point(dragX, sourcePoint.Y))));
+
+				bool sourceMoveReady = activationService.TryProcessInputEvent(
+					window,
+					CreatePointerInput(mouseMoveInputKind, sourceWindowPoint, button: 0));
+				bool sourceDownReady = activationService.TryProcessInputEvent(
+					window,
+					CreatePointerInput(mouseDownInputKind, sourceWindowPoint, leftMouseButton));
+				if (sourceDownReady) {
+					inputButtonPressed = true;
+					lastInputPoint = sourceWindowPoint;
+				}
+				result.RenderedToolboxHostFocusReady = sourceDownReady
+					&& host.IsKeyboardFocusWithin;
+				result.RenderedToolboxToolSelected = sourceDownReady
+					&& ReferenceEquals(context.Services.Tool.CurrentTool, dragSource.Tool);
+				if (!sourceMoveReady
+					|| !result.RenderedToolboxHostFocusReady
+					|| !result.RenderedToolboxToolSelected)
+					return;
+
+				bool[] destinationMovesReady = new bool[destinationWindowPoints.Length];
+				bool destinationUpReady = false;
+				Exception queuedInputFailure = null;
+				queuedInputOperations = new DispatcherOperation[destinationWindowPoints.Length + 1];
+				for (int index = 0; index < destinationWindowPoints.Length; index++) {
+					int capturedIndex = index;
+					queuedInputOperations[capturedIndex] = window.Dispatcher.BeginInvoke(
+						DispatcherPriority.Input,
+						new Action(delegate {
+							try {
+								lastInputPoint = destinationWindowPoints[capturedIndex];
+								destinationMovesReady[capturedIndex] = activationService.TryProcessInputEvent(
+									window,
+									CreatePointerInput(
+										mouseMoveInputKind,
+										destinationWindowPoints[capturedIndex],
+										leftMouseButton));
+							} catch (Exception ex) {
+								queuedInputFailure = queuedInputFailure ?? ex;
+							}
+						}));
+				}
+				queuedInputOperations[queuedInputOperations.Length - 1] = window.Dispatcher.BeginInvoke(
+					DispatcherPriority.Input,
+					new Action(delegate {
+						try {
+							lastInputPoint = destinationWindowPoints[destinationWindowPoints.Length - 1];
+							destinationUpReady = activationService.TryProcessInputEvent(
+								window,
+								CreatePointerInput(
+									mouseUpInputKind,
+									destinationWindowPoints[destinationWindowPoints.Length - 1],
+									leftMouseButton));
+							if (destinationUpReady)
+								inputButtonPressed = false;
+						} catch (Exception ex) {
+							queuedInputFailure = queuedInputFailure ?? ex;
+						}
+					}));
+
+				bool dragMoveReady = activationService.TryProcessInputEvent(
+					window,
+					CreatePointerInput(mouseMoveInputKind, dragWindowPoint, leftMouseButton));
+				if (queuedInputFailure != null)
+					throw new InvalidOperationException(
+						"The queued rendered toolbox pointer sequence failed.",
+						queuedInputFailure);
+				result.RenderedToolboxInputReady = dragMoveReady
+					&& destinationMovesReady.All(ready => ready)
+					&& destinationUpReady;
+				if (!result.RenderedToolboxInputReady)
+					return;
+
+				for (int attempt = 0; attempt < 50; attempt++) {
+					droppedItem = selection.PrimarySelection;
+					string droppedXaml = SaveDesignerToString(designer);
+					result.RenderedToolboxDropped = droppedItem != null
+						&& droppedItem.ComponentType == typeof(System.Windows.Controls.Button)
+						&& ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(droppedItem);
+					result.RenderedToolboxSelectionReady = result.RenderedToolboxDropped
+						&& selection.SelectionCount == 1
+						&& selection.SelectedItems.Contains(droppedItem);
+					result.RenderedToolboxPropertyGridReady = result.RenderedToolboxDropped
+						&& propertyGridView != null
+						&& ReferenceEquals(propertyGridView.PropertyGrid.SingleItem, droppedItem)
+						&& propertyGridView.PropertyGrid.SelectedItems != null
+						&& propertyGridView.PropertyGrid.SelectedItems.Contains(droppedItem);
+					result.RenderedToolboxXamlReady = result.RenderedToolboxDropped
+						&& !string.Equals(droppedXaml, originalXaml, StringComparison.Ordinal)
+						&& CountElementsByLocalName(droppedXaml, "Button") == originalButtonCount + 1;
+					result.RenderedToolboxToolResetReady = ReferenceEquals(
+						context.Services.Tool.CurrentTool,
+						context.Services.Tool.PointerTool);
+					if (result.RenderedToolboxSelectionReady
+						&& result.RenderedToolboxPropertyGridReady
+						&& result.RenderedToolboxXamlReady
+						&& result.RenderedToolboxToolResetReady)
+						break;
+					await Task.Delay(50);
+				}
+				if (!result.RenderedToolboxDropped
+					|| !result.RenderedToolboxSelectionReady
+					|| !result.RenderedToolboxPropertyGridReady
+					|| !result.RenderedToolboxXamlReady
+					|| !result.RenderedToolboxToolResetReady)
+					return;
+
+				string committedXaml = SaveDesignerToString(designer);
+				designer.DesignSurface.Undo();
+				result.RenderedToolboxUndoReady = undoService.UndoActions.Count() == originalUndoCount
+					&& !ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(droppedItem)
+					&& designer.DesignSurface.CanRedo()
+					&& string.Equals(SaveDesignerToString(designer), originalXaml, StringComparison.Ordinal);
+
+				designer.DesignSurface.Redo();
+				result.RenderedToolboxRedoReady = undoService.UndoActions.Count() == originalUndoCount + 1
+					&& ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(droppedItem)
+					&& string.Equals(SaveDesignerToString(designer), committedXaml, StringComparison.Ordinal);
+
+				designer.DesignSurface.Undo();
+				selection.SetSelectedComponents(originalItems, ICSharpCode.WpfDesign.SelectionTypes.Replace);
+				if (originalPrimary != null) {
+					selection.SetSelectedComponents(
+						new[] { originalPrimary },
+						ICSharpCode.WpfDesign.SelectionTypes.Primary);
+				}
+				for (int attempt = 0; attempt < 50; attempt++) {
+					bool selectionRestored = ReferenceEquals(selection.PrimarySelection, originalPrimary)
+						&& selection.SelectedItems.Count == originalItems.Length
+						&& originalItems.All(selection.SelectedItems.Contains);
+					bool propertyGridRestored = propertyGridView != null
+						&& ReferenceEquals(propertyGridView.PropertyGrid.SingleItem, originalPrimary);
+					result.RenderedToolboxRestoreReady = result.RenderedToolboxUndoReady
+						&& result.RenderedToolboxRedoReady
+						&& selectionRestored
+						&& propertyGridRestored
+						&& !ICSharpCode.WpfDesign.Designer.ModelTools.IsInDocument(droppedItem)
+						&& undoService.UndoActions.Count() == originalUndoCount
+						&& string.Equals(SaveDesignerToString(designer), originalXaml, StringComparison.Ordinal);
+					if (result.RenderedToolboxRestoreReady)
+						break;
+					await Task.Delay(50);
+				}
+			} finally {
+				if (queuedInputOperations != null) {
+					foreach (DispatcherOperation operation in queuedInputOperations) {
+						if (operation != null)
+							operation.Abort();
+					}
+				}
+				if (inputButtonPressed && inputWindow != null && inputActivationService != null) {
+					try {
+						inputActivationService.TryProcessInputEvent(
+							inputWindow,
+							CreatePointerInput(mouseUpInputKind, lastInputPoint, leftMouseButton));
+					} catch {
+						// Preserve the primary rendered-toolbox failure while still attempting input cleanup.
+					}
+				}
+				context.Services.Tool.CurrentTool = context.Services.Tool.PointerTool;
+				if (undoService != null
+					&& originalUndoCount >= 0
+					&& undoService.UndoActions.Count() > originalUndoCount)
+					designer.DesignSurface.Undo();
+				selection.SetSelectedComponents(originalItems, ICSharpCode.WpfDesign.SelectionTypes.Replace);
+				if (originalPrimary != null) {
+					selection.SetSelectedComponents(
+						new[] { originalPrimary },
+						ICSharpCode.WpfDesign.SelectionTypes.Primary);
+				}
+				if (designer.WorkbenchWindow != null) {
+					designer.WorkbenchWindow.ActiveViewContent = designer;
+					designer.WorkbenchWindow.SelectWindow();
+				}
+			}
+		}
+
+		static bool TryFindRenderedToolboxDropPoint(
+			IDesignPanel designPanel,
+			ICSharpCode.WpfDesign.DesignItem preferredContainer,
+			out Point dropPoint)
+		{
+			dropPoint = default(Point);
+			if (designPanel == null || designPanel.Context == null)
+				return false;
+
+			var panel = designPanel as FrameworkElement;
+			if (panel == null || panel.ActualWidth < 32 || panel.ActualHeight < 32)
+				return false;
+
+			Point fallbackPoint = default(Point);
+			bool hasFallback = false;
+			for (double y = 16; y <= panel.ActualHeight - 24; y += 16) {
+				for (double x = 16; x <= panel.ActualWidth - 24; x += 16) {
+					var firstPoint = new Point(x, y);
+					var secondPoint = firstPoint + new Vector(4, 3);
+					var thirdPoint = firstPoint + new Vector(8, 6);
+					var firstHit = designPanel.HitTest(
+						firstPoint,
+						false,
+						true,
+						ICSharpCode.WpfDesign.HitTestType.Default).ModelHit;
+					if (firstHit == null || firstHit.GetBehavior<IPlacementBehavior>() == null)
+						continue;
+
+					var secondHit = designPanel.HitTest(
+						secondPoint,
+						false,
+						true,
+						ICSharpCode.WpfDesign.HitTestType.Default).ModelHit;
+					var thirdHit = designPanel.HitTest(
+						thirdPoint,
+						false,
+						true,
+						ICSharpCode.WpfDesign.HitTestType.Default).ModelHit;
+					if (!ReferenceEquals(firstHit, secondHit) || !ReferenceEquals(firstHit, thirdHit))
+						continue;
+
+					if (ReferenceEquals(firstHit, preferredContainer)) {
+						dropPoint = firstPoint;
+						return true;
+					}
+					if (!hasFallback) {
+						fallbackPoint = firstPoint;
+						hasFallback = true;
+					}
+				}
+			}
+
+			dropPoint = fallbackPoint;
+			return hasFallback;
+		}
+
+		static bool IsHostedControlDescendant(
+			System.Windows.Forms.Control root,
+			System.Windows.Forms.Control candidate)
+		{
+			for (var current = candidate; current != null; current = current.Parent) {
+				if (ReferenceEquals(current, root))
+					return true;
+			}
+			return false;
+		}
+
+		static Point ToWpfPoint(System.Drawing.Point point)
+		{
+			return new Point(point.X, point.Y);
+		}
+
+		static Point ToWindowInputPoint(Window window, Point screenPoint)
+		{
+			return window.PointFromScreen(screenPoint);
+		}
+
+		static PortableWindowInputEvent CreatePointerInput(
+			int kind,
+			Point point,
+			int button)
+		{
+			return new PortableWindowInputEvent(
+				kind,
+				x: point.X,
+				y: point.Y,
+				button: button);
 		}
 
 		static async Task VerifyEventHandlerAsync(
@@ -1099,6 +1525,18 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 		sealed class ToolboxSmokeResult
 		{
 			public string PrimaryTypeName;
+			public bool RenderedToolboxPresented;
+			public bool RenderedToolboxInputReady;
+			public bool RenderedToolboxHostFocusReady;
+			public bool RenderedToolboxToolSelected;
+			public bool RenderedToolboxDropped;
+			public bool RenderedToolboxSelectionReady;
+			public bool RenderedToolboxPropertyGridReady;
+			public bool RenderedToolboxXamlReady;
+			public bool RenderedToolboxToolResetReady;
+			public bool RenderedToolboxUndoReady;
+			public bool RenderedToolboxRedoReady;
+			public bool RenderedToolboxRestoreReady;
 			public bool ToolSelected;
 			public bool Inserted;
 			public bool SelectionReady;
