@@ -668,10 +668,6 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				Point sourceWindowPoint = ToWindowInputPoint(
 					window,
 					ToWpfPoint(dragSource.InputControl.PointToScreen(sourcePoint)));
-				Point dragWindowPoint = ToWindowInputPoint(
-					window,
-					ToWpfPoint(dragSource.InputControl.PointToScreen(
-						new System.Drawing.Point(dragX, sourcePoint.Y))));
 
 				bool sourceMoveReady = activationService.TryProcessInputEvent(
 					window,
@@ -732,14 +728,20 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 						}
 					}));
 
-				bool dragMoveReady = activationService.TryProcessInputEvent(
-					window,
-					CreatePointerInput(mouseMoveInputKind, dragWindowPoint, leftMouseButton));
+				bool dragThresholdRaised = false;
+				dragSource.InputControl.RaiseMouseMove(
+					new System.Windows.Forms.MouseEventArgs(
+						System.Windows.Forms.MouseButtons.Left,
+						clicks: 0,
+						x: dragX,
+						y: sourcePoint.Y,
+						delta: 0));
+				dragThresholdRaised = true;
 				if (queuedInputFailure != null)
 					throw new InvalidOperationException(
 						"The queued rendered toolbox pointer sequence failed.",
 						queuedInputFailure);
-				result.RenderedToolboxInputReady = dragMoveReady
+				result.RenderedToolboxInputReady = dragThresholdRaised
 					&& destinationMovesReady.All(ready => ready)
 					&& destinationUpReady;
 				if (!result.RenderedToolboxInputReady)

@@ -264,6 +264,7 @@ for rendered_toolbox_smoke_evidence in \
   PortableWpfServiceRegistry.TryGetWindowActivationService \
   PortableWpfServiceKey.PresentationFramework \
   TryProcessInputEvent \
+  InputControl.RaiseMouseMove \
   WindowsFormsHost \
   IsKeyboardFocusWithin \
   'destinationPoint + new Vector(4, 3)' \
