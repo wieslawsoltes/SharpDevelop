@@ -60,7 +60,16 @@ namespace CSharpBinding.FormsDesigner
 		
 		protected override bool IsReloadNeeded()
 		{
-			return base.IsReloadNeeded() || context.DesignerCodeFileDocument.Version.Equals(lastTextContentVersion);
+			return base.IsReloadNeeded() || IsDesignerDocumentVersionChanged(
+				context.DesignerCodeFileDocument.Version,
+				lastTextContentVersion);
+		}
+
+		internal static bool IsDesignerDocumentVersionChanged(
+			ITextSourceVersion currentVersion,
+			ITextSourceVersion loadedVersion)
+		{
+			return !currentVersion.Equals(loadedVersion);
 		}
 		
 		protected override void Initialize()

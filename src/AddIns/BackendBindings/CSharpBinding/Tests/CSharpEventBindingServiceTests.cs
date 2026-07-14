@@ -7,6 +7,7 @@ using CSharpBinding.Parser;
 using CSharpBinding.Refactoring;
 using ICSharpCode.NRefactory.CSharp;
 using ICSharpCode.NRefactory.CSharp.TypeSystem;
+using ICSharpCode.NRefactory.Editor;
 using ICSharpCode.NRefactory.TypeSystem;
 
 namespace CSharpBinding.Tests
@@ -18,6 +19,7 @@ namespace CSharpBinding.Tests
 		public static int Main()
 		{
 			try {
+				DesignerReloadTracksDocumentVersion();
 				ExactPrimaryDeclarationAndCompatibleOverloadAreSelected();
 				LivePrimaryEditorDocumentPrecedesSourceStorage();
 				CurrentDesignerBodyRegionRejectsStaleSemanticLocation();
@@ -30,6 +32,27 @@ namespace CSharpBinding.Tests
 				Console.Error.WriteLine("FAIL: " + ex);
 				return 1;
 			}
+		}
+
+		static void DesignerReloadTracksDocumentVersion()
+		{
+			var versions = new TextSourceVersionProvider();
+			ITextSourceVersion loadedVersion = versions.CurrentVersion;
+			Assert(!CSharpDesignerLoader.IsDesignerDocumentVersionChanged(
+				loadedVersion,
+				loadedVersion),
+			       "An unchanged designer document requested a reload.");
+
+			versions.AppendChange(new TextChangeEventArgs(0, string.Empty, " "));
+			ITextSourceVersion changedVersion = versions.CurrentVersion;
+			Assert(CSharpDesignerLoader.IsDesignerDocumentVersionChanged(
+				changedVersion,
+				loadedVersion),
+			       "A changed designer document did not request a reload.");
+			Assert(CSharpDesignerLoader.IsDesignerDocumentVersionChanged(
+				loadedVersion,
+				null),
+			       "A designer document without a loaded checkpoint did not request a reload.");
 		}
 
 		static void LivePrimaryEditorDocumentPrecedesSourceStorage()
