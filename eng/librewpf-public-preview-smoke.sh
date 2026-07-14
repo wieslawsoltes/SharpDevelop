@@ -267,6 +267,10 @@ for rendered_toolbox_smoke_evidence in \
   InputControl.RaiseMouseMove \
   WindowsFormsHost \
   IsKeyboardFocusWithin \
+  'const int columnCount = 8' \
+  'const int rowCount = 8' \
+  'for (int row = 0; row < rowCount; row++)' \
+  'for (int column = 0; column < columnCount; column++)' \
   'destinationPoint + new Vector(4, 3)' \
   'destinationPoint + new Vector(8, 6)' \
   DispatcherPriority.Input \
