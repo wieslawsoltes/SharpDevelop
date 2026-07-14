@@ -1,0 +1,20 @@
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.11">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>WpfDesign.AddIn.LibreWpf.ChooseClass.Tests</AssemblyName>
+    <RootNamespace>ICSharpCode.WpfDesign.AddIn.Tests</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\..\..\..\Main\ICSharpCode.SharpDevelop.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="WpfDesignerChooseClassServiceTests.cs" />
+    <ProjectReference Include="..\WpfDesign.AddIn.LibreWpf.csproj" />
+  </ItemGroup>
+</Project>
