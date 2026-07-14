@@ -102,6 +102,9 @@ forms_designer_event_binding_source="$repo_root/src/AddIns/BackendBindings/CShar
 forms_designer_loader_source="$repo_root/src/AddIns/BackendBindings/CSharpBinding/Project/Src/FormsDesigner/CSharpDesignerLoader.cs"
 forms_designer_key_handler_source="$repo_root/src/AddIns/DisplayBindings/FormsDesigner/Project/Src/FormKeyHandler.cs"
 forms_designer_view_source="$repo_root/src/AddIns/DisplayBindings/FormsDesigner/Project/Src/DesignerViewContent.cs"
+forms_designer_commands_source="$repo_root/src/AddIns/DisplayBindings/FormsDesigner/Project/Src/Commands/FormsCommands.cs"
+forms_designer_workbench_source="$repo_root/src/Main/SharpDevelop/Workbench/WpfWorkbench.cs"
+forms_designer_verb_smoke_block="$work_root/forms-designer-verb-smoke.cs"
 
 if [[ ! -f "$app_dll" ]]; then
   echo "Missing SharpDevelop runtime: $app_dll" >&2
@@ -198,6 +201,40 @@ for typed_forms_service in IPortableToolStripKeyboardHandlingService IPortableDe
     "$forms_designer_key_handler_source" \
     "$forms_designer_view_source"; then
     echo "The Forms Designer must consume the typed $typed_forms_service contract." >&2
+    exit 1
+  fi
+done
+
+sed -n \
+  '/async Task RunLibreWpfFormsDesignerVerbSmoke(/,/async Task RunLibreWpfFormsDesignerKeyboardAndUnloadSmoke(/p' \
+  "$forms_designer_workbench_source" >"$forms_designer_verb_smoke_block"
+if grep -Eq 'System\.Reflection|BindingFlags|Get(Field|Method|Property|Event)\(|GetType\(\)\.GetProperty\(|dynamic([[:space:]]|$)' \
+  "$forms_designer_verb_smoke_block" \
+  "$forms_designer_commands_source"; then
+  echo "The Forms Designer verb service/menu smoke must keep selected-designer discovery and invocation on typed APIs." >&2
+  exit 1
+fi
+
+for typed_designer_verb_contract in \
+  'host.GetDesigner(verbComponent)' \
+  'menuCommandService.Verbs' \
+  'componentDesigner.Verbs.Add(testVerb)' \
+  'TypeDescriptor.Refresh(verbComponent.GetType())' \
+  'new ICSharpCode.FormsDesigner.Commands.DesignerVerbSubmenuBuilder()' \
+  'builder.BuildItems(null, menuCommandService)' \
+  'builtVerbMenuItem.PerformClick()' \
+  'SelectionTypes.Replace'; do
+  if ! grep -Fq "$typed_designer_verb_contract" "$forms_designer_verb_smoke_block"; then
+    echo "The Forms Designer verb smoke must preserve typed $typed_designer_verb_contract behavior." >&2
+    exit 1
+  fi
+done
+
+for designer_verb_menu_contract in \
+  'foreach (DesignerVerb verb in menuCommandService.Verbs)' \
+  'new ContextMenuCommand(verb)'; do
+  if ! grep -Fq "$designer_verb_menu_contract" "$forms_designer_commands_source"; then
+    echo "The Forms Designer context menu must preserve $designer_verb_menu_contract behavior." >&2
     exit 1
   fi
 done
@@ -602,15 +639,17 @@ run_designer_smoke() {
     && grep -Fq 'LibreWPF owner-draw smoke result=Success' "$log_file" \
     && grep -Fq 'LibreWPF FormsDesigner mutation smoke result=Success' "$log_file" \
     && grep -Fq 'LibreWPF FormsDesigner event-binding smoke result=Success' "$log_file" \
+    && grep -Fq 'LibreWPF FormsDesigner designer-verb smoke result=Success' "$log_file" \
     && grep -Fq 'LibreWPF FormsDesigner keyboard/unload smoke result=Success' "$log_file" \
     && grep -Fq 'service=True portableService=True serviceStable=True componentCreated=True uniqueName=True reusedName=True valueSet=True' "$log_file" \
     && grep -Fq 'undoCleared=True redoRestored=True serializedHandler=True serializedEvent=True serialized=True bindingAfterMerge=True' "$log_file" \
     && grep -Fq 'showCode=True methodCreated=True showCodeReused=True sourceActive=True caretAtHandler=True componentUnsited=True componentParentRemoved=True componentCountRestored=True' "$log_file" \
     && grep -Fq 'componentRemoved=True cleanup=True' "$log_file" \
+    && grep -Fq 'service=True designer=True selected=True cachePrimed=True typeRefreshAdded=True exposed=True builder=True invoked=True selectionInvalidated=True reselection=True typeRefreshRemoved=True removed=True selectionRestored=True componentRemoved=True cleanup=True invocations=1' "$log_file" \
     && grep -Fq 'toolboxUndoRedo=True' "$log_file" \
     && grep -Fq 'toolboxDeleteUndoRedo=True' "$log_file" \
     && grep -Fq 'LibreWPF WorkbenchStartup application exit code=0' "$log_file"; then
-    grep -E 'FormsDesigner (smoke|custom-paint smoke|mutation smoke|event-binding smoke|keyboard/unload smoke) result=|owner-draw smoke result=|application exit code=' "$log_file"
+    grep -E 'FormsDesigner (smoke|custom-paint smoke|mutation smoke|event-binding smoke|designer-verb smoke|keyboard/unload smoke) result=|owner-draw smoke result=|application exit code=' "$log_file"
     return 0
   fi
 
