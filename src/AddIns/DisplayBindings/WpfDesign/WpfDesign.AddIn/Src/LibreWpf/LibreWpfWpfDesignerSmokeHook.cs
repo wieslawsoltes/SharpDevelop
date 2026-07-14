@@ -31,8 +31,10 @@ using System.Xml;
 
 using ICSharpCode.Core;
 using ICSharpCode.SharpDevelop;
+using ICSharpCode.SharpDevelop.Editor;
 using ICSharpCode.SharpDevelop.Project;
 using ICSharpCode.SharpDevelop.Workbench;
+using ICSharpCode.WpfDesign;
 using ICSharpCode.WpfDesign.Adorners;
 using ICSharpCode.WpfDesign.Designer.Extensions;
 using ICSharpCode.WpfDesign.Designer.OutlineView;
@@ -111,6 +113,12 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					|| !toolboxResult.XamlReady || !toolboxResult.UndoReady
 					|| !toolboxResult.RedoReady || !toolboxResult.RestoreReady
 					|| !toolboxResult.ToolResetReady
+					|| !toolboxResult.EventServiceReady || !toolboxResult.EventFailClosedReady
+					|| !toolboxResult.EventCreatedReady || !toolboxResult.EventXamlReady
+					|| !toolboxResult.EventSourceReady || !toolboxResult.EventNavigationReady
+					|| !toolboxResult.EventReusedReady || !toolboxResult.EventDuplicateFreeReady
+					|| !toolboxResult.EventUndoReady || !toolboxResult.EventRedoReady
+					|| !toolboxResult.EventReloadReady || !toolboxResult.EventRestoreReady
 					|| !toolboxResult.PointerToolReady || !toolboxResult.PointerMissFailClosed
 					|| !toolboxResult.PointerHitReady || !toolboxResult.PointerSelectionReady
 					|| !toolboxResult.PointerPropertyGridReady
@@ -153,6 +161,19 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 						+ " toolboxRedo=" + toolboxResult.RedoReady
 						+ " toolboxRestore=" + toolboxResult.RestoreReady
 						+ " toolboxToolReset=" + toolboxResult.ToolResetReady
+						+ " eventService=" + toolboxResult.EventServiceReady
+						+ " eventFailClosed=" + toolboxResult.EventFailClosedReady
+						+ " eventFailure=" + toolboxResult.EventFailure
+						+ " eventCreated=" + toolboxResult.EventCreatedReady
+						+ " eventXaml=" + toolboxResult.EventXamlReady
+						+ " eventSource=" + toolboxResult.EventSourceReady
+						+ " eventNavigation=" + toolboxResult.EventNavigationReady
+						+ " eventReused=" + toolboxResult.EventReusedReady
+						+ " eventDuplicateFree=" + toolboxResult.EventDuplicateFreeReady
+						+ " eventUndo=" + toolboxResult.EventUndoReady
+						+ " eventRedo=" + toolboxResult.EventRedoReady
+						+ " eventReload=" + toolboxResult.EventReloadReady
+						+ " eventRestore=" + toolboxResult.EventRestoreReady
 						+ " pointerTool=" + toolboxResult.PointerToolReady
 						+ " pointerMissFailClosed=" + toolboxResult.PointerMissFailClosed
 						+ " pointerHit=" + toolboxResult.PointerHitReady
@@ -186,6 +207,9 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 					+ " toolboxPrimary=" + toolboxResult.PrimaryTypeName
 					+ " toolboxSelection=True toolboxPropertyGrid=True toolboxXaml=True"
 					+ " toolboxUndo=True toolboxRedo=True toolboxRestore=True toolboxToolReset=True"
+					+ " eventService=True eventFailClosed=True eventFailure=None eventCreated=True eventXaml=True"
+					+ " eventSource=True eventNavigation=True eventReused=True eventDuplicateFree=True"
+					+ " eventUndo=True eventRedo=True eventReload=True eventRestore=True"
 					+ " pointerTool=True pointerMissFailClosed=True pointerHit=True"
 					+ " pointerSelection=True pointerPropertyGrid=True"
 					+ " pointerAdornerExtension=True pointerAdornerPanel=True"
@@ -403,6 +427,8 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 				result.XamlReady = !string.Equals(insertedXaml, originalXaml, StringComparison.Ordinal)
 					&& CountElementsByLocalName(insertedXaml, "Button") == originalButtonCount + 1;
 				if (result.XamlReady)
+					await VerifyEventHandlerAsync(designer, createdItem, result);
+				if (result.XamlReady && result.EventRestoreReady)
 					await VerifyPointerManipulationAsync(designer, createdItem, insertedXaml, result);
 
 				designer.DesignSurface.Undo();
@@ -440,6 +466,160 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			}
 
 			return result;
+		}
+
+		static async Task VerifyEventHandlerAsync(
+			WpfViewContent designer,
+			ICSharpCode.WpfDesign.DesignItem item,
+			ToolboxSmokeResult result)
+		{
+			var context = designer.DesignContext;
+			var eventService = context.Services.GetService<IEventHandlerService>() as SharpDevelopEventHandlerService;
+			var undoService = context.Services.GetService<UndoService>();
+			var eventProperty = item.Properties.GetProperty("Click");
+			var nonEventProperty = item.Properties.GetProperty("Content");
+			FileName codeBehindFile = null;
+			result.EventServiceReady = eventService != null
+				&& undoService != null
+				&& eventProperty != null
+				&& eventProperty.IsEvent
+				&& nonEventProperty != null
+				&& !nonEventProperty.IsEvent
+				&& eventService.TryGetPrimaryCodeBehindFile(out codeBehindFile);
+			if (!result.EventServiceReady)
+				return;
+			await Task.Yield();
+
+			IViewContent existingSourceView = SD.FileService.GetOpenFile(codeBehindFile);
+			IViewContent sourceView = SD.FileService.OpenFile(codeBehindFile, false);
+			ITextEditor editor = sourceView != null ? sourceView.GetService<ITextEditor>() : null;
+			OpenedFile openedFile = SD.FileService.GetOpenedFile(codeBehindFile);
+			if (editor == null || editor.Document == null || openedFile == null)
+				return;
+
+			string originalSource = editor.Document.Text;
+			int originalCaretOffset = editor.Caret.Offset;
+			bool originalDirty = openedFile.IsDirty;
+			string originalXaml = SaveDesignerToString(designer);
+			string originalName = item.Name;
+			bool originalEventIsSet = eventProperty.IsSet;
+			string originalEventValue = eventProperty.ValueOnInstance as string;
+			int originalUndoCount = undoService.UndoActions.Count();
+			bool sourceRestored = false;
+			bool sourceClosed = existingSourceView != null;
+
+			try {
+				if (designer.WorkbenchWindow != null) {
+					designer.WorkbenchWindow.ActiveViewContent = designer;
+					designer.WorkbenchWindow.SelectWindow();
+				}
+
+				result.EventFailClosedReady = !eventService.TryCreateEventHandler(nonEventProperty)
+					&& string.Equals(editor.Document.Text, originalSource, StringComparison.Ordinal)
+					&& editor.Caret.Offset == originalCaretOffset
+					&& openedFile.IsDirty == originalDirty
+					&& string.Equals(SaveDesignerToString(designer), originalXaml, StringComparison.Ordinal)
+					&& string.Equals(item.Name, originalName, StringComparison.Ordinal)
+					&& eventProperty.IsSet == originalEventIsSet
+					&& string.Equals(eventProperty.ValueOnInstance as string, originalEventValue, StringComparison.Ordinal)
+					&& undoService.UndoActions.Count() == originalUndoCount;
+				if (!result.EventFailClosedReady)
+					return;
+
+				EventHandlerCreationFailure eventFailure;
+				bool created = eventService.TryCreateEventHandler(eventProperty, out eventFailure);
+				result.EventFailure = eventFailure;
+				string handlerName = eventProperty.ValueOnInstance as string;
+				string createdSource = editor.Document.Text;
+				int firstMethodCount = CountMethodOccurrences(createdSource, handlerName);
+				int handlerOffset = string.IsNullOrEmpty(handlerName)
+					? -1
+					: createdSource.IndexOf(handlerName + "(", StringComparison.Ordinal);
+				int caretOffset = editor.Caret.Offset;
+				result.EventCreatedReady = created
+					&& !string.IsNullOrEmpty(handlerName)
+					&& !string.IsNullOrEmpty(item.Name)
+					&& firstMethodCount == 1;
+				result.EventXamlReady = result.EventCreatedReady
+					&& SaveDesignerToString(designer).Contains("Click=\"" + handlerName + "\"")
+					&& string.Equals(item.Name + "_Click", handlerName, StringComparison.Ordinal);
+				result.EventSourceReady = result.EventCreatedReady
+					&& !string.Equals(createdSource, originalSource, StringComparison.Ordinal);
+				result.EventNavigationReady = sourceView.WorkbenchWindow != null
+					&& ReferenceEquals(sourceView.WorkbenchWindow.ActiveViewContent, sourceView)
+					&& handlerOffset >= 0
+					&& caretOffset >= handlerOffset
+					&& caretOffset <= Math.Min(editor.Document.TextLength, handlerOffset + 800);
+				if (!result.EventXamlReady || !result.EventSourceReady || !result.EventNavigationReady)
+					return;
+
+				IProject project = SD.ProjectService.FindProjectContainingFile(codeBehindFile);
+				SD.ParserService.Parse(codeBehindFile, editor.Document, project);
+				bool reused = eventService.TryCreateEventHandler(eventProperty);
+				string reusedSource = editor.Document.Text;
+				int secondMethodCount = CountMethodOccurrences(reusedSource, handlerName);
+				int reusedCaretOffset = editor.Caret.Offset;
+				result.EventReusedReady = reused
+					&& string.Equals(reusedSource, createdSource, StringComparison.Ordinal)
+					&& sourceView.WorkbenchWindow != null
+					&& ReferenceEquals(sourceView.WorkbenchWindow.ActiveViewContent, sourceView)
+					&& reusedCaretOffset >= handlerOffset
+					&& reusedCaretOffset <= Math.Min(editor.Document.TextLength, handlerOffset + 800);
+				result.EventDuplicateFreeReady = secondMethodCount == firstMethodCount && secondMethodCount == 1;
+				result.EventReloadReady = result.EventReusedReady && result.EventDuplicateFreeReady;
+				if (!result.EventReloadReady)
+					return;
+
+				designer.DesignSurface.Undo();
+				result.EventUndoReady = undoService.UndoActions.Count() == originalUndoCount
+					&& designer.DesignSurface.CanRedo()
+					&& string.Equals(item.Name, originalName, StringComparison.Ordinal)
+					&& eventProperty.IsSet == originalEventIsSet
+					&& string.Equals(eventProperty.ValueOnInstance as string, originalEventValue, StringComparison.Ordinal);
+
+				designer.DesignSurface.Redo();
+				result.EventRedoReady = undoService.UndoActions.Count() == originalUndoCount + 1
+					&& string.Equals(eventProperty.ValueOnInstance as string, handlerName, StringComparison.Ordinal)
+					&& SaveDesignerToString(designer).Contains("Click=\"" + handlerName + "\"");
+
+				designer.DesignSurface.Undo();
+			} finally {
+				if (undoService.UndoActions.Count() > originalUndoCount)
+					designer.DesignSurface.Undo();
+				if (!string.Equals(editor.Document.Text, originalSource, StringComparison.Ordinal))
+					editor.Document.Text = originalSource;
+				editor.Caret.Offset = Math.Max(
+					0,
+					Math.Min(originalCaretOffset, editor.Document.TextLength));
+				openedFile.IsDirty = originalDirty;
+				try {
+					IProject project = SD.ProjectService.FindProjectContainingFile(codeBehindFile);
+					SD.ParserService.Parse(codeBehindFile, editor.Document, project);
+				} catch {
+				}
+				sourceRestored = string.Equals(editor.Document.Text, originalSource, StringComparison.Ordinal)
+					&& editor.Caret.Offset == originalCaretOffset
+					&& openedFile.IsDirty == originalDirty;
+
+				if (designer.WorkbenchWindow != null) {
+					designer.WorkbenchWindow.ActiveViewContent = designer;
+					designer.WorkbenchWindow.SelectWindow();
+				}
+				if (existingSourceView == null && sourceView.WorkbenchWindow != null) {
+					sourceView.WorkbenchWindow.CloseWindow(true);
+					sourceClosed = SD.FileService.GetOpenFile(codeBehindFile) == null;
+				}
+				bool xamlRestored = string.Equals(SaveDesignerToString(designer), originalXaml, StringComparison.Ordinal)
+					&& string.Equals(item.Name, originalName, StringComparison.Ordinal)
+					&& eventProperty.IsSet == originalEventIsSet
+					&& string.Equals(eventProperty.ValueOnInstance as string, originalEventValue, StringComparison.Ordinal)
+					&& undoService.UndoActions.Count() == originalUndoCount;
+				result.EventRestoreReady = result.EventUndoReady
+					&& result.EventRedoReady
+					&& xamlRestored
+					&& sourceRestored
+					&& sourceClosed;
+			}
 		}
 
 		static async Task VerifyPointerManipulationAsync(
@@ -838,6 +1018,20 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			return document.SelectNodes("//*[local-name()='" + localName + "']").Count;
 		}
 
+		static int CountMethodOccurrences(string source, string handlerName)
+		{
+			if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(handlerName))
+				return 0;
+			int count = 0;
+			int offset = 0;
+			string token = handlerName + "(";
+			while ((offset = source.IndexOf(token, offset, StringComparison.Ordinal)) >= 0) {
+				count++;
+				offset += token.Length;
+			}
+			return count;
+		}
+
 		sealed class OutlineSmokeResult
 		{
 			public string PrimaryTypeName;
@@ -862,6 +1056,19 @@ namespace ICSharpCode.WpfDesign.AddIn.LibreWpf
 			public bool RedoReady;
 			public bool RestoreReady;
 			public bool ToolResetReady;
+			public bool EventServiceReady;
+			public bool EventFailClosedReady;
+			public bool EventCreatedReady;
+			public bool EventXamlReady;
+			public bool EventSourceReady;
+			public bool EventNavigationReady;
+			public bool EventReusedReady;
+			public bool EventDuplicateFreeReady;
+			public bool EventUndoReady;
+			public bool EventRedoReady;
+			public bool EventReloadReady;
+			public bool EventRestoreReady;
+			public EventHandlerCreationFailure EventFailure;
 			public bool PointerToolReady;
 			public bool PointerMissFailClosed;
 			public bool PointerHitReady;
