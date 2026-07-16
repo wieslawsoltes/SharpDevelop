@@ -153,10 +153,22 @@ namespace ICSharpCode.SharpDevelop
 		
 		static unsafe string FindMimeType(byte[] buffer, int offset, int length)
 		{
+			if (Environment.OSVersion.Platform != PlatformID.Win32NT)
+				return FindPortableMimeType(buffer, offset, length);
+
 			fixed (byte *b = &buffer[offset]) {
 				const int FMFD_ENABLEMIMESNIFFING = 0x00000002;
 				IntPtr mimeout;
-				int result = FindMimeFromData(IntPtr.Zero, null, b, length, null, FMFD_ENABLEMIMESNIFFING, out mimeout, 0);
+				int result;
+				try {
+					result = FindMimeFromData(IntPtr.Zero, null, b, length, null, FMFD_ENABLEMIMESNIFFING, out mimeout, 0);
+				} catch (DllNotFoundException) {
+					return FindPortableMimeType(buffer, offset, length);
+				} catch (EntryPointNotFoundException) {
+					return FindPortableMimeType(buffer, offset, length);
+				} catch (BadImageFormatException) {
+					return FindPortableMimeType(buffer, offset, length);
+				}
 				
 				if (result != 0)
 					throw Marshal.GetExceptionForHR(result);
@@ -164,6 +176,41 @@ namespace ICSharpCode.SharpDevelop
 				Marshal.FreeCoTaskMem(mimeout);
 				return mime;
 			}
+		}
+
+		static string FindPortableMimeType(byte[] buffer, int offset, int length)
+		{
+			if (HasPrefix(buffer, offset, length, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a))
+				return "image/png";
+			if (HasPrefix(buffer, offset, length, 0xff, 0xd8, 0xff))
+				return "image/jpeg";
+			if (HasPrefix(buffer, offset, length, 0x47, 0x49, 0x46, 0x38, 0x37, 0x61)
+			    || HasPrefix(buffer, offset, length, 0x47, 0x49, 0x46, 0x38, 0x39, 0x61))
+				return "image/gif";
+			if (HasPrefix(buffer, offset, length, 0x42, 0x4d))
+				return "image/bmp";
+			if (HasPrefix(buffer, offset, length, 0x00, 0x00, 0x01, 0x00))
+				return "image/x-icon";
+			if (HasPrefix(buffer, offset, length, 0x25, 0x50, 0x44, 0x46, 0x2d))
+				return "application/pdf";
+			if (HasPrefix(buffer, offset, length, 0x50, 0x4b, 0x03, 0x04)
+			    || HasPrefix(buffer, offset, length, 0x50, 0x4b, 0x05, 0x06)
+			    || HasPrefix(buffer, offset, length, 0x50, 0x4b, 0x07, 0x08))
+				return "application/zip";
+
+			return Binary;
+		}
+
+		static bool HasPrefix(byte[] buffer, int offset, int length, params byte[] prefix)
+		{
+			if (length < prefix.Length || offset < 0 || offset > buffer.Length - length)
+				return false;
+			for (int i = 0; i < prefix.Length; i++) {
+				if (buffer[offset + i] != prefix[i])
+					return false;
+			}
+
+			return true;
 		}
 
 		public static string FindMimeType(byte[] buffer)

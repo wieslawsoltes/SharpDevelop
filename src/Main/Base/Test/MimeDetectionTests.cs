@@ -71,6 +71,18 @@ namespace ICSharpCode.SharpDevelop.Tests
 			TestMime(LoadFile("ICSharpCode.SharpDevelop.mime_utf-16_le_test.txt"), "text/plain");
 			TestMime(LoadFile("ICSharpCode.SharpDevelop.mime_bug1.txt"), "text/plain");
 		}
+
+		[TestCase(new byte[] { 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a }, "image/png")]
+		[TestCase(new byte[] { 0xff, 0xd8, 0xff, 0xe0 }, "image/jpeg")]
+		[TestCase(new byte[] { 0x47, 0x49, 0x46, 0x38, 0x39, 0x61 }, "image/gif")]
+		[TestCase(new byte[] { 0x42, 0x4d, 0x00, 0x00 }, "image/bmp")]
+		[TestCase(new byte[] { 0x00, 0x00, 0x01, 0x00 }, "image/x-icon")]
+		[TestCase(new byte[] { 0x25, 0x50, 0x44, 0x46, 0x2d }, "application/pdf")]
+		[TestCase(new byte[] { 0x50, 0x4b, 0x03, 0x04 }, "application/zip")]
+		public void PortableBinarySignatures(byte[] bytes, string expectedMime)
+		{
+			TestMime(bytes, expectedMime);
+		}
 		
 		byte[] LoadFile(string resourceName)
 		{
