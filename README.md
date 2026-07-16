@@ -18,7 +18,7 @@ Looking for the tech notes (Fine Art of Commenting, Coding Style Guide, and more
 ### LibreWPF / LibreWinForms portable build
 
 The portable ProGPU/Silk.NET build consumes the public LibreWPF and LibreWinForms
-`0.1.0-preview.11` packages from NuGet.org:
+`0.1.0-preview.18` packages from NuGet.org:
 
 ```sh
 dotnet build src/Main/SharpDevelop/SharpDevelop.Full.LibreWpf.csproj -c Release
