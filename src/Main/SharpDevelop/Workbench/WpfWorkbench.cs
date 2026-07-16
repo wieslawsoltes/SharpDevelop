@@ -53,6 +53,9 @@ using ICSharpCode.SharpDevelop.Services;
 using ICSharpCode.SharpDevelop.Startup;
 using ICSharpCode.SharpDevelop.Templates;
 using ICSharpCode.SharpDevelop.WinForms;
+#if LIBREWPF
+using ProGPU.Wpf.Interop;
+#endif
 
 namespace ICSharpCode.SharpDevelop.Workbench
 {
@@ -492,6 +495,13 @@ namespace ICSharpCode.SharpDevelop.Workbench
 			if (!string.IsNullOrEmpty(formsDesignerSmoke)) {
 				Dispatcher.BeginInvoke(new Action(async delegate {
 					await RunLibreWpfFormsDesignerSmoke(formsDesignerSmoke);
+				}), DispatcherPriority.ApplicationIdle);
+			}
+
+			string projectBrowserOpenSmoke = Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_PROJECT_BROWSER_OPEN_SMOKE");
+			if (!string.IsNullOrEmpty(projectBrowserOpenSmoke)) {
+				Dispatcher.BeginInvoke(new Action(async delegate {
+					await RunLibreWpfProjectBrowserOpenSmoke(projectBrowserOpenSmoke);
 				}), DispatcherPriority.ApplicationIdle);
 			}
 
@@ -1504,6 +1514,168 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				Console.WriteLine("LibreWPF build smoke failed: " + ex);
 				SD.StatusBar.SetMessage("LibreWPF build smoke failed: " + ex.Message);
 			}
+		}
+
+		async Task RunLibreWpfProjectBrowserOpenSmoke(string requestedFile)
+		{
+			System.Windows.Forms.TreeView tree = null;
+			System.Windows.Forms.Integration.WindowsFormsHost host = null;
+			FileNode fileNode = null;
+			var mouseDownClicks = new List<int>();
+			var mouseUpClicks = new List<int>();
+			var mouseDoubleClickClicks = new List<int>();
+			System.Windows.Forms.MouseEventHandler mouseDown = delegate(object sender, System.Windows.Forms.MouseEventArgs e) {
+				mouseDownClicks.Add(e.Clicks);
+			};
+			System.Windows.Forms.MouseEventHandler mouseUp = delegate(object sender, System.Windows.Forms.MouseEventArgs e) {
+				mouseUpClicks.Add(e.Clicks);
+			};
+			System.Windows.Forms.MouseEventHandler mouseDoubleClick = delegate(object sender, System.Windows.Forms.MouseEventArgs e) {
+				mouseDoubleClickClicks.Add(e.Clicks);
+			};
+
+			try {
+				for (int attempt = 0; attempt < 100; attempt++) {
+					PadDescriptor pad = SD.Workbench.GetPad(typeof(ProjectBrowserPad));
+					if (pad != null) {
+						pad.BringPadToFront();
+						tree = ProjectBrowserPad.Instance.ProjectBrowserControl.TreeView;
+						tree.ExpandAll();
+						fileNode = FindLibreWpfProjectBrowserFileNode(tree.Nodes, requestedFile);
+						host = FindLibreWpfWindowsFormsHost(this, tree);
+						if (fileNode != null && host != null && host.IsLoaded)
+							break;
+					}
+
+					await Task.Delay(50);
+				}
+
+				if (tree == null || fileNode == null || host == null) {
+					Console.WriteLine("LibreWPF ProjectBrowser open smoke result=Partial reason=TargetMissing"
+						+ " tree=" + (tree != null)
+						+ " file=" + (fileNode != null)
+						+ " host=" + (host != null));
+					return;
+				}
+
+				tree.SelectedNode = fileNode;
+				fileNode.EnsureVisible();
+				await Task.Delay(100);
+
+				System.Drawing.Rectangle bounds = fileNode.Bounds;
+				System.Drawing.Point screenPoint = tree.PointToScreen(new System.Drawing.Point(
+					bounds.Left + Math.Max(1, bounds.Width / 2),
+					bounds.Top + Math.Max(1, bounds.Height / 2)));
+				Point windowPoint = PointFromScreen(new Point(screenPoint.X, screenPoint.Y));
+				bool hit = ReferenceEquals(InputHitTest(windowPoint), host);
+				if (!PortableWpfServiceRegistry.TryGetWindowActivationService(
+						PortableWpfServiceKey.PresentationFramework,
+						out IPortableWindowActivationServiceRegistrar activationService)) {
+					Console.WriteLine("LibreWPF ProjectBrowser open smoke result=Partial reason=ActivationServiceMissing");
+					return;
+				}
+
+				tree.MouseDown += mouseDown;
+				tree.MouseUp += mouseUp;
+				tree.MouseDoubleClick += mouseDoubleClick;
+				bool inputAccepted = activationService.TryProcessInputEvent(
+						this,
+						new PortableWindowInputEvent(kind: 3, x: windowPoint.X, y: windowPoint.Y))
+					&& activationService.TryProcessInputEvent(
+						this,
+						new PortableWindowInputEvent(kind: 4, x: windowPoint.X, y: windowPoint.Y, button: 1))
+					&& activationService.TryProcessInputEvent(
+						this,
+						new PortableWindowInputEvent(kind: 5, x: windowPoint.X, y: windowPoint.Y, button: 1))
+					&& activationService.TryProcessInputEvent(
+						this,
+						new PortableWindowInputEvent(kind: 4, x: windowPoint.X, y: windowPoint.Y, button: 1))
+					&& activationService.TryProcessInputEvent(
+						this,
+						new PortableWindowInputEvent(kind: 5, x: windowPoint.X, y: windowPoint.Y, button: 1));
+				await Task.Delay(250);
+
+				bool opened = SD.FileService.GetOpenedFile(fileNode.FileName) != null;
+				bool success = hit
+					&& inputAccepted
+					&& mouseDownClicks.SequenceEqual(new[] { 1, 2 })
+					&& mouseUpClicks.SequenceEqual(new[] { 1, 2 })
+					&& mouseDoubleClickClicks.SequenceEqual(new[] { 2 })
+					&& opened;
+				string message = "LibreWPF ProjectBrowser open smoke result=" + (success ? "Success" : "Partial")
+					+ " file=" + fileNode.FileName
+					+ " hit=" + hit
+					+ " input=" + inputAccepted
+					+ " downs=" + string.Join(",", mouseDownClicks)
+					+ " ups=" + string.Join(",", mouseUpClicks)
+					+ " doubles=" + string.Join(",", mouseDoubleClickClicks)
+					+ " opened=" + opened;
+				Console.WriteLine(message);
+				SD.StatusBar.SetMessage(message);
+			} catch (Exception ex) {
+				Console.WriteLine("LibreWPF ProjectBrowser open smoke failed: " + ex);
+				SD.StatusBar.SetMessage("LibreWPF ProjectBrowser open smoke failed: " + ex.Message);
+			} finally {
+				if (tree != null) {
+					tree.MouseDown -= mouseDown;
+					tree.MouseUp -= mouseUp;
+					tree.MouseDoubleClick -= mouseDoubleClick;
+				}
+			}
+		}
+
+		static FileNode FindLibreWpfProjectBrowserFileNode(
+			System.Windows.Forms.TreeNodeCollection nodes,
+			string requestedFile)
+		{
+			foreach (System.Windows.Forms.TreeNode node in nodes) {
+				FileNode fileNode = node as FileNode;
+				if (fileNode != null
+					&& File.Exists(fileNode.FileName)
+					&& SD.FileService.GetOpenedFile(fileNode.FileName) == null
+					&& (string.IsNullOrEmpty(requestedFile)
+						|| string.Equals(requestedFile, "1", StringComparison.Ordinal)
+						|| string.Equals(fileNode.FileName, requestedFile, StringComparison.OrdinalIgnoreCase)
+						|| string.Equals(Path.GetFileName(fileNode.FileName), requestedFile, StringComparison.OrdinalIgnoreCase))) {
+					return fileNode;
+				}
+
+				FileNode nested = FindLibreWpfProjectBrowserFileNode(node.Nodes, requestedFile);
+				if (nested != null)
+					return nested;
+			}
+
+			return null;
+		}
+
+		static System.Windows.Forms.Integration.WindowsFormsHost FindLibreWpfWindowsFormsHost(
+			DependencyObject root,
+			System.Windows.Forms.Control target)
+		{
+			var host = root as System.Windows.Forms.Integration.WindowsFormsHost;
+			if (host != null && IsLibreWpfHostedControl(host.Child, target))
+				return host;
+
+			int childCount = VisualTreeHelper.GetChildrenCount(root);
+			for (int i = 0; i < childCount; i++) {
+				var nested = FindLibreWpfWindowsFormsHost(VisualTreeHelper.GetChild(root, i), target);
+				if (nested != null)
+					return nested;
+			}
+
+			return null;
+		}
+
+		static bool IsLibreWpfHostedControl(
+			System.Windows.Forms.Control root,
+			System.Windows.Forms.Control target)
+		{
+			for (System.Windows.Forms.Control current = target; current != null; current = current.Parent) {
+				if (ReferenceEquals(current, root))
+					return true;
+			}
+
+			return false;
 		}
 
 		async Task<bool> WaitForLibreWpfBuildSmokeTarget(string mode)
