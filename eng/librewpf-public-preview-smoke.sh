@@ -5,11 +5,23 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dotnet_cmd="${DOTNET:-dotnet}"
 expected_version="${LIBREWPF_SHARPDEVELOP_EXPECTED_VERSION:-$(sed -n 's:.*<ProGpuWpfSdkVersion>\([^<]*\)</ProGpuWpfSdkVersion>.*:\1:p' "$repo_root/Directory.Build.props" | head -n 1)}"
+expected_progpu_version="${LIBREWPF_SHARPDEVELOP_EXPECTED_PROGPU_VERSION:-$(sed -n 's:.*<ProGpuPackageVersion>\([^<]*\)</ProGpuPackageVersion>.*:\1:p' "$repo_root/Directory.Build.props" | head -n 1)}"
+expected_winforms_version="${LIBREWPF_SHARPDEVELOP_EXPECTED_WINFORMS_VERSION:-$(sed -n 's:.*<ProGpuWpfLibreWinFormsPackageVersion>\([^<]*\)</ProGpuWpfLibreWinFormsPackageVersion>.*:\1:p' "$repo_root/Directory.Build.props" | head -n 1)}"
 work_root="${LIBREWPF_SHARPDEVELOP_SMOKE_WORK_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/sharpdevelop-librewpf-public.XXXXXX")}"
 keep_work_root="${LIBREWPF_SHARPDEVELOP_KEEP_SMOKE_WORK_ROOT:-0}"
 
 if [[ -z "$expected_version" ]]; then
   echo "Unable to read ProGpuWpfSdkVersion from Directory.Build.props." >&2
+  exit 1
+fi
+
+if [[ -z "$expected_progpu_version" ]]; then
+  echo "Unable to read ProGpuPackageVersion from Directory.Build.props." >&2
+  exit 1
+fi
+
+if [[ -z "$expected_winforms_version" ]]; then
+  echo "Unable to read ProGpuWpfLibreWinFormsPackageVersion from Directory.Build.props." >&2
   exit 1
 fi
 
@@ -30,7 +42,7 @@ if git -C "$repo_root" grep --recurse-submodules -n -E 'preview\.sharpdevelop\.1
   exit 1
 fi
 
-echo "Building SharpDevelop against public LibreWPF $expected_version packages..."
+echo "Building SharpDevelop against public LibreWPF $expected_version, LibreWinForms $expected_winforms_version, and ProGPU $expected_progpu_version packages..."
 NUGET_PACKAGES="$work_root/nuget" \
   "$dotnet_cmd" build "$repo_root/src/Main/SharpDevelop/SharpDevelop.Full.LibreWpf.csproj" \
   --configuration Release \
@@ -46,12 +58,18 @@ if [[ ! -f "$assets_file" ]]; then
   exit 1
 fi
 
-package_ids=(
-  LibreWPF.Interop
+librewpf_package_ids=(
   LibreWPF.ProGPU
   LibreWPF.Transport
+)
+
+librewinforms_package_ids=(
   LibreWinForms.System.Windows.Forms
   LibreWinForms.WindowsFormsIntegration
+)
+
+progpu_package_ids=(
+  LibreWPF.Interop
   ProGPU.Backend
   ProGPU.Compute
   ProGPU.DirectX
@@ -63,12 +81,21 @@ package_ids=(
   ProGPU.Vector
 )
 
-for package_id in "${package_ids[@]}"; do
-  if ! grep -Fq "\"$package_id/$expected_version\"" "$assets_file"; then
-    echo "Restore assets do not contain $package_id/$expected_version." >&2
-    exit 1
-  fi
-done
+verify_package_versions() {
+  local version="$1"
+  shift
+  local package_id
+  for package_id in "$@"; do
+    if ! grep -Fq "\"$package_id/$version\"" "$assets_file"; then
+      echo "Restore assets do not contain $package_id/$version." >&2
+      exit 1
+    fi
+  done
+}
+
+verify_package_versions "$expected_version" "${librewpf_package_ids[@]}"
+verify_package_versions "$expected_winforms_version" "${librewinforms_package_ids[@]}"
+verify_package_versions "$expected_progpu_version" "${progpu_package_ids[@]}"
 
 app_dll="$repo_root/src/Main/SharpDevelop/bin/Release/net10.0-windows/SharpDevelop.dll"
 solution="$repo_root/samples/LineCounter/LineCounter.sln"
@@ -611,7 +638,7 @@ run_reporting_smoke() {
 
 reporting_smoke_mode="${LIBREWPF_SHARPDEVELOP_REPORTING_SMOKE_MODE:-auto}"
 reporting_smoke_passed=0
-winforms_assembly="$work_root/nuget/librewinforms.system.windows.forms/$expected_version/lib/net10.0/System.Windows.Forms.dll"
+winforms_assembly="$work_root/nuget/librewinforms.system.windows.forms/$expected_winforms_version/lib/net10.0/System.Windows.Forms.dll"
 if [[ "$reporting_smoke_mode" == "auto" ]]; then
   if [[ -f "$winforms_assembly" ]] && grep -aFq 'IWinFormsIdleHost' "$winforms_assembly"; then
     reporting_smoke_mode=1
@@ -627,7 +654,7 @@ if [[ "$reporting_smoke_mode" == "1" ]]; then
   fi
   reporting_smoke_passed=1
 elif [[ "$reporting_smoke_mode" == "0" ]]; then
-  echo "Skipping the Reporting reload smoke because LibreWinForms $expected_version does not expose typed idle dispatch."
+  echo "Skipping the Reporting reload smoke because LibreWinForms $expected_winforms_version does not expose typed idle dispatch."
 else
   echo "LIBREWPF_SHARPDEVELOP_REPORTING_SMOKE_MODE must be auto, 0, or 1." >&2
   exit 1
@@ -652,7 +679,7 @@ if [[ "$report_checksum_before" != "$report_checksum_after" ]]; then
 fi
 
 if [[ "$reporting_smoke_passed" == "1" ]]; then
-  echo "SharpDevelop public LibreWPF $expected_version build, StartPage smoke, SearchAndReplace smoke, ClassDiagram smoke, FormsDesigner smoke, WPF designer smoke, ResourceToolkit smoke, HexEditor smoke, and Reporting workbench smoke passed."
+  echo "SharpDevelop public LibreWPF $expected_version / LibreWinForms $expected_winforms_version / ProGPU $expected_progpu_version build, StartPage smoke, SearchAndReplace smoke, ClassDiagram smoke, FormsDesigner smoke, WPF designer smoke, ResourceToolkit smoke, HexEditor smoke, and Reporting workbench smoke passed."
 else
-  echo "SharpDevelop public LibreWPF $expected_version build, StartPage smoke, SearchAndReplace smoke, ClassDiagram smoke, FormsDesigner smoke, WPF designer smoke, ResourceToolkit smoke, and HexEditor smoke passed; Reporting reload awaits typed LibreWinForms idle dispatch."
+  echo "SharpDevelop public LibreWPF $expected_version / LibreWinForms $expected_winforms_version / ProGPU $expected_progpu_version build, StartPage smoke, SearchAndReplace smoke, ClassDiagram smoke, FormsDesigner smoke, WPF designer smoke, ResourceToolkit smoke, and HexEditor smoke passed; Reporting reload awaits typed LibreWinForms idle dispatch."
 fi

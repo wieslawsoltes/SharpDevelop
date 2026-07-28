@@ -1,4 +1,4 @@
-<Project Sdk="LibreWPF.Sdk/0.1.0-preview.27">
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.29">
   <PropertyGroup>
     <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
     <UseWPF>true</UseWPF>
@@ -43,16 +43,16 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Build" Version="17.14.28" />
     <PackageReference Include="Microsoft.Build.Framework" Version="17.14.28" />
-    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuWpfSdkVersion)" />
+    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuPackageVersion)" />
     <PackageReference Include="System.CodeDom" Version="10.0.0" />
     <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.10" />
   </ItemGroup>
 
   <ItemGroup>
     <Reference Include="System.Drawing.Common"
-               HintPath="$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll"
+               HintPath="$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuPackageVersion)/lib/net10.0/System.Drawing.Common.dll"
                Private="true"
-               Condition="Exists('$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll')" />
+               Condition="Exists('$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuPackageVersion)/lib/net10.0/System.Drawing.Common.dll')" />
     <ProjectReference Include="..\..\..\..\Libraries\AvalonEdit\ICSharpCode.AvalonEdit\ICSharpCode.AvalonEdit.LibreWpf.csproj" />
     <ProjectReference Include="..\..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory\ICSharpCode.NRefactory.LibreWpf.csproj" />
     <ProjectReference Include="..\..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory.Xml\ICSharpCode.NRefactory.Xml.LibreWpf.csproj" />

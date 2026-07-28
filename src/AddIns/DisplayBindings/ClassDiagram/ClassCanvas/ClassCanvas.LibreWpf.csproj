@@ -3,7 +3,7 @@
     <BaseIntermediateOutputPath>obj\LibreWpf\</BaseIntermediateOutputPath>
     <MSBuildProjectExtensionsPath>obj\LibreWpf\</MSBuildProjectExtensionsPath>
   </PropertyGroup>
-  <Import Project="Sdk.props" Sdk="LibreWPF.Sdk" Version="0.1.0-preview.27" />
+  <Import Project="Sdk.props" Sdk="LibreWPF.Sdk" Version="0.1.0-preview.29" />
   <PropertyGroup>
     <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
     <UseWPF>true</UseWPF>
@@ -18,7 +18,7 @@
     <AssemblyOriginatorKeyFile>..\..\..\..\Main\ICSharpCode.SharpDevelop.snk</AssemblyOriginatorKeyFile>
     <DefineConstants>$(DefineConstants);LIBREWPF</DefineConstants>
     <NoWarn>$(NoWarn);0809;1591;CS1591;CS0618;SYSLIB0003;SYSLIB0050;SYSLIB0051;NU1603</NoWarn>
-    <ProGpuSystemDrawingCommonAssembly Condition="'$(ProGpuSystemDrawingCommonAssembly)' == ''">$(NuGetPackageRoot)/progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll</ProGpuSystemDrawingCommonAssembly>
+    <ProGpuSystemDrawingCommonAssembly Condition="'$(ProGpuSystemDrawingCommonAssembly)' == ''">$(NuGetPackageRoot)/progpu.system.drawing.common/$(ProGpuPackageVersion)/lib/net10.0/System.Drawing.Common.dll</ProGpuSystemDrawingCommonAssembly>
   </PropertyGroup>
 
   <ItemGroup>
@@ -34,7 +34,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuWpfSdkVersion)" ExcludeAssets="compile;runtime" />
+    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuPackageVersion)" ExcludeAssets="compile;runtime" />
   </ItemGroup>
 
   <ItemGroup>
@@ -44,5 +44,5 @@
                Condition="Exists('$(ProGpuSystemDrawingCommonAssembly)')" />
     <ProjectReference Include="..\DiagramRouter\Diagrams.LibreWpf.csproj" />
   </ItemGroup>
-  <Import Project="Sdk.targets" Sdk="LibreWPF.Sdk" Version="0.1.0-preview.27" />
+  <Import Project="Sdk.targets" Sdk="LibreWPF.Sdk" Version="0.1.0-preview.29" />
 </Project>

@@ -1,4 +1,4 @@
-<Project Sdk="LibreWPF.Sdk/0.1.0-preview.27">
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.29">
   <PropertyGroup>
     <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
     <UseWPF>true</UseWPF>
@@ -20,7 +20,7 @@
 
   <ItemGroup>
     <Compile Include="..\GlobalAssemblyInfo.cs" Link="Properties\GlobalAssemblyInfo.cs" />
-    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuWpfSdkVersion)" />
+    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuPackageVersion)" />
     <ProjectReference Include="..\Core\Project\ICSharpCode.Core.LibreWpf.csproj" />
   </ItemGroup>
 </Project>

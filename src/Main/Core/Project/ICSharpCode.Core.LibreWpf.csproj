@@ -19,10 +19,10 @@
   <ItemGroup>
     <Compile Include="..\..\GlobalAssemblyInfo.cs" Link="Configuration\GlobalAssemblyInfo.cs" />
     <PackageReference Include="LibreWPF.Transport" Version="$(ProGpuWpfManagedPackageVersion)" />
-    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuWpfSdkVersion)" />
+    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuPackageVersion)" />
     <Reference Include="System.Drawing.Common"
-               HintPath="$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll"
+               HintPath="$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuPackageVersion)/lib/net10.0/System.Drawing.Common.dll"
                Private="true"
-               Condition="Exists('$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll')" />
+               Condition="Exists('$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuPackageVersion)/lib/net10.0/System.Drawing.Common.dll')" />
   </ItemGroup>
 </Project>

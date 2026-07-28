@@ -1,4 +1,4 @@
-<Project Sdk="LibreWPF.Sdk/0.1.0-preview.27">
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.29">
   <PropertyGroup>
     <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
     <UseWPF>true</UseWPF>
@@ -36,7 +36,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuWpfSdkVersion)" />
+    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuPackageVersion)" />
     <PackageReference Include="System.CodeDom" Version="10.0.0" />
     <PackageReference Include="System.Resources.Extensions" Version="10.0.0" />
     <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.10" />
@@ -44,9 +44,9 @@
 
   <ItemGroup>
     <Reference Include="System.Drawing.Common"
-               HintPath="$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll"
+               HintPath="$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuPackageVersion)/lib/net10.0/System.Drawing.Common.dll"
                Private="true"
-               Condition="Exists('$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuWpfSdkVersion)/lib/net10.0/System.Drawing.Common.dll')" />
+               Condition="Exists('$(NuGetPackageRoot)progpu.system.drawing.common/$(ProGpuPackageVersion)/lib/net10.0/System.Drawing.Common.dll')" />
     <ProjectReference Include="..\..\..\..\Libraries\NRefactory\ICSharpCode.NRefactory\ICSharpCode.NRefactory.LibreWpf.csproj" />
     <ProjectReference Include="..\..\..\..\Main\Base\Project\ICSharpCode.SharpDevelop.LibreWpf.csproj" />
     <ProjectReference Include="..\..\..\..\Main\Core\Project\ICSharpCode.Core.LibreWpf.csproj" />
