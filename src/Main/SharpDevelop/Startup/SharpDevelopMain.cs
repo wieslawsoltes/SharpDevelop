@@ -215,8 +215,13 @@ namespace ICSharpCode.SharpDevelop.Startup
 				if (!File.Exists(msbuildPath))
 					continue;
 
+				string versionText = Path.GetFileName(directory);
+				int prereleaseSeparator = versionText.IndexOf('-');
+				if (prereleaseSeparator >= 0)
+					versionText = versionText.Substring(0, prereleaseSeparator);
+
 				Version version;
-				if (!Version.TryParse(Path.GetFileName(directory), out version)) {
+				if (!Version.TryParse(versionText, out version)) {
 					if (best == null)
 						best = directory;
 					continue;
