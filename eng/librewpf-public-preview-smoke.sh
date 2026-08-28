@@ -64,7 +64,7 @@ librewpf_package_ids=(
 )
 
 librewinforms_package_ids=(
-  LibreWinForms.System.Windows.Forms
+  LibreWinForms.Compatibility.System.Windows.Forms
   LibreWinForms.WindowsFormsIntegration
 )
 
@@ -96,6 +96,11 @@ verify_package_versions() {
 verify_package_versions "$expected_version" "${librewpf_package_ids[@]}"
 verify_package_versions "$expected_winforms_version" "${librewinforms_package_ids[@]}"
 verify_package_versions "$expected_progpu_version" "${progpu_package_ids[@]}"
+
+if grep -Fq '"LibreWinForms.System.Windows.Forms/' "$assets_file"; then
+  echo "Restore assets mix the canonical LibreWinForms runtime with the transitional WindowsFormsIntegration bridge." >&2
+  exit 1
+fi
 
 app_dll="$repo_root/src/Main/SharpDevelop/bin/Release/net10.0-windows/SharpDevelop.dll"
 solution="$repo_root/samples/LineCounter/LineCounter.sln"
@@ -638,7 +643,7 @@ run_reporting_smoke() {
 
 reporting_smoke_mode="${LIBREWPF_SHARPDEVELOP_REPORTING_SMOKE_MODE:-auto}"
 reporting_smoke_passed=0
-winforms_assembly="$work_root/nuget/librewinforms.system.windows.forms/$expected_winforms_version/lib/net10.0/System.Windows.Forms.dll"
+winforms_assembly="$work_root/nuget/librewinforms.compatibility.system.windows.forms/$expected_winforms_version/lib/net10.0/System.Windows.Forms.dll"
 if [[ "$reporting_smoke_mode" == "auto" ]]; then
   if [[ -f "$winforms_assembly" ]] && grep -aFq 'IWinFormsIdleHost' "$winforms_assembly"; then
     reporting_smoke_mode=1
