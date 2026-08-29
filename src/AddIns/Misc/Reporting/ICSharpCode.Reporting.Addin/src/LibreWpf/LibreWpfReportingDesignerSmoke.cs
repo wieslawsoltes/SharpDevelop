@@ -68,8 +68,7 @@ namespace ICSharpCode.Reporting.Addin.LibreWpf
 				using (Graphics graphics = Graphics.FromImage(bitmap))
 				{
 					graphics.Clear(Color.Transparent);
-					root.RaisePaint(new PaintEventArgs(graphics, new Rectangle(0, 0, bitmap.Width, bitmap.Height)));
-					section.RaisePaint(new PaintEventArgs(graphics, section.Bounds));
+					root.DrawToBitmap(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
 
 					int paintedPixelCount = CountPaintedPixels(bitmap);
 

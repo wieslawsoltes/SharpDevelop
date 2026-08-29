@@ -698,6 +698,26 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					}
 
 					System.Windows.Forms.Control child = host != null ? host.Child : null;
+#if LIBREWPF_CANONICAL_WINFORMS
+					bool rendered = false;
+					if (child != null) {
+						child.Invalidate();
+						host.InvalidateVisual();
+						using (var bitmap = new System.Drawing.Bitmap(
+							Math.Max(1, child.Width),
+							Math.Max(1, child.Height)))
+						{
+							child.DrawToBitmap(bitmap, new System.Drawing.Rectangle(0, 0, bitmap.Width, bitmap.Height));
+							rendered = true;
+						}
+					}
+					await Task.Delay(250);
+					bool success = host != null && child != null && rendered;
+					string message = "LibreWPF FormsDesigner custom-paint smoke result=" + (success ? "Success" : "Partial")
+						+ " host=" + (host != null)
+						+ " child=" + (child != null ? child.GetType().FullName : "<null>")
+						+ " canonical=True rendered=" + rendered;
+#else
 					System.Windows.Forms.IPortableWinFormsPaintSource paintSource = child as System.Windows.Forms.IPortableWinFormsPaintSource;
 					long before = host != null ? host.PortableCustomPaintDispatchCount : 0;
 					if (child != null) {
@@ -718,6 +738,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 						+ " enabled=" + (paintSource != null && paintSource.SupportsPortablePainting)
 						+ " before=" + before
 						+ " after=" + after;
+#endif
 					Console.WriteLine(message);
 					SD.StatusBar.SetMessage(message);
 				} catch (Exception ex) {

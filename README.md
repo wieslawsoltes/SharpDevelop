@@ -17,12 +17,27 @@ Looking for the tech notes (Fine Art of Commenting, Coding Style Guide, and more
 
 ### LibreWPF / LibreWinForms portable build
 
-The portable ProGPU/Silk.NET build consumes the public LibreWPF and LibreWinForms
-`0.1.0-preview.29` packages from NuGet.org:
+The portable ProGPU/Silk.NET build consumes versioned LibreWPF, LibreWinForms,
+and ProGPU packages. The normal package lane remains suitable for published
+NuGet feeds:
 
 ```sh
 dotnet build src/Main/SharpDevelop/SharpDevelop.Full.LibreWpf.csproj -c Release
 ```
+
+The source-first integration lane consumes the package artifacts produced by
+LibreWPF's canonical WinForms gate and selects the real `System.Windows.Forms`,
+`WindowsFormsIntegration`, and `LibreWinForms.ProGPU` runtime closure:
+
+```sh
+LIBREWPF_CANONICAL_SDK_PACKAGE_DIR=/path/to/librewpf-sdk-packages \
+LIBREWPF_CANONICAL_WINFORMS_PACKAGE_DIR=/path/to/canonical-winforms-packages \
+  ./eng/librewpf-canonical-source-first-smoke.sh
+```
+
+This lane rejects `LibreWinForms.Compatibility.System.Windows.Forms`; the
+published-package lane retains that transitional fallback until the canonical
+packages are released.
 
 Run `./eng/librewpf-public-preview-smoke.sh` on macOS or Linux to restore into a
 clean package cache, verify the complete LibreWPF/LibreWinForms/ProGPU version

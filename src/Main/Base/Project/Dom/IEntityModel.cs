@@ -21,6 +21,7 @@ using System.ComponentModel;
 using ICSharpCode.NRefactory.TypeSystem;
 using ICSharpCode.SharpDevelop.Parser;
 using ICSharpCode.SharpDevelop.Project;
+using NRefactoryAccessibility = ICSharpCode.NRefactory.TypeSystem.Accessibility;
 
 namespace ICSharpCode.SharpDevelop.Dom
 {
@@ -32,7 +33,7 @@ namespace ICSharpCode.SharpDevelop.Dom
 		/// <summary>
 		/// Gets/sets the accessibility of the entity.
 		/// </summary>
-		Accessibility Accessibility { get; }
+		NRefactoryAccessibility Accessibility { get; }
 		
 		/// <summary>
 		/// Gets whether this entity is static.

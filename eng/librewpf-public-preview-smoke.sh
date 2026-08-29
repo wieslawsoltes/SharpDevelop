@@ -7,6 +7,8 @@ dotnet_cmd="${DOTNET:-dotnet}"
 expected_version="${LIBREWPF_SHARPDEVELOP_EXPECTED_VERSION:-$(sed -n 's:.*<ProGpuWpfSdkVersion>\([^<]*\)</ProGpuWpfSdkVersion>.*:\1:p' "$repo_root/Directory.Build.props" | head -n 1)}"
 expected_progpu_version="${LIBREWPF_SHARPDEVELOP_EXPECTED_PROGPU_VERSION:-$(sed -n 's:.*<ProGpuPackageVersion>\([^<]*\)</ProGpuPackageVersion>.*:\1:p' "$repo_root/Directory.Build.props" | head -n 1)}"
 expected_winforms_version="${LIBREWPF_SHARPDEVELOP_EXPECTED_WINFORMS_VERSION:-$(sed -n 's:.*<ProGpuWpfLibreWinFormsPackageVersion>\([^<]*\)</ProGpuWpfLibreWinFormsPackageVersion>.*:\1:p' "$repo_root/Directory.Build.props" | head -n 1)}"
+use_canonical_winforms="${LIBREWPF_SHARPDEVELOP_USE_CANONICAL_WINFORMS:-0}"
+package_sources="${LIBREWPF_SHARPDEVELOP_PACKAGE_SOURCES:-}"
 work_root="${LIBREWPF_SHARPDEVELOP_SMOKE_WORK_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/sharpdevelop-librewpf-public.XXXXXX")}"
 keep_work_root="${LIBREWPF_SHARPDEVELOP_KEEP_SMOKE_WORK_ROOT:-0}"
 
@@ -25,6 +27,11 @@ if [[ -z "$expected_winforms_version" ]]; then
   exit 1
 fi
 
+if [[ "$use_canonical_winforms" != "0" && "$use_canonical_winforms" != "1" ]]; then
+  echo "LIBREWPF_SHARPDEVELOP_USE_CANONICAL_WINFORMS must be 0 or 1." >&2
+  exit 1
+fi
+
 cleanup() {
   if [[ "$keep_work_root" != "1" ]]; then
     rm -rf "$work_root"
@@ -36,21 +43,55 @@ trap cleanup EXIT
 
 mkdir -p "$work_root/nuget"
 
+global_assembly_info="$repo_root/src/Main/GlobalAssemblyInfo.cs"
+if [[ ! -f "$global_assembly_info" ]]; then
+  revision="$(git -C "$repo_root" rev-list --count HEAD)"
+  short_commit="$(git -C "$repo_root" rev-parse --short=8 HEAD)"
+  current_year="$(date +%Y)"
+  assembly_info_content="$(<"$repo_root/src/Main/GlobalAssemblyInfo.cs.template")"
+  assembly_info_content="${assembly_info_content//\$INSERTYEAR\$/$current_year}"
+  assembly_info_content="${assembly_info_content//\$INSERTREVISION\$/$revision}"
+  assembly_info_content="${assembly_info_content//\$INSERTSHORTCOMMITHASH\$/$short_commit}"
+  assembly_info_content="${assembly_info_content//\$INSERTBRANCHPOSTFIX\$/}"
+  assembly_info_content="${assembly_info_content//\$INSERTVERSIONNAMEPOSTFIX\$/-Beta}"
+  printf '%s\n' "$assembly_info_content" > "$global_assembly_info"
+fi
+
 if git -C "$repo_root" grep --recurse-submodules -n -E 'preview\.sharpdevelop\.1|SharpDevelopLocal' -- \
   Directory.Build.props NuGet.config '*.csproj' '*.props'; then
   echo "Private SharpDevelop package pins or feeds remain in the repository." >&2
   exit 1
 fi
 
-echo "Building SharpDevelop against public LibreWPF $expected_version, LibreWinForms $expected_winforms_version, and ProGPU $expected_progpu_version packages..."
-NUGET_PACKAGES="$work_root/nuget" \
-  "$dotnet_cmd" build "$repo_root/src/Main/SharpDevelop/SharpDevelop.Full.LibreWpf.csproj" \
-  --configuration Release \
-  --force \
-  --verbosity minimal \
-  --nologo \
-  --disable-build-servers \
+package_mode="transitional"
+canonical_property="false"
+if [[ "$use_canonical_winforms" == "1" ]]; then
+  package_mode="canonical source-first"
+  canonical_property="true"
+fi
+
+echo "Building SharpDevelop against $package_mode LibreWPF $expected_version, LibreWinForms $expected_winforms_version, and ProGPU $expected_progpu_version packages..."
+build_arguments=(
+  build "$repo_root/src/Main/SharpDevelop/SharpDevelop.Full.LibreWpf.csproj"
+  --configuration Release
+  --force
+  --verbosity minimal
+  --nologo
+  --disable-build-servers
   -p:LibreWpfSharpDevelopIncludeResourceToolkit=true
+  -p:ProGpuWpfPackageVersion="$expected_version"
+  -p:ProGpuWpfManagedPackageVersion="$expected_version"
+  -p:ProGpuPackageVersion="$expected_progpu_version"
+  -p:ProGpuWpfLibreWinFormsPackageVersion="$expected_winforms_version"
+  -p:ProGpuWpfLibreWinFormsBackendPackageVersion="$expected_winforms_version"
+  -p:ProGpuWpfUseCanonicalLibreWinForms="$canonical_property"
+)
+if [[ -n "$package_sources" ]]; then
+  escaped_package_sources="${package_sources//;/%3B}"
+  build_arguments+=("-p:RestoreAdditionalProjectSources=$escaped_package_sources")
+fi
+
+NUGET_PACKAGES="$work_root/nuget" "$dotnet_cmd" "${build_arguments[@]}"
 
 assets_file="$repo_root/src/Main/SharpDevelop/obj/project.assets.json"
 if [[ ! -f "$assets_file" ]]; then
@@ -63,10 +104,18 @@ librewpf_package_ids=(
   LibreWPF.Transport
 )
 
-librewinforms_package_ids=(
-  LibreWinForms.Compatibility.System.Windows.Forms
-  LibreWinForms.WindowsFormsIntegration
-)
+if [[ "$use_canonical_winforms" == "1" ]]; then
+  librewinforms_package_ids=(
+    LibreWinForms.System.Windows.Forms
+    LibreWinForms.ProGPU
+    LibreWinForms.WindowsFormsIntegration
+  )
+else
+  librewinforms_package_ids=(
+    LibreWinForms.Compatibility.System.Windows.Forms
+    LibreWinForms.WindowsFormsIntegration
+  )
+fi
 
 progpu_package_ids=(
   LibreWPF.Interop
@@ -97,9 +146,16 @@ verify_package_versions "$expected_version" "${librewpf_package_ids[@]}"
 verify_package_versions "$expected_winforms_version" "${librewinforms_package_ids[@]}"
 verify_package_versions "$expected_progpu_version" "${progpu_package_ids[@]}"
 
-if grep -Fq '"LibreWinForms.System.Windows.Forms/' "$assets_file"; then
-  echo "Restore assets mix the canonical LibreWinForms runtime with the transitional WindowsFormsIntegration bridge." >&2
-  exit 1
+if [[ "$use_canonical_winforms" == "1" ]]; then
+  if grep -Fq '"LibreWinForms.Compatibility.System.Windows.Forms/' "$assets_file"; then
+    echo "Canonical restore assets still contain the transitional LibreWinForms runtime." >&2
+    exit 1
+  fi
+else
+  if grep -Fq '"LibreWinForms.System.Windows.Forms/' "$assets_file"; then
+    echo "Restore assets mix the canonical LibreWinForms runtime with the transitional WindowsFormsIntegration bridge." >&2
+    exit 1
+  fi
 fi
 
 app_dll="$repo_root/src/Main/SharpDevelop/bin/Release/net10.0-windows/SharpDevelop.dll"
@@ -643,7 +699,11 @@ run_reporting_smoke() {
 
 reporting_smoke_mode="${LIBREWPF_SHARPDEVELOP_REPORTING_SMOKE_MODE:-auto}"
 reporting_smoke_passed=0
-winforms_assembly="$work_root/nuget/librewinforms.compatibility.system.windows.forms/$expected_winforms_version/lib/net10.0/System.Windows.Forms.dll"
+winforms_package_cache_id="librewinforms.compatibility.system.windows.forms"
+if [[ "$use_canonical_winforms" == "1" ]]; then
+  winforms_package_cache_id="librewinforms.system.windows.forms"
+fi
+winforms_assembly="$work_root/nuget/$winforms_package_cache_id/$expected_winforms_version/lib/net10.0/System.Windows.Forms.dll"
 if [[ "$reporting_smoke_mode" == "auto" ]]; then
   if [[ -f "$winforms_assembly" ]] && grep -aFq 'IWinFormsIdleHost' "$winforms_assembly"; then
     reporting_smoke_mode=1
@@ -684,7 +744,7 @@ if [[ "$report_checksum_before" != "$report_checksum_after" ]]; then
 fi
 
 if [[ "$reporting_smoke_passed" == "1" ]]; then
-  echo "SharpDevelop public LibreWPF $expected_version / LibreWinForms $expected_winforms_version / ProGPU $expected_progpu_version build, StartPage smoke, SearchAndReplace smoke, ClassDiagram smoke, FormsDesigner smoke, WPF designer smoke, ResourceToolkit smoke, HexEditor smoke, and Reporting workbench smoke passed."
+  echo "SharpDevelop $package_mode LibreWPF $expected_version / LibreWinForms $expected_winforms_version / ProGPU $expected_progpu_version build, StartPage smoke, SearchAndReplace smoke, ClassDiagram smoke, FormsDesigner smoke, WPF designer smoke, ResourceToolkit smoke, HexEditor smoke, and Reporting workbench smoke passed."
 else
-  echo "SharpDevelop public LibreWPF $expected_version / LibreWinForms $expected_winforms_version / ProGPU $expected_progpu_version build, StartPage smoke, SearchAndReplace smoke, ClassDiagram smoke, FormsDesigner smoke, WPF designer smoke, ResourceToolkit smoke, and HexEditor smoke passed; Reporting reload awaits typed LibreWinForms idle dispatch."
+  echo "SharpDevelop $package_mode LibreWPF $expected_version / LibreWinForms $expected_winforms_version / ProGPU $expected_progpu_version build, StartPage smoke, SearchAndReplace smoke, ClassDiagram smoke, FormsDesigner smoke, WPF designer smoke, ResourceToolkit smoke, and HexEditor smoke passed; Reporting reload awaits typed LibreWinForms idle dispatch."
 fi

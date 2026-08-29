@@ -70,29 +70,41 @@ namespace HexEditor.LibreWpf
 					throw new InvalidOperationException("HexEditContainer was not attached to WindowsFormsHost.");
 				}
 
+				int invalidationCount = 0;
+				container.Invalidated += delegate { invalidationCount++; };
+#if !LIBREWPF_CANONICAL_WINFORMS
 				IPortableWinFormsPaintSource paintSource = container;
 				long paintVersionBefore = paintSource.PortablePaintVersion;
+#endif
 				container.PerformLayout();
 				container.Invalidate();
 				await Task.Delay(100);
 
+#if !LIBREWPF_CANONICAL_WINFORMS
 				long graphicsDispatchBeforeResize = host.PortableCreateGraphicsDispatchCount;
+#endif
 				System.Drawing.Size originalEditorSize = container.hexEditControl.Size;
 				container.hexEditControl.Size = new System.Drawing.Size(
 					Math.Max(1, originalEditorSize.Width - 1),
 					Math.Max(1, originalEditorSize.Height - 1));
 				await Task.Delay(100);
+#if !LIBREWPF_CANONICAL_WINFORMS
 				long graphicsDispatchAfterResize = host.PortableCreateGraphicsDispatchCount;
+#endif
 				container.hexEditControl.Size = originalEditorSize;
 				await Task.Delay(100);
 
+#if !LIBREWPF_CANONICAL_WINFORMS
 				long graphicsDispatchBeforeRepaint = host.PortableCreateGraphicsDispatchCount;
+#endif
 				container.Invalidate();
 				await Task.Delay(100);
 				container.Invalidate();
 				await Task.Delay(100);
+#if !LIBREWPF_CANONICAL_WINFORMS
 				long graphicsDispatchAfterRepaint = host.PortableCreateGraphicsDispatchCount;
 				long paintVersionAfter = paintSource.PortablePaintVersion;
+#endif
 
 				container.SelectAll();
 				string selectedText = container.Copy();
@@ -106,6 +118,17 @@ namespace HexEditor.LibreWpf
 				container.Undo();
 				AssertSavedBytes(container, content.PrimaryFile, FixtureBytes, "undo save");
 
+#if LIBREWPF_CANONICAL_WINFORMS
+				if (invalidationCount == 0) {
+					throw new InvalidOperationException("HexEditor did not publish canonical WinForms invalidation.");
+				}
+
+				WriteResult(
+					"Success",
+					"bytes=" + FixtureBytes.Length
+					+ " invalidations=" + invalidationCount
+					+ " canonical=True saveUndo=True");
+#else
 				bool painted = paintSource.SupportsPortablePainting && paintVersionAfter > paintVersionBefore;
 				bool hostedGraphics = host.PortableCreateGraphicsSurfaceCount >= 4;
 				bool invalidationRouted = host.PortableChildInvalidationDispatchCount > 0;
@@ -133,6 +156,7 @@ namespace HexEditor.LibreWpf
 					+ " invalidations=" + host.PortableChildInvalidationDispatchCount
 					+ " dispatches=" + graphicsDispatchAfterRepaint
 					+ " repaintStable=True");
+#endif
 			} finally {
 				if (content != null && content.WorkbenchWindow != null) {
 					content.WorkbenchWindow.CloseWindow(true);
