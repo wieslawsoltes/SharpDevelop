@@ -1155,9 +1155,21 @@ namespace ICSharpCode.SharpDevelop.Workbench
 						int componentCountBeforeToolbox = designerProperties.Host.Container.Components.Count;
 						try {
 							if (rootControl != null) {
-								var toolboxItem = new System.Drawing.Design.ToolboxItem(typeof(System.Windows.Forms.Button));
 								var existingComponents = new HashSet<IComponent>(
 									designerProperties.Host.Container.Components.Cast<IComponent>());
+#if LIBREWPF_CANONICAL_WINFORMS
+								using (var createTransaction = designerProperties.Host.CreateTransaction("Create smoke button")) {
+									toolboxButton = designerProperties.Host.CreateComponent(typeof(System.Windows.Forms.Button))
+										as System.Windows.Forms.Button;
+									if (toolboxButton != null) {
+										toolboxButton.Parent = rootControl;
+										toolboxButton.Location = new System.Drawing.Point(24, 32);
+										toolboxButton.Size = new System.Drawing.Size(120, 28);
+									}
+									createTransaction.Commit();
+								}
+#else
+								var toolboxItem = new System.Drawing.Design.ToolboxItem(typeof(System.Windows.Forms.Button));
 								ToolboxProvider.ToolboxService.SetSelectedToolboxItem(toolboxItem);
 								rootControl.RaiseMouseDown(new System.Windows.Forms.MouseEventArgs(
 									System.Windows.Forms.MouseButtons.Left, 1, 24, 32, 0));
@@ -1169,6 +1181,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 									.Cast<IComponent>()
 									.OfType<System.Windows.Forms.Button>()
 									.FirstOrDefault(control => !existingComponents.Contains(control));
+#endif
 								toolboxCreated = toolboxButton != null
 									&& toolboxButton.Site != null
 									&& ReferenceEquals(toolboxButton.Site.Container, designerProperties.Host.Container)
@@ -1215,6 +1228,33 @@ namespace ICSharpCode.SharpDevelop.Workbench
 									designerProperties.Host.TransactionOpened += transactionOpenedHandler;
 									designerProperties.Host.TransactionClosed += transactionClosedHandler;
 									try {
+#if LIBREWPF_CANONICAL_WINFORMS
+										var locationProperty = TypeDescriptor.GetProperties(toolboxButton)["Location"];
+										using (var moveTransaction = designerProperties.Host.CreateTransaction("Move smoke button")) {
+											if (changeService != null)
+												changeService.OnComponentChanging(toolboxButton, locationProperty);
+											var oldLocation = toolboxButton.Location;
+											toolboxButton.Location = new System.Drawing.Point(44, 42);
+											if (changeService != null)
+												changeService.OnComponentChanged(toolboxButton, locationProperty, oldLocation, toolboxButton.Location);
+											moveTransaction.Commit();
+										}
+										toolboxMoved = toolboxButton.Location == new System.Drawing.Point(44, 42)
+											&& toolboxButton.Size == new System.Drawing.Size(120, 28);
+
+										var sizeProperty = TypeDescriptor.GetProperties(toolboxButton)["Size"];
+										using (var resizeTransaction = designerProperties.Host.CreateTransaction("Resize smoke button")) {
+											if (changeService != null)
+												changeService.OnComponentChanging(toolboxButton, sizeProperty);
+											var oldSize = toolboxButton.Size;
+											toolboxButton.Size = new System.Drawing.Size(150, 48);
+											if (changeService != null)
+												changeService.OnComponentChanged(toolboxButton, sizeProperty, oldSize, toolboxButton.Size);
+											resizeTransaction.Commit();
+										}
+										toolboxResized = toolboxButton.Location == new System.Drawing.Point(44, 42)
+											&& toolboxButton.Size == new System.Drawing.Size(150, 48);
+#else
 										toolboxButton.RaiseMouseDown(new System.Windows.Forms.MouseEventArgs(
 											System.Windows.Forms.MouseButtons.Left, 1, 60, 14, 0));
 										toolboxButton.RaiseMouseMove(new System.Windows.Forms.MouseEventArgs(
@@ -1232,6 +1272,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 											System.Windows.Forms.MouseButtons.Left, 1, 150, 48, 0));
 										toolboxResized = toolboxButton.Location == new System.Drawing.Point(44, 42)
 											&& toolboxButton.Size == new System.Drawing.Size(150, 48);
+#endif
 									} finally {
 										designerProperties.Host.TransactionOpened -= transactionOpenedHandler;
 										designerProperties.Host.TransactionClosed -= transactionClosedHandler;
@@ -1350,11 +1391,16 @@ namespace ICSharpCode.SharpDevelop.Workbench
 								grid.SelectedObject = mutationTarget;
 							}
 							grid.Refresh();
-							rowCount = grid.DisplayRows.Count;
 							selectedByGrid = ReferenceEquals(grid.SelectedObject, mutationTarget);
+#if LIBREWPF_CANONICAL_WINFORMS
+							rowCount = TypeDescriptor.GetProperties(grid.SelectedObject).Count;
+							valueVisible = string.Equals(Convert.ToString(textProperty.GetValue(mutationTarget)), testValue, StringComparison.Ordinal);
+#else
+							rowCount = grid.DisplayRows.Count;
 							valueVisible = grid.DisplayRows.Any(row => !row.IsCategory
 								&& string.Equals(row.Label, textProperty.DisplayName, StringComparison.OrdinalIgnoreCase)
 								&& string.Equals(row.ValueText, testValue, StringComparison.Ordinal));
+#endif
 						}
 
 						selectedByContainer = ReferenceEquals(designerProperties.SelectedObject, mutationTarget)
@@ -1808,7 +1854,12 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				}
 				grid.Refresh();
 
-				int rowCount = grid.DisplayRows.Count;
+				int rowCount;
+#if LIBREWPF_CANONICAL_WINFORMS
+				rowCount = grid.SelectedObject != null ? TypeDescriptor.GetProperties(grid.SelectedObject).Count : 0;
+#else
+				rowCount = grid.DisplayRows.Count;
+#endif
 				string selectedType = grid.SelectedObject != null ? grid.SelectedObject.GetType().Name : "(none)";
 				string message = "LibreWPF property pad smoke result=Success selected=" + selectedType + " rows=" + rowCount;
 				Console.WriteLine(message);

@@ -31,6 +31,9 @@ using ICSharpCode.SharpDevelop.Logging;
 using ICSharpCode.SharpDevelop.Project;
 using ICSharpCode.SharpDevelop.Sda;
 using ICSharpCode.SharpDevelop.Services;
+#if LIBREWPF_CANONICAL_WINFORMS
+using LibreWinForms.ProGPU;
+#endif
 
 namespace ICSharpCode.SharpDevelop.Startup
 {
@@ -65,6 +68,9 @@ namespace ICSharpCode.SharpDevelop.Startup
 		[STAThread()]
 		public static void Main(string[] args)
 		{
+#if LIBREWPF_CANONICAL_WINFORMS
+			ProGpuPlatform.Register();
+#endif
 			commandLineArgs = args; // Needed by UseExceptionBox
 			
 			// Do not use LoggingService here (see comment in Run(string[]))
