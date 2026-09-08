@@ -623,7 +623,8 @@ namespace ICSharpCode.SharpDevelop.Workbench
 								+ designerContent.PrimaryFile.FileName
 								+ " registered=" + designerContent.PrimaryFile.RegisteredViewContents.Contains(designerContent)
 								+ " current=" + (designerContent.PrimaryFile.CurrentView == designerContent)
-								+ " hasLoadError=" + (loadErrorContent != null && loadErrorContent.HasLoadError));
+								+ " hasLoadError=" + (loadErrorContent != null && loadErrorContent.HasLoadError)
+								+ " loadError=" + GetLibreWpfLoadErrorSummary(designerContent));
 						}
 					}
 					PropertyContainer designerProperties = null;
@@ -757,25 +758,38 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					}
 
 					projectBrowserPad.BringPadToFront();
-					await Task.Delay(100);
 					System.Windows.Forms.TreeView tree = ProjectBrowserPad.Instance.ProjectBrowserControl.TreeView;
+					for (int attempt = 0; attempt < 50 && tree.Nodes.Count == 0; attempt++) {
+						await Task.Delay(100);
+					}
+					int projectNodeCount = tree.Nodes.Count;
+					System.Windows.Forms.TreeNode smokeNode = null;
+					if (projectNodeCount == 0) {
+						smokeNode = tree.Nodes.Add("LibreWPF owner-draw smoke");
+					}
 					int drawDispatches = 0;
 					System.Windows.Forms.DrawTreeNodeEventHandler probe = delegate { drawDispatches++; };
 					tree.DrawNode += probe;
 					try {
 						tree.Invalidate();
 						await Task.Delay(250);
+						using (var bitmap = new System.Drawing.Bitmap(
+							Math.Max(1, tree.Width),
+							Math.Max(1, tree.Height))) {
+							tree.DrawToBitmap(bitmap, new System.Drawing.Rectangle(System.Drawing.Point.Empty, bitmap.Size));
+						}
 					} finally {
 						tree.DrawNode -= probe;
+						smokeNode?.Remove();
 					}
 
 					bool success = tree.DrawMode != System.Windows.Forms.TreeViewDrawMode.Normal
-						&& tree.Nodes.Count > 0
 						&& drawDispatches > 0;
 					string message = "LibreWPF owner-draw smoke result=" + (success ? "Success" : "Partial")
 						+ " tree=" + tree.GetType().FullName
 						+ " drawMode=" + tree.DrawMode
-						+ " nodes=" + tree.Nodes.Count
+						+ " projectNodes=" + projectNodeCount
+						+ " syntheticNode=" + (smokeNode != null)
 						+ " directDispatches=" + drawDispatches;
 					Console.WriteLine(message);
 					SD.StatusBar.SetMessage(message);
@@ -1378,11 +1392,8 @@ namespace ICSharpCode.SharpDevelop.Workbench
 						siteHasChangeService = mutationTarget.Site != null
 							&& mutationTarget.Site.GetService(typeof(System.ComponentModel.Design.IComponentChangeService)) != null;
 						shouldSerializeText = textProperty.ShouldSerializeValue(mutationTarget);
-						var serializationManager = designerProperties.Host.GetService(
-							typeof(System.ComponentModel.Design.Serialization.IDesignerSerializationManager))
-							as System.ComponentModel.Design.Serialization.IDesignerSerializationManager;
-						serializationName = serializationManager != null
-							? serializationManager.GetName(mutationTarget) ?? string.Empty
+						serializationName = mutationTarget.Site != null
+							? mutationTarget.Site.Name ?? string.Empty
 							: string.Empty;
 
 						System.Windows.Forms.PropertyGrid grid = PropertyPad.Grid;
@@ -1469,7 +1480,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					return "Unavailable";
 
 				text = text.Replace(Environment.NewLine, " ").Replace("\r", " ").Replace("\n", " ").Trim();
-				const int maxLength = 700;
+				const int maxLength = 4000;
 				return text.Length > maxLength ? text.Substring(0, maxLength) + "..." : text;
 			}
 
