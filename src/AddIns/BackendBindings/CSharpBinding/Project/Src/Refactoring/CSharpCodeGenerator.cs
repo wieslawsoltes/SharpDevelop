@@ -38,6 +38,7 @@ using ICSharpCode.SharpDevelop.Dom;
 using ICSharpCode.SharpDevelop.Editor;
 using ICSharpCode.SharpDevelop.Project;
 using ICSharpCode.SharpDevelop.Refactoring;
+using NRefactoryAccessibility = ICSharpCode.NRefactory.TypeSystem.Accessibility;
 
 namespace CSharpBinding.Refactoring
 {
@@ -148,7 +149,7 @@ namespace CSharpBinding.Refactoring
 			}
 		}
 		
-		public override void AddField(ITypeDefinition declaringType, Accessibility accessibility, IType fieldType, string name)
+		public override void AddField(ITypeDefinition declaringType, NRefactoryAccessibility accessibility, IType fieldType, string name)
 		{
 			SDRefactoringContext context = declaringType.CreateRefactoringContext();
 			var typeDecl = context.GetNode<TypeDeclaration>();
@@ -162,7 +163,7 @@ namespace CSharpBinding.Refactoring
 			}
 		}
 		
-		public override void AddFieldAtStart(ITypeDefinition declaringType, Accessibility accessibility, IType fieldType, string name)
+		public override void AddFieldAtStart(ITypeDefinition declaringType, NRefactoryAccessibility accessibility, IType fieldType, string name)
 		{
 			SDRefactoringContext context = declaringType.CreateRefactoringContext();
 			var typeDecl = context.GetNode<TypeDeclaration>();
@@ -177,7 +178,7 @@ namespace CSharpBinding.Refactoring
 			}
 		}
 		
-		public override void AddMethodAtStart(ITypeDefinition declaringType, Accessibility accessibility, IType returnType, string name)
+		public override void AddMethodAtStart(ITypeDefinition declaringType, NRefactoryAccessibility accessibility, IType returnType, string name)
 		{
 			SDRefactoringContext context = declaringType.CreateRefactoringContext();
 			var typeDecl = context.GetNode<TypeDeclaration>();
@@ -191,7 +192,7 @@ namespace CSharpBinding.Refactoring
 			}
 		}
 		
-		public override void ChangeAccessibility(IEntity entity, Accessibility newAccessiblity)
+		public override void ChangeAccessibility(IEntity entity, NRefactoryAccessibility newAccessiblity)
 		{
 			// TODO script.ChangeModifiers(...)
 			throw new NotImplementedException();

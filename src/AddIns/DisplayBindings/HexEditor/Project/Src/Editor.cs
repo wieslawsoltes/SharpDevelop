@@ -41,7 +41,7 @@ namespace HexEditor
 	/// Hexadecimal editor control.
 	/// </summary>
 	public partial class Editor : UserControl
-#if LIBREWPF
+#if LIBREWPF && !LIBREWPF_CANONICAL_WINFORMS
 		, IPortableWinFormsHostLifecycle
 #endif
 	{
@@ -1156,7 +1156,7 @@ namespace HexEditor
 			
 		}
 
-#if LIBREWPF
+#if LIBREWPF && !LIBREWPF_CANONICAL_WINFORMS
 		void IPortableWinFormsHostLifecycle.OnPortableHostAttached()
 		{
 			UpdateViews();

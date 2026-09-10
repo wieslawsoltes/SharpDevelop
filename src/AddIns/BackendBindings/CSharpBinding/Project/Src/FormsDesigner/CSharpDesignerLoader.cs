@@ -35,6 +35,7 @@ using ICSharpCode.SharpDevelop.Refactoring;
 using Microsoft.CSharp;
 using CSharpBinding.Parser;
 using CSharpBinding.Refactoring;
+using NRefactoryAccessibility = ICSharpCode.NRefactory.TypeSystem.Accessibility;
 
 namespace CSharpBinding.FormsDesigner
 {
@@ -175,18 +176,18 @@ namespace CSharpBinding.FormsDesigner
 		MemberAttributes GetAccessibility(IField field)
 		{
 			switch (field.Accessibility) {
-				case Accessibility.None:
-				case Accessibility.Private:
+				case NRefactoryAccessibility.None:
+				case NRefactoryAccessibility.Private:
 					return MemberAttributes.Private;
-				case Accessibility.Public:
+				case NRefactoryAccessibility.Public:
 					return MemberAttributes.Public;
-				case Accessibility.Protected:
+				case NRefactoryAccessibility.Protected:
 					return MemberAttributes.Family;
-				case Accessibility.Internal:
+				case NRefactoryAccessibility.Internal:
 					return MemberAttributes.Assembly;
-				case Accessibility.ProtectedOrInternal:
+				case NRefactoryAccessibility.ProtectedOrInternal:
 					return MemberAttributes.FamilyOrAssembly;
-				case Accessibility.ProtectedAndInternal:
+				case NRefactoryAccessibility.ProtectedAndInternal:
 					return MemberAttributes.FamilyAndAssembly;
 				default:
 					throw new ArgumentOutOfRangeException();

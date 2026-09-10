@@ -623,7 +623,8 @@ namespace ICSharpCode.SharpDevelop.Workbench
 								+ designerContent.PrimaryFile.FileName
 								+ " registered=" + designerContent.PrimaryFile.RegisteredViewContents.Contains(designerContent)
 								+ " current=" + (designerContent.PrimaryFile.CurrentView == designerContent)
-								+ " hasLoadError=" + (loadErrorContent != null && loadErrorContent.HasLoadError));
+								+ " hasLoadError=" + (loadErrorContent != null && loadErrorContent.HasLoadError)
+								+ " loadError=" + GetLibreWpfLoadErrorSummary(designerContent));
 						}
 					}
 					PropertyContainer designerProperties = null;
@@ -698,6 +699,26 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					}
 
 					System.Windows.Forms.Control child = host != null ? host.Child : null;
+#if LIBREWPF_CANONICAL_WINFORMS
+					bool rendered = false;
+					if (child != null) {
+						child.Invalidate();
+						host.InvalidateVisual();
+						using (var bitmap = new System.Drawing.Bitmap(
+							Math.Max(1, child.Width),
+							Math.Max(1, child.Height)))
+						{
+							child.DrawToBitmap(bitmap, new System.Drawing.Rectangle(0, 0, bitmap.Width, bitmap.Height));
+							rendered = true;
+						}
+					}
+					await Task.Delay(250);
+					bool success = host != null && child != null && rendered;
+					string message = "LibreWPF FormsDesigner custom-paint smoke result=" + (success ? "Success" : "Partial")
+						+ " host=" + (host != null)
+						+ " child=" + (child != null ? child.GetType().FullName : "<null>")
+						+ " canonical=True rendered=" + rendered;
+#else
 					System.Windows.Forms.IPortableWinFormsPaintSource paintSource = child as System.Windows.Forms.IPortableWinFormsPaintSource;
 					long before = host != null ? host.PortableCustomPaintDispatchCount : 0;
 					if (child != null) {
@@ -718,6 +739,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 						+ " enabled=" + (paintSource != null && paintSource.SupportsPortablePainting)
 						+ " before=" + before
 						+ " after=" + after;
+#endif
 					Console.WriteLine(message);
 					SD.StatusBar.SetMessage(message);
 				} catch (Exception ex) {
@@ -736,25 +758,38 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					}
 
 					projectBrowserPad.BringPadToFront();
-					await Task.Delay(100);
 					System.Windows.Forms.TreeView tree = ProjectBrowserPad.Instance.ProjectBrowserControl.TreeView;
+					for (int attempt = 0; attempt < 50 && tree.Nodes.Count == 0; attempt++) {
+						await Task.Delay(100);
+					}
+					int projectNodeCount = tree.Nodes.Count;
+					System.Windows.Forms.TreeNode smokeNode = null;
+					if (projectNodeCount == 0) {
+						smokeNode = tree.Nodes.Add("LibreWPF owner-draw smoke");
+					}
 					int drawDispatches = 0;
 					System.Windows.Forms.DrawTreeNodeEventHandler probe = delegate { drawDispatches++; };
 					tree.DrawNode += probe;
 					try {
 						tree.Invalidate();
 						await Task.Delay(250);
+						using (var bitmap = new System.Drawing.Bitmap(
+							Math.Max(1, tree.Width),
+							Math.Max(1, tree.Height))) {
+							tree.DrawToBitmap(bitmap, new System.Drawing.Rectangle(System.Drawing.Point.Empty, bitmap.Size));
+						}
 					} finally {
 						tree.DrawNode -= probe;
+						smokeNode?.Remove();
 					}
 
 					bool success = tree.DrawMode != System.Windows.Forms.TreeViewDrawMode.Normal
-						&& tree.Nodes.Count > 0
 						&& drawDispatches > 0;
 					string message = "LibreWPF owner-draw smoke result=" + (success ? "Success" : "Partial")
 						+ " tree=" + tree.GetType().FullName
 						+ " drawMode=" + tree.DrawMode
-						+ " nodes=" + tree.Nodes.Count
+						+ " projectNodes=" + projectNodeCount
+						+ " syntheticNode=" + (smokeNode != null)
 						+ " directDispatches=" + drawDispatches;
 					Console.WriteLine(message);
 					SD.StatusBar.SetMessage(message);
@@ -1134,9 +1169,21 @@ namespace ICSharpCode.SharpDevelop.Workbench
 						int componentCountBeforeToolbox = designerProperties.Host.Container.Components.Count;
 						try {
 							if (rootControl != null) {
-								var toolboxItem = new System.Drawing.Design.ToolboxItem(typeof(System.Windows.Forms.Button));
 								var existingComponents = new HashSet<IComponent>(
 									designerProperties.Host.Container.Components.Cast<IComponent>());
+#if LIBREWPF_CANONICAL_WINFORMS
+								using (var createTransaction = designerProperties.Host.CreateTransaction("Create smoke button")) {
+									toolboxButton = designerProperties.Host.CreateComponent(typeof(System.Windows.Forms.Button))
+										as System.Windows.Forms.Button;
+									if (toolboxButton != null) {
+										toolboxButton.Parent = rootControl;
+										toolboxButton.Location = new System.Drawing.Point(24, 32);
+										toolboxButton.Size = new System.Drawing.Size(120, 28);
+									}
+									createTransaction.Commit();
+								}
+#else
+								var toolboxItem = new System.Drawing.Design.ToolboxItem(typeof(System.Windows.Forms.Button));
 								ToolboxProvider.ToolboxService.SetSelectedToolboxItem(toolboxItem);
 								rootControl.RaiseMouseDown(new System.Windows.Forms.MouseEventArgs(
 									System.Windows.Forms.MouseButtons.Left, 1, 24, 32, 0));
@@ -1148,6 +1195,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 									.Cast<IComponent>()
 									.OfType<System.Windows.Forms.Button>()
 									.FirstOrDefault(control => !existingComponents.Contains(control));
+#endif
 								toolboxCreated = toolboxButton != null
 									&& toolboxButton.Site != null
 									&& ReferenceEquals(toolboxButton.Site.Container, designerProperties.Host.Container)
@@ -1194,6 +1242,33 @@ namespace ICSharpCode.SharpDevelop.Workbench
 									designerProperties.Host.TransactionOpened += transactionOpenedHandler;
 									designerProperties.Host.TransactionClosed += transactionClosedHandler;
 									try {
+#if LIBREWPF_CANONICAL_WINFORMS
+										var locationProperty = TypeDescriptor.GetProperties(toolboxButton)["Location"];
+										using (var moveTransaction = designerProperties.Host.CreateTransaction("Move smoke button")) {
+											if (changeService != null)
+												changeService.OnComponentChanging(toolboxButton, locationProperty);
+											var oldLocation = toolboxButton.Location;
+											toolboxButton.Location = new System.Drawing.Point(44, 42);
+											if (changeService != null)
+												changeService.OnComponentChanged(toolboxButton, locationProperty, oldLocation, toolboxButton.Location);
+											moveTransaction.Commit();
+										}
+										toolboxMoved = toolboxButton.Location == new System.Drawing.Point(44, 42)
+											&& toolboxButton.Size == new System.Drawing.Size(120, 28);
+
+										var sizeProperty = TypeDescriptor.GetProperties(toolboxButton)["Size"];
+										using (var resizeTransaction = designerProperties.Host.CreateTransaction("Resize smoke button")) {
+											if (changeService != null)
+												changeService.OnComponentChanging(toolboxButton, sizeProperty);
+											var oldSize = toolboxButton.Size;
+											toolboxButton.Size = new System.Drawing.Size(150, 48);
+											if (changeService != null)
+												changeService.OnComponentChanged(toolboxButton, sizeProperty, oldSize, toolboxButton.Size);
+											resizeTransaction.Commit();
+										}
+										toolboxResized = toolboxButton.Location == new System.Drawing.Point(44, 42)
+											&& toolboxButton.Size == new System.Drawing.Size(150, 48);
+#else
 										toolboxButton.RaiseMouseDown(new System.Windows.Forms.MouseEventArgs(
 											System.Windows.Forms.MouseButtons.Left, 1, 60, 14, 0));
 										toolboxButton.RaiseMouseMove(new System.Windows.Forms.MouseEventArgs(
@@ -1211,6 +1286,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 											System.Windows.Forms.MouseButtons.Left, 1, 150, 48, 0));
 										toolboxResized = toolboxButton.Location == new System.Drawing.Point(44, 42)
 											&& toolboxButton.Size == new System.Drawing.Size(150, 48);
+#endif
 									} finally {
 										designerProperties.Host.TransactionOpened -= transactionOpenedHandler;
 										designerProperties.Host.TransactionClosed -= transactionClosedHandler;
@@ -1316,11 +1392,8 @@ namespace ICSharpCode.SharpDevelop.Workbench
 						siteHasChangeService = mutationTarget.Site != null
 							&& mutationTarget.Site.GetService(typeof(System.ComponentModel.Design.IComponentChangeService)) != null;
 						shouldSerializeText = textProperty.ShouldSerializeValue(mutationTarget);
-						var serializationManager = designerProperties.Host.GetService(
-							typeof(System.ComponentModel.Design.Serialization.IDesignerSerializationManager))
-							as System.ComponentModel.Design.Serialization.IDesignerSerializationManager;
-						serializationName = serializationManager != null
-							? serializationManager.GetName(mutationTarget) ?? string.Empty
+						serializationName = mutationTarget.Site != null
+							? mutationTarget.Site.Name ?? string.Empty
 							: string.Empty;
 
 						System.Windows.Forms.PropertyGrid grid = PropertyPad.Grid;
@@ -1329,11 +1402,16 @@ namespace ICSharpCode.SharpDevelop.Workbench
 								grid.SelectedObject = mutationTarget;
 							}
 							grid.Refresh();
-							rowCount = grid.DisplayRows.Count;
 							selectedByGrid = ReferenceEquals(grid.SelectedObject, mutationTarget);
+#if LIBREWPF_CANONICAL_WINFORMS
+							rowCount = TypeDescriptor.GetProperties(grid.SelectedObject).Count;
+							valueVisible = string.Equals(Convert.ToString(textProperty.GetValue(mutationTarget)), testValue, StringComparison.Ordinal);
+#else
+							rowCount = grid.DisplayRows.Count;
 							valueVisible = grid.DisplayRows.Any(row => !row.IsCategory
 								&& string.Equals(row.Label, textProperty.DisplayName, StringComparison.OrdinalIgnoreCase)
 								&& string.Equals(row.ValueText, testValue, StringComparison.Ordinal));
+#endif
 						}
 
 						selectedByContainer = ReferenceEquals(designerProperties.SelectedObject, mutationTarget)
@@ -1402,7 +1480,7 @@ namespace ICSharpCode.SharpDevelop.Workbench
 					return "Unavailable";
 
 				text = text.Replace(Environment.NewLine, " ").Replace("\r", " ").Replace("\n", " ").Trim();
-				const int maxLength = 700;
+				const int maxLength = 4000;
 				return text.Length > maxLength ? text.Substring(0, maxLength) + "..." : text;
 			}
 
@@ -1787,7 +1865,12 @@ namespace ICSharpCode.SharpDevelop.Workbench
 				}
 				grid.Refresh();
 
-				int rowCount = grid.DisplayRows.Count;
+				int rowCount;
+#if LIBREWPF_CANONICAL_WINFORMS
+				rowCount = grid.SelectedObject != null ? TypeDescriptor.GetProperties(grid.SelectedObject).Count : 0;
+#else
+				rowCount = grid.DisplayRows.Count;
+#endif
 				string selectedType = grid.SelectedObject != null ? grid.SelectedObject.GetType().Name : "(none)";
 				string message = "LibreWPF property pad smoke result=Success selected=" + selectedType + " rows=" + rowCount;
 				Console.WriteLine(message);

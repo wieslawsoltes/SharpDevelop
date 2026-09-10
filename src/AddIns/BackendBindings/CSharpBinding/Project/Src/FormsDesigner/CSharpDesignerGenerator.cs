@@ -38,6 +38,7 @@ using Microsoft.CSharp;
 using CSharpBinding.FormattingStrategy;
 using CSharpBinding.Parser;
 using CSharpBinding.Refactoring;
+using NRefactoryAccessibility = ICSharpCode.NRefactory.TypeSystem.Accessibility;
 
 namespace CSharpBinding.FormsDesigner
 {
@@ -248,18 +249,18 @@ namespace CSharpBinding.FormsDesigner
 			}
 			
 			// compare accessibility modifiers
-			Accessibility oldModifiers = oldField.Accessibility;
+			NRefactoryAccessibility oldModifiers = oldField.Accessibility;
 			MemberAttributes newModifiers = newField.Attributes & MemberAttributes.AccessMask;
 			
 			// SharpDevelop.Dom always adds Private modifier, even if not specified
 			// CodeDom omits Private modifier if not present (although it is the default)
-			if (oldModifiers == Accessibility.Private) {
+			if (oldModifiers == NRefactoryAccessibility.Private) {
 				if (newModifiers != 0 && newModifiers != MemberAttributes.Private) {
 					return true;
 				}
 			}
 			
-			Accessibility[] sdModifiers = {Accessibility.Protected, Accessibility.ProtectedAndInternal, Accessibility.Internal, Accessibility.Public};
+			NRefactoryAccessibility[] sdModifiers = {NRefactoryAccessibility.Protected, NRefactoryAccessibility.ProtectedAndInternal, NRefactoryAccessibility.Internal, NRefactoryAccessibility.Public};
 			MemberAttributes[] cdModifiers = {MemberAttributes.Family, MemberAttributes.FamilyOrAssembly, MemberAttributes.Assembly, MemberAttributes.Public};
 			for (int i = 0; i < sdModifiers.Length; i++) {
 				if ((oldModifiers  == sdModifiers[i]) ^ (newModifiers  == cdModifiers[i])) {

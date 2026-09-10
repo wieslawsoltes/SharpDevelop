@@ -3,7 +3,7 @@
     <BaseIntermediateOutputPath>obj\LibreWpf\</BaseIntermediateOutputPath>
     <MSBuildProjectExtensionsPath>obj\LibreWpf\</MSBuildProjectExtensionsPath>
   </PropertyGroup>
-  <Import Project="Sdk.props" Sdk="LibreWPF.Sdk" Version="0.1.0-preview.42" />
+  <Import Project="Sdk.props" Sdk="LibreWPF.Sdk" Version="0.1.0-preview.45" />
   <PropertyGroup>
     <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
     <UseWPF>true</UseWPF>
@@ -44,5 +44,5 @@
                Condition="Exists('$(ProGpuSystemDrawingCommonAssembly)')" />
     <ProjectReference Include="..\DiagramRouter\Diagrams.LibreWpf.csproj" />
   </ItemGroup>
-  <Import Project="Sdk.targets" Sdk="LibreWPF.Sdk" Version="0.1.0-preview.42" />
+  <Import Project="Sdk.targets" Sdk="LibreWPF.Sdk" Version="0.1.0-preview.45" />
 </Project>

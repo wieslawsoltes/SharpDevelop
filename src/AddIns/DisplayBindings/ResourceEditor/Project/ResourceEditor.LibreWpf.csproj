@@ -1,4 +1,4 @@
-<Project Sdk="LibreWPF.Sdk/0.1.0-preview.42">
+<Project Sdk="LibreWPF.Sdk/0.1.0-preview.45">
   <PropertyGroup>
     <TargetFramework>$(ProGpuWpfSdkSampleTargetFramework)</TargetFramework>
     <UseWPF>true</UseWPF>
@@ -37,8 +37,8 @@
 
   <ItemGroup>
     <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(ProGpuPackageVersion)" />
-    <PackageReference Include="System.CodeDom" Version="10.0.0" />
-    <PackageReference Include="System.Resources.Extensions" Version="10.0.0" />
+    <PackageReference Include="System.CodeDom" Version="10.0.10" />
+    <PackageReference Include="System.Resources.Extensions" Version="10.0.10" />
   </ItemGroup>
 
   <ItemGroup>

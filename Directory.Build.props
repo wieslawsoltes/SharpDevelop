@@ -1,12 +1,15 @@
 <Project>
   <PropertyGroup>
-    <ProGpuWpfSdkVersion>0.1.0-preview.42</ProGpuWpfSdkVersion>
+    <ProGpuWpfSdkVersion>0.1.0-preview.45</ProGpuWpfSdkVersion>
     <ProGpuWpfPackageVersion>$(ProGpuWpfSdkVersion)</ProGpuWpfPackageVersion>
     <ProGpuWpfManagedPackageVersion>$(ProGpuWpfPackageVersion)</ProGpuWpfManagedPackageVersion>
     <ProGpuPackageVersion>0.1.0-preview.50</ProGpuPackageVersion>
     <ProGpuWpfLibreWinFormsPackageVersion>0.1.0-preview.42</ProGpuWpfLibreWinFormsPackageVersion>
+    <ProGpuWpfLibreWinFormsBackendPackageVersion>$(ProGpuWpfLibreWinFormsPackageVersion)</ProGpuWpfLibreWinFormsBackendPackageVersion>
     <ProGpuWpfSdkSampleTargetFramework Condition="'$(ProGpuWpfSdkSampleTargetFramework)' == ''">net10.0-windows</ProGpuWpfSdkSampleTargetFramework>
     <ProGpuWpfUsePortableWinFormsCompat>true</ProGpuWpfUsePortableWinFormsCompat>
     <ProGpuWpfUseLibreWinForms>true</ProGpuWpfUseLibreWinForms>
+    <ProGpuWpfUseCanonicalLibreWinForms Condition="'$(ProGpuWpfUseCanonicalLibreWinForms)' == ''">false</ProGpuWpfUseCanonicalLibreWinForms>
+    <DefineConstants Condition="'$(ProGpuWpfUseCanonicalLibreWinForms)' == 'true'">$(DefineConstants);LIBREWPF_CANONICAL_WINFORMS</DefineConstants>
   </PropertyGroup>
 </Project>
