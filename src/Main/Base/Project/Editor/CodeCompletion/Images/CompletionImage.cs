@@ -24,6 +24,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using ICSharpCode.NRefactory.TypeSystem;
 using ICSharpCode.NRefactory.TypeSystem.Implementation;
+using NRefactoryAccessibility = ICSharpCode.NRefactory.TypeSystem.Accessibility;
 
 namespace ICSharpCode.SharpDevelop.Editor.CodeCompletion
 {
@@ -287,22 +288,22 @@ namespace ICSharpCode.SharpDevelop.Editor.CodeCompletion
 		/// Gets an overlay image for the specified accessibility.
 		/// Returns null if no overlay exists (for example, public members don't use overlays).
 		/// </summary>
-		public static ImageSource GetAccessibilityOverlay(Accessibility accessibility)
+		public static ImageSource GetAccessibilityOverlay(NRefactoryAccessibility accessibility)
 		{
 			return accessibilityOverlays[GetAccessibilityOverlayIndex(accessibility)];
 		}
 		
-		static int GetAccessibilityOverlayIndex(Accessibility accessibility)
+		static int GetAccessibilityOverlayIndex(NRefactoryAccessibility accessibility)
 		{
 			switch (accessibility) {
-				case Accessibility.Private:
+				case NRefactoryAccessibility.Private:
 					return 1;
-				case Accessibility.Protected:
+				case NRefactoryAccessibility.Protected:
 					return 2;
-				case Accessibility.Internal:
+				case NRefactoryAccessibility.Internal:
 					return 3;
-				case Accessibility.ProtectedOrInternal:
-				case Accessibility.ProtectedAndInternal:
+				case NRefactoryAccessibility.ProtectedOrInternal:
+				case NRefactoryAccessibility.ProtectedAndInternal:
 					return 4;
 				default:
 					return 0;
@@ -342,7 +343,7 @@ namespace ICSharpCode.SharpDevelop.Editor.CodeCompletion
 		/// <summary>
 		/// Gets this image combined with the specified accessibility overlay.
 		/// </summary>
-		public ImageSource GetImage(Accessibility accessibility, bool isStatic = false)
+		public ImageSource GetImage(NRefactoryAccessibility accessibility, bool isStatic = false)
 		{
 			int accessibilityIndex = GetAccessibilityOverlayIndex(accessibility);
 			int index;

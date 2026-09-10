@@ -149,6 +149,14 @@ namespace ICSharpCode.FormsDesigner
 		
 		protected override void ReportFlushErrors(ICollection errors)
 		{
+			if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("LIBREWPF_SHARPDEVELOP_FORMS_DESIGNER_SMOKE"))) {
+				foreach (var error in errors) {
+					Console.WriteLine("LibreWPF FormsDesigner flush error: " + error);
+				}
+				throw new InvalidOperationException(
+					"LibreWPF FormsDesigner smoke observed " + errors.Count + " serialization flush error(s).");
+			}
+
 			StringBuilder sb = new StringBuilder(StringParser.Parse("${res:ICSharpCode.SharpDevelop.FormDesigner.ReportFlushErrors}") + Environment.NewLine + Environment.NewLine);
 			foreach (var error in errors) {
 				sb.AppendLine(error.ToString());

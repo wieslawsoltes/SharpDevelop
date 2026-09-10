@@ -21,6 +21,7 @@ using System.ComponentModel;
 using ICSharpCode.NRefactory.TypeSystem;
 using ICSharpCode.SharpDevelop.Parser;
 using ICSharpCode.SharpDevelop.Project;
+using NRefactoryAccessibility = ICSharpCode.NRefactory.TypeSystem.Accessibility;
 
 namespace ICSharpCode.SharpDevelop.Dom
 {
@@ -84,7 +85,7 @@ namespace ICSharpCode.SharpDevelop.Dom
 			get { return member.SymbolKind; }
 		}
 		
-		public Accessibility Accessibility {
+		public NRefactoryAccessibility Accessibility {
 			get { return member.Accessibility; }
 		}
 		

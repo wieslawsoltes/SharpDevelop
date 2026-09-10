@@ -31,6 +31,9 @@ using ICSharpCode.SharpDevelop.Logging;
 using ICSharpCode.SharpDevelop.Project;
 using ICSharpCode.SharpDevelop.Sda;
 using ICSharpCode.SharpDevelop.Services;
+#if LIBREWPF_CANONICAL_WINFORMS
+using LibreWinForms.ProGPU;
+#endif
 
 namespace ICSharpCode.SharpDevelop.Startup
 {
@@ -65,6 +68,9 @@ namespace ICSharpCode.SharpDevelop.Startup
 		[STAThread()]
 		public static void Main(string[] args)
 		{
+#if LIBREWPF_CANONICAL_WINFORMS
+			ProGpuPlatform.Register();
+#endif
 			commandLineArgs = args; // Needed by UseExceptionBox
 			
 			// Do not use LoggingService here (see comment in Run(string[]))
@@ -215,8 +221,13 @@ namespace ICSharpCode.SharpDevelop.Startup
 				if (!File.Exists(msbuildPath))
 					continue;
 
+				string versionText = Path.GetFileName(directory);
+				int prereleaseSeparator = versionText.IndexOf('-');
+				if (prereleaseSeparator >= 0)
+					versionText = versionText.Substring(0, prereleaseSeparator);
+
 				Version version;
-				if (!Version.TryParse(Path.GetFileName(directory), out version)) {
+				if (!Version.TryParse(versionText, out version)) {
 					if (best == null)
 						best = directory;
 					continue;

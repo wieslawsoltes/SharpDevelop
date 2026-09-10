@@ -52,6 +52,9 @@ namespace ICSharpCode.SharpDevelop.Project
 		internal static MSBuild.Evaluation.Project LoadProject(MSBuild.Evaluation.ProjectCollection projectCollection, ProjectRootElement rootElement, IDictionary<string, string> globalProps)
 		{
 			lock (SolutionProjectCollectionLock) {
+#if LIBREWPF
+				NormalizeLibreWpfImportPathCasing(rootElement);
+#endif
 				string toolsVersion = ResolveToolsVersion(projectCollection, rootElement.ToolsVersion);
 				return new MSBuild.Evaluation.Project(rootElement, globalProps, toolsVersion, projectCollection);
 			}
@@ -60,10 +63,28 @@ namespace ICSharpCode.SharpDevelop.Project
 		internal static ProjectInstance LoadProjectInstance(MSBuild.Evaluation.ProjectCollection projectCollection, ProjectRootElement rootElement, IDictionary<string, string> globalProps)
 		{
 			lock (SolutionProjectCollectionLock) {
+#if LIBREWPF
+				NormalizeLibreWpfImportPathCasing(rootElement);
+#endif
 				string toolsVersion = ResolveToolsVersion(projectCollection, rootElement.ToolsVersion);
 				return new ProjectInstance(rootElement, globalProps, toolsVersion, projectCollection);
 			}
 		}
+
+#if LIBREWPF
+		static void NormalizeLibreWpfImportPathCasing(ProjectRootElement rootElement)
+		{
+			if (OperatingSystem.IsWindows())
+				return;
+
+			foreach (ProjectImportElement import in rootElement.Imports) {
+				if (import.Project.EndsWith("Microsoft.CSharp.Targets", StringComparison.Ordinal))
+					import.Project = import.Project.Substring(0, import.Project.Length - "Microsoft.CSharp.Targets".Length) + "Microsoft.CSharp.targets";
+				else if (import.Project.EndsWith("Microsoft.VisualBasic.Targets", StringComparison.Ordinal))
+					import.Project = import.Project.Substring(0, import.Project.Length - "Microsoft.VisualBasic.Targets".Length) + "Microsoft.VisualBasic.targets";
+			}
+		}
+#endif
 
 		static string ResolveToolsVersion(MSBuild.Evaluation.ProjectCollection projectCollection, string toolsVersion)
 		{

@@ -23,6 +23,7 @@ using System.Linq;
 using ClassDiagram;
 using ICSharpCode.NRefactory.TypeSystem;
 using ICSharpCode.SharpDevelop;
+using NRefactoryAccessibility = ICSharpCode.NRefactory.TypeSystem.Accessibility;
 
 namespace ClassDiagramAddin
 {
@@ -136,22 +137,22 @@ namespace ClassDiagramAddin
 		{
 			var modifiers = new List<string>();
 			switch (type.Accessibility) {
-				case Accessibility.Private:
+				case NRefactoryAccessibility.Private:
 					modifiers.Add("private");
 					break;
-				case Accessibility.Public:
+				case NRefactoryAccessibility.Public:
 					modifiers.Add("public");
 					break;
-				case Accessibility.Protected:
+				case NRefactoryAccessibility.Protected:
 					modifiers.Add("protected");
 					break;
-				case Accessibility.Internal:
+				case NRefactoryAccessibility.Internal:
 					modifiers.Add("internal");
 					break;
-				case Accessibility.ProtectedOrInternal:
+				case NRefactoryAccessibility.ProtectedOrInternal:
 					modifiers.Add("protected internal");
 					break;
-				case Accessibility.ProtectedAndInternal:
+				case NRefactoryAccessibility.ProtectedAndInternal:
 					modifiers.Add("private protected");
 					break;
 			}

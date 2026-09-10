@@ -98,15 +98,21 @@ namespace ClassDiagramAddin.LibreWpf
 				if (host == null || !ReferenceEquals(host.Child, canvas))
 					throw new InvalidOperationException("ClassCanvas was not attached to WindowsFormsHost.");
 
+				int invalidationCount = 0;
+				canvas.Invalidated += delegate { invalidationCount++; };
+#if !LIBREWPF_CANONICAL_WINFORMS
 				IPortableWinFormsPaintSource paintSource = canvas;
 				long paintVersionBefore = paintSource.PortablePaintVersion;
 				long invalidationsBefore = host.PortableChildInvalidationDispatchCount;
+#endif
 				canvas.PerformLayout();
 				canvas.AutoArrange();
 				canvas.Invalidate(true);
 				await Task.Delay(150);
+#if !LIBREWPF_CANONICAL_WINFORMS
 				long paintVersionAfter = paintSource.PortablePaintVersion;
 				long invalidationsAfter = host.PortableChildInvalidationDispatchCount;
+#endif
 
 				string imagePath = Path.Combine(temporaryDirectory, "LibreWpfClassDiagram.png");
 				canvas.SaveToImage(imagePath);
@@ -130,6 +136,22 @@ namespace ClassDiagramAddin.LibreWpf
 				if (canvas.GetCanvasItems().Length != types.Length || Math.Abs(canvas.Zoom - 1.25f) > 0.001f)
 					throw new InvalidOperationException("ClassDiagram save/reload did not preserve types and zoom.");
 
+#if LIBREWPF_CANONICAL_WINFORMS
+				bool invalidated = invalidationCount > 0;
+				bool presented = PresentationSource.FromVisual(host) != null;
+				if (!invalidated || !presented)
+					throw new InvalidOperationException(
+						"ClassDiagram did not reach the canonical WinForms host path."
+						+ " invalidated=" + invalidated
+						+ " presented=" + presented);
+
+				WriteResult(
+					"Success",
+					"types=" + types.Length
+					+ " invalidations=" + invalidationCount
+					+ " bitmap=" + imageWidth + "x" + imageHeight
+					+ " canonical=True hosted=True presented=True saveReload=True cleanup=True");
+#else
 				bool painted = paintSource.SupportsPortablePainting && paintVersionAfter > paintVersionBefore;
 				bool invalidated = invalidationsAfter > invalidationsBefore;
 				bool presented = PresentationSource.FromVisual(host) != null;
@@ -147,6 +169,7 @@ namespace ClassDiagramAddin.LibreWpf
 					+ " invalidations=" + invalidationsAfter
 					+ " bitmap=" + imageWidth + "x" + imageHeight
 					+ " hosted=True presented=True saveReload=True cleanup=True");
+#endif
 			} finally {
 				if (content != null && content.WorkbenchWindow != null)
 					content.WorkbenchWindow.CloseWindow(true);

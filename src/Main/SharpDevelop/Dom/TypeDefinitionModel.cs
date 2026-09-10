@@ -26,6 +26,7 @@ using ICSharpCode.NRefactory;
 using ICSharpCode.NRefactory.TypeSystem;
 using ICSharpCode.SharpDevelop.Parser;
 using ICSharpCode.SharpDevelop.Project;
+using NRefactoryAccessibility = ICSharpCode.NRefactory.TypeSystem.Accessibility;
 
 namespace ICSharpCode.SharpDevelop.Dom
 {
@@ -67,13 +68,13 @@ namespace ICSharpCode.SharpDevelop.Dom
 			get { return parts[0].Kind; }
 		}
 		
-		public Accessibility Accessibility {
+		public NRefactoryAccessibility Accessibility {
 			get {
 				var td = Resolve();
 				if (td != null)
 					return td.Accessibility;
 				else
-					return Accessibility.None;
+					return NRefactoryAccessibility.None;
 			}
 		}
 		
